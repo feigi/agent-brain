@@ -54,7 +54,7 @@ describe("Memory scoping integration tests", () => {
       "user",
       "alice",
       undefined,
-      0, // allow any similarity
+      -1, // negative threshold ensures mock embeddings with any cosine similarity pass through
     );
 
     expect(result.data.length).toBeGreaterThan(0);

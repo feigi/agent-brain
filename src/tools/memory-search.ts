@@ -12,7 +12,7 @@ export function registerMemorySearch(server: McpServer, memoryService: MemorySer
       inputSchema: {
         project_id: z.string().describe("Project slug to search within"),
         query: z.string().describe("Natural language search query"),
-        scope: z.enum(["project", "user"]).catch("project").describe("Search scope"),
+        scope: z.enum(["project", "user", "both"]).catch("project").describe("Search scope: 'project' (default), 'user', or 'both' (requires user_id)"),
         user_id: z.string().optional().describe("Required when scope is 'user'"),
         limit: z.number().int().min(1).max(100).default(10).describe("Max results to return (default 10)"),
         min_similarity: z.number().min(0).max(1).default(0.3).describe("Minimum similarity threshold (default 0.3)"),

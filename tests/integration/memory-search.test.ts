@@ -41,7 +41,7 @@ describe("Memory search integration tests", () => {
       "project",
       undefined,
       undefined,
-      0, // allow any relevance -- mock embeddings have low scores
+      -1, // negative threshold ensures mock embeddings with any cosine similarity pass through
     );
 
     // Should return results with relevance scores in descending order
@@ -70,7 +70,7 @@ describe("Memory search integration tests", () => {
       "project",
       undefined,
       2,
-      0, // allow any relevance -- mock embeddings have low scores
+      -1, // negative threshold ensures mock embeddings with any cosine similarity pass through
     );
 
     expect(result.data.length).toBeLessThanOrEqual(2);
@@ -120,6 +120,50 @@ describe("Memory search integration tests", () => {
     expect(result.data.length).toBe(0);
   });
 
+  it("cross-scope search returns both project and user memories (SCOP-03)", async () => {
+    // Create a project-scoped memory
+    await service.create({
+      project_id: "test-project",
+      content: "Project-specific deployment configuration notes",
+      type: "fact",
+      scope: "project",
+      author: "alice",
+    });
+    // Create a user-scoped memory
+    await service.create({
+      project_id: "test-project",
+      content: "User alice deployment preferences and patterns",
+      type: "preference",
+      scope: "user",
+      author: "alice",
+    });
+
+    const result = await service.search(
+      "deployment",
+      "test-project",
+      "both",
+      "alice",
+      undefined,
+      -1, // negative threshold ensures mock embeddings with any cosine similarity pass through
+    );
+
+    expect(result.data.length).toBe(2);
+    const scopes = result.data.map((m) => m.scope);
+    expect(scopes).toContain("project");
+    expect(scopes).toContain("user");
+    // All results have relevance field
+    for (const memory of result.data) {
+      expect(memory).toHaveProperty("relevance");
+      expect((memory as any).similarity).toBeUndefined();
+    }
+  });
+
+  it("cross-scope search throws without user_id (D-09)", async () => {
+    await expect(
+      service.search("test", "test-project", "both"),
+    ).rejects.toThrow("user_id is required");
+  });
+
   it("search results include relevance score between 0 and 1", async () => {
     await service.create({
       project_id: "test-project",
@@ -134,13 +178,13 @@ describe("Memory search integration tests", () => {
       "project",
       undefined,
       undefined,
-      0, // allow any relevance
+      -1, // negative threshold ensures mock embeddings with any cosine similarity pass through
     );
 
     expect(result.data.length).toBeGreaterThan(0);
     for (const memory of result.data) {
       expect(memory.relevance).toBeTypeOf("number");
-      expect(memory.relevance).toBeGreaterThan(0);
+      expect(memory.relevance).toBeGreaterThanOrEqual(0); // composite score is clamped to [0, 1]
       expect(memory.relevance).toBeLessThanOrEqual(1);
     }
   });

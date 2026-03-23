@@ -5,6 +5,8 @@ import type { MemoryRepository, ProjectRepository, ListOptions, SearchOptions, S
 import { NotFoundError, EmbeddingError } from "../utils/errors.js";
 import { generateId } from "../utils/id.js";
 import { logger } from "../utils/logger.js";
+import { computeRelevance, OVER_FETCH_FACTOR } from "../utils/scoring.js";
+import { config } from "../config.js";
 
 const MAX_CONTENT_WARNING = 4_000; // D-20: Warn but allow
 const AUTO_TITLE_LENGTH = 80;      // D-03: Auto-generate title length
@@ -151,12 +153,13 @@ export class MemoryService {
   async search(
     query: string,
     project_id: string,
-    scope: "project" | "user",
+    scope: "project" | "user" | "both",
     user_id?: string,
     limit?: number,
     min_similarity?: number,
   ): Promise<Envelope<MemoryWithRelevance[]>> {
     const start = Date.now();
+    const effectiveLimit = limit ?? 10;
 
     // Generate embedding for query text
     let embedding: number[];
@@ -168,14 +171,34 @@ export class MemoryService {
       throw new EmbeddingError(`Failed to generate query embedding: ${message}`);
     }
 
-    const results = await this.memoryRepo.search({
+    // Over-fetch candidates by raw similarity for re-ranking (D-04)
+    const overFetchLimit = effectiveLimit * OVER_FETCH_FACTOR;
+    const candidates = await this.memoryRepo.search({
       embedding,
       project_id,
       scope,
       user_id,
-      limit,
+      limit: overFetchLimit,
       min_similarity,
     });
+
+    // Re-rank with composite scoring (D-04: app-layer scoring)
+    const scored: MemoryWithRelevance[] = candidates.map((candidate) => {
+      const { relevance: _rawSimilarity, ...memory } = candidate;
+      return {
+        ...memory,
+        relevance: computeRelevance(
+          _rawSimilarity,
+          candidate.created_at,
+          candidate.verified_at,
+          config.recencyHalfLifeDays,
+        ),
+      };
+    });
+
+    // Sort by composite relevance descending, take top N
+    scored.sort((a, b) => b.relevance - a.relevance);
+    const results = scored.slice(0, effectiveLimit);
 
     const timing = Date.now() - start;
     return {

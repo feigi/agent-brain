@@ -189,10 +189,15 @@ export class DrizzleMemoryRepository implements MemoryRepository {
     // (pgvector cosineDistance doesn't support direct threshold in WHERE easily)
     return result
       .filter((row) => Number(row.similarity) >= minSimilarity)
-      .map((row) => ({
-        ...rowToMemory(row),
-        relevance: Number(row.similarity),
-      }));
+      .map((row) => {
+        // Strip the SQL-computed 'similarity' alias before spreading to avoid leaking
+        // internal column names into the MemoryWithRelevance output
+        const { similarity: rawSim, ...memoryFields } = row;
+        return {
+          ...rowToMemory(memoryFields as typeof row),
+          relevance: Number(rawSim),
+        };
+      });
   }
 
   // RESEARCH Pattern 6: Cursor-based pagination
