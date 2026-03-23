@@ -52,7 +52,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
   private memoryColumns() {
     return {
       ...baseMemoryColumns,
-      comment_count: sql<number>`(SELECT COUNT(*)::int FROM comments WHERE comments.memory_id = ${memories.id})`.as('comment_count'),
+      comment_count: sql<number>`(SELECT COUNT(*)::int FROM comments WHERE comments.memory_id = memories.id)`.as('comment_count'),
     };
   }
 
@@ -435,6 +435,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
   }
 
   async countTeamActivity(projectId: string, userId: string, since: Date): Promise<TeamActivityCounts> {
+    // D-30: team_activity includes the user's own changes -- do NOT filter by author
     const [newCount, updatedCount] = await Promise.all([
       this.db
         .select({ count: sql<number>`count(*)::int` })
@@ -444,7 +445,6 @@ export class DrizzleMemoryRepository implements MemoryRepository {
             eq(memories.project_id, projectId),
             isNull(memories.archived_at),
             gt(memories.created_at, since),
-            sql`${memories.author} != ${userId}`,
           )
         ),
       this.db
@@ -456,7 +456,6 @@ export class DrizzleMemoryRepository implements MemoryRepository {
             isNull(memories.archived_at),
             gt(memories.updated_at, since),
             lt(memories.created_at, since),
-            sql`${memories.author} != ${userId}`,
           )
         ),
     ]);
