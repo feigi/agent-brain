@@ -218,8 +218,9 @@ export class MemoryService {
     if (context) {
       // D-14: With context, use semantic search with composite scoring
       // D-15: Always search both scopes
-      // min_similarity = 0.0 -- session start should be permissive
-      return this.search(context, projectId, "both", userId, limit, 0.0);
+      // min_similarity = -1 -- session start should be maximally permissive
+      // (mock embeddings can produce negative cosine similarity)
+      return this.search(context, projectId, "both", userId, limit, -1);
     }
 
     // D-14: Without context, fetch recent memories ranked by recency

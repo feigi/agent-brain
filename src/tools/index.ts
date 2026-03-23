@@ -8,6 +8,7 @@ import { registerMemorySearch } from "./memory-search.js";
 import { registerMemoryList } from "./memory-list.js";
 import { registerMemoryVerify } from "./memory-verify.js";
 import { registerMemoryListStale } from "./memory-list-stale.js";
+import { registerMemorySessionStart } from "./memory-session-start.js";
 
 export function registerAllTools(server: McpServer, memoryService: MemoryService): void {
   registerMemoryCreate(server, memoryService);
@@ -18,4 +19,5 @@ export function registerAllTools(server: McpServer, memoryService: MemoryService
   registerMemoryList(server, memoryService);
   registerMemoryVerify(server, memoryService);
   registerMemoryListStale(server, memoryService);
+  registerMemorySessionStart(server, memoryService);
 }
