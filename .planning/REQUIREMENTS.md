@@ -29,8 +29,8 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Retrieval
 
 - [ ] **RETR-01**: Semantic search returns memories ranked by vector similarity
-- [ ] **RETR-02**: Relevance scoring combines semantic similarity with recency weighting
-- [ ] **RETR-03**: Search results include relevance score, creation date, author, and tags
+- [x] **RETR-02**: Relevance scoring combines semantic similarity with recency weighting
+- [x] **RETR-03**: Search results include relevance score, creation date, author, and tags
 - [ ] **RETR-04**: Agent can auto-load relevant memories at session start based on project context
 - [ ] **RETR-05**: Session-start loading returns top-N most relevant memories within a configurable limit
 
@@ -115,8 +115,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCOP-03 | Phase 2 | Pending |
 | SCOP-04 | Phase 1 | Complete |
 | RETR-01 | Phase 2 | Pending |
-| RETR-02 | Phase 2 | Pending |
-| RETR-03 | Phase 2 | Pending |
+| RETR-02 | Phase 2 | Complete |
+| RETR-03 | Phase 2 | Complete |
 | RETR-04 | Phase 2 | Pending |
 | RETR-05 | Phase 2 | Pending |
 | TEAM-01 | Phase 3 | Pending |
