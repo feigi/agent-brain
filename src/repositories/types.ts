@@ -17,7 +17,7 @@ export interface ListOptions {
 export interface SearchOptions {
   embedding: number[];
   project_id: string;
-  scope: "project" | "user";
+  scope: "project" | "user" | "both";  // D-08: 'both' for cross-scope search
   user_id?: string;
   limit?: number;
   min_similarity?: number;

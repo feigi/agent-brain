@@ -153,15 +153,26 @@ export class DrizzleMemoryRepository implements MemoryRepository {
 
     // SCOP-01: project scope queries project_id
     // SCOP-02: user scope queries author + scope column
+    // SCOP-03: cross-scope ('both') uses OR for project + user memories
     if (options.scope === "project") {
       conditions.push(eq(memories.project_id, options.project_id));
-    } else {
-      // User scope: filter by author and scope = 'user'
+    } else if (options.scope === "user") {
       if (!options.user_id) {
         throw new Error("user_id is required for user-scoped search");
       }
       conditions.push(eq(memories.author, options.user_id));
       conditions.push(eq(memories.scope, "user"));
+    } else {
+      // scope === 'both' (D-10: single SQL query with OR)
+      if (!options.user_id) {
+        throw new Error("user_id is required for cross-scope search (D-09)");
+      }
+      conditions.push(
+        or(
+          eq(memories.project_id, options.project_id),
+          and(eq(memories.author, options.user_id), eq(memories.scope, "user")),
+        )!,
+      );
     }
 
     const result = await this.db
