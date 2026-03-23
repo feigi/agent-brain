@@ -8,6 +8,7 @@ export function createDb(databaseUrl: string) {
   const client = postgres(databaseUrl, {
     max: 10,
     idle_timeout: 20,
+    onnotice: () => {},  // Suppress PG NOTICE from stdout — corrupts MCP stdio framing
   });
   return drizzle(client, { schema });
 }
