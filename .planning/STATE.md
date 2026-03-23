@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase complete — ready for verification
-stopped_at: Completed 03-04-PLAN.md
-last_updated: "2026-03-23T20:40:49.491Z"
+status: Ready to execute
+stopped_at: Completed 03-05-PLAN.md
+last_updated: "2026-03-23T20:59:44.553Z"
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 11
-  completed_plans: 11
+  total_plans: 12
+  completed_plans: 12
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-23)
 ## Current Position
 
 Phase: 03 (team-collaboration) — EXECUTING
-Plan: 4 of 4
+Plan: 2 of 5
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Plan: 4 of 4
 | Phase 03 P02 | 7 | 2 tasks | 16 files |
 | Phase 03 P03 | 3min | 2 tasks | 8 files |
 | Phase 03-team-collaboration P03-04 | 6min | 2 tasks | 6 files |
+| Phase 03-team-collaboration P03-05 | 5min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -95,6 +96,8 @@ Recent decisions affecting current work:
 - [Phase 03]: getChangeType uses timestamp equality (updated_at == last_comment_at) to detect commented state -- accurate because comment create sets both to now() atomically in a transaction
 - [Phase 03-team-collaboration]: Correlated subquery bug: Drizzle sql template parameterizes dollar-brace column references as values -- raw SQL string required for correlated subquery column references
 - [Phase 03-team-collaboration]: D-30 fix: countTeamActivity was excluding user's own memories -- removed author \!= userId filter to include own changes in team_activity counts
+- [Phase 03-team-collaboration]: All comments count toward commented_memories regardless of author (D-30): no author filter in countTeamActivity
+- [Phase 03-team-collaboration]: COUNT DISTINCT comments.memory_id used for commented_memories -- counts distinct commented memories not total comment count
 
 ### Pending Todos
 
@@ -107,6 +110,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T20:40:49.488Z
-Stopped at: Completed 03-04-PLAN.md
+Last session: 2026-03-23T20:59:44.551Z
+Stopped at: Completed 03-05-PLAN.md
 Resume file: None
