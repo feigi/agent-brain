@@ -46,11 +46,12 @@ Plans:
   2. Search results include relevance score, creation date, author, and tags in the response
   3. Agent can auto-load the top-N most relevant memories at session start within a configurable limit
   4. Agent can search both project and user memories in a single query and receive unified ranked results
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
+- [ ] 02-01-PLAN.md -- Scoring functions, MemoryWithRelevance type, and config extension
+- [ ] 02-02-PLAN.md -- Cross-scope search and composite scoring in search pipeline
+- [ ] 02-03-PLAN.md -- memory_session_start MCP tool and integration tests
 
 ### Phase 3: Team Collaboration
 **Goal**: Multiple users share project memories with provenance tracking, threaded discussions, and staleness management
@@ -89,6 +90,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation and Core Memory | 4/4 | Complete   | 2026-03-23 |
-| 2. Retrieval Quality and Session Lifecycle | 0/2 | Not started | - |
+| 2. Retrieval Quality and Session Lifecycle | 0/3 | Not started | - |
 | 3. Team Collaboration | 0/2 | Not started | - |
 | 4. Agent Autonomy | 0/1 | Not started | - |
