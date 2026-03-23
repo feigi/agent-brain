@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer, jsonb, index, vector } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, jsonb, index, vector, unique } from "drizzle-orm/pg-core";
 import { pgEnum } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -39,6 +39,8 @@ export const memories = pgTable(
     updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),  // D-21
     verified_at: timestamp("verified_at", { withTimezone: true }),    // D-21, D-11
     archived_at: timestamp("archived_at", { withTimezone: true }),    // D-21, D-28
+    verified_by: text("verified_by"),                                  // D-19: who verified
+    last_comment_at: timestamp("last_comment_at", { withTimezone: true }), // D-62: for change_type detection
   },
   (table) => [
     index("memories_embedding_idx").using("hnsw", table.embedding.op("vector_cosine_ops")).with({ m: 16, ef_construction: 64 }),
@@ -46,5 +48,38 @@ export const memories = pgTable(
     index("memories_author_idx").on(table.author),
     index("memories_type_idx").on(table.type),
     index("memories_created_at_idx").on(table.created_at),
+  ]
+);
+
+// D-44, D-45, D-47, D-51: Comments on memories for team collaboration
+export const comments = pgTable(
+  "comments",
+  {
+    id: text("id").primaryKey(),                    // nanoid (D-51)
+    memory_id: text("memory_id").notNull()
+      .references(() => memories.id),               // FK to memories (D-44)
+    author: text("author").notNull(),               // who commented (D-47)
+    content: text("content").notNull(),             // comment text (D-47)
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull().defaultNow(),                      // D-47
+  },
+  (table) => [
+    index("comments_memory_id_idx").on(table.memory_id),
+    index("comments_created_at_idx").on(table.created_at),
+  ]
+);
+
+// D-28: Track last session per user per project for team activity detection
+export const sessionTracking = pgTable(
+  "session_tracking",
+  {
+    user_id: text("user_id").notNull(),
+    project_id: text("project_id").notNull()
+      .references(() => projects.id),
+    last_session_at: timestamp("last_session_at", { withTimezone: true })
+      .notNull().defaultNow(),
+  },
+  (table) => [
+    unique("session_tracking_user_project_idx").on(table.user_id, table.project_id),
   ]
 );
