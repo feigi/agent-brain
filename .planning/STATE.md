@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to execute
-stopped_at: Completed 03-03-PLAN.md
-last_updated: "2026-03-23T20:32:09.979Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 03-04-PLAN.md
+last_updated: "2026-03-23T20:40:49.491Z"
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 11
-  completed_plans: 10
+  completed_plans: 11
 ---
 
 # Project State
@@ -56,6 +56,7 @@ Plan: 4 of 4
 | Phase 03 P01 | 5min | 2 tasks | 12 files |
 | Phase 03 P02 | 7 | 2 tasks | 16 files |
 | Phase 03 P03 | 3min | 2 tasks | 8 files |
+| Phase 03-team-collaboration P03-04 | 6min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,8 @@ Recent decisions affecting current work:
 - [Phase 03]: user_id required in all service methods and tools -- slug validation enforced at tool layer, access control enforced at service layer
 - [Phase 03]: Optional commentRepo/sessionRepo in MemoryService constructor: preserves backward compatibility for tests that construct MemoryService without new repos
 - [Phase 03]: getChangeType uses timestamp equality (updated_at == last_comment_at) to detect commented state -- accurate because comment create sets both to now() atomically in a transaction
+- [Phase 03-team-collaboration]: Correlated subquery bug: Drizzle sql template parameterizes dollar-brace column references as values -- raw SQL string required for correlated subquery column references
+- [Phase 03-team-collaboration]: D-30 fix: countTeamActivity was excluding user's own memories -- removed author \!= userId filter to include own changes in team_activity counts
 
 ### Pending Todos
 
@@ -104,6 +107,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T20:32:09.977Z
-Stopped at: Completed 03-03-PLAN.md
+Last session: 2026-03-23T20:40:49.488Z
+Stopped at: Completed 03-04-PLAN.md
 Resume file: None
