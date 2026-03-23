@@ -20,7 +20,7 @@ export function registerMemoryGuidance(server: McpServer): void {
   );
 }
 
-const MEMORY_GUIDANCE_TEXT = `
+export const MEMORY_GUIDANCE_TEXT = `
 ## Memory Capture Guidelines
 
 You have access to a long-term memory system. Save insights that will be valuable in future sessions.
