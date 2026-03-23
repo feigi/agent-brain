@@ -29,12 +29,13 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Agent can search memories by natural language query and receive semantically relevant results with scores
   4. Memories are scoped to a project by default; a user-scoped memory is accessible across projects
   5. Switching embedding providers requires only implementing the provider interface and changing configuration -- no data migration needed because raw text and model metadata are stored alongside vectors
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
-- [ ] 01-03: TBD
+- [ ] 01-01-PLAN.md -- Project scaffold, database schema, Docker, types, and utilities
+- [ ] 01-02-PLAN.md -- Embedding providers, repository layer, and memory service
+- [ ] 01-03-PLAN.md -- All 8 MCP tool handlers and server entry point
+- [ ] 01-04-PLAN.md -- Integration tests, seed script, and end-to-end verification
 
 ### Phase 2: Retrieval Quality and Session Lifecycle
 **Goal**: Agents get noticeably better search results through relevance scoring and can auto-load relevant memories at session start
@@ -87,7 +88,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation and Core Memory | 0/3 | Not started | - |
+| 1. Foundation and Core Memory | 0/4 | Planned | - |
 | 2. Retrieval Quality and Session Lifecycle | 0/2 | Not started | - |
 | 3. Team Collaboration | 0/2 | Not started | - |
 | 4. Agent Autonomy | 0/1 | Not started | - |
