@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation and Core Memory** - MCP server with save, search, retrieve, and persist memory operations (completed 2026-03-23)
 - [ ] **Phase 2: Retrieval Quality and Session Lifecycle** - Enhanced search ranking, recency weighting, and session-start auto-load
 - [x] **Phase 3: Team Collaboration** - Multi-user access, threaded comments, provenance, and staleness detection (completed 2026-03-23)
-- [ ] **Phase 4: Agent Autonomy** - Autonomous capture, session-end review, write budgets, and deduplication
+- [x] **Phase 4: Agent Autonomy** - Autonomous capture, session-end review, write budgets, and deduplication (completed 2026-03-23)
 
 ## Phase Details
 
@@ -85,7 +85,7 @@ Plans:
 - [x] 04-01-PLAN.md -- Sessions table, config, types, session repository, and session_id generation in session_start
 - [x] 04-02-PLAN.md -- MCP prompt resource for memory capture guidance and Claude Code hook templates
 - [x] 04-03-PLAN.md -- Write budget enforcement and semantic duplicate detection in memory_create
-- [ ] 04-04-PLAN.md -- Unit and integration tests for session lifecycle, budget, dedup, and prompt resource
+- [x] 04-04-PLAN.md -- Unit and integration tests for session lifecycle, budget, dedup, and prompt resource
 
 ## Progress
 
@@ -97,4 +97,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | 1. Foundation and Core Memory | 4/4 | Complete   | 2026-03-23 |
 | 2. Retrieval Quality and Session Lifecycle | 0/3 | Not started | - |
 | 3. Team Collaboration | 5/5 | Complete   | 2026-03-23 |
-| 4. Agent Autonomy | 3/4 | In Progress|  |
+| 4. Agent Autonomy | 4/4 | Complete   | 2026-03-23 |

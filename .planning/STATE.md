@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to execute
-stopped_at: Completed 04-03-PLAN.md
-last_updated: "2026-03-23T22:41:11.389Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 04-04-PLAN.md
+last_updated: "2026-03-23T22:45:14.727Z"
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 16
-  completed_plans: 15
+  completed_plans: 16
 ---
 
 # Project State
@@ -61,6 +61,7 @@ Plan: 4 of 4
 | Phase 04 P02 | 2min | 2 tasks | 5 files |
 | Phase 04 P01 | 8min | 2 tasks | 8 files |
 | Phase 04-agent-autonomy P04-03 | 1min | 1 tasks | 4 files |
+| Phase 04-agent-autonomy P04 | 15min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -108,6 +109,8 @@ Recent decisions affecting current work:
 - [Phase 04]: sessionLifecycleRepo optional 6th param in MemoryService -- preserves backward compatibility for existing tests
 - [Phase 04]: Guard order in memory_create: session validation -> budget check -> embed -> dedup -> insert -- fail fast on cheapest checks before incurring embedding cost
 - [Phase 04]: Post-insert budget increment (not pre-insert decrement) avoids consuming budget on failed writes (embedding error, dedup skip)
+- [Phase 04]: Project-scope dedup isolation tested cross-project: findDuplicates scopes to project_id so same-project user/project memories share dedup check
+- [Phase 04]: MEMORY_GUIDANCE_TEXT exported from memory-guidance.ts to enable direct content assertions in prompt-resource tests
 
 ### Pending Todos
 
@@ -120,6 +123,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T22:41:11.387Z
-Stopped at: Completed 04-03-PLAN.md
+Last session: 2026-03-23T22:45:14.725Z
+Stopped at: Completed 04-04-PLAN.md
 Resume file: None
