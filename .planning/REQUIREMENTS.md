@@ -9,11 +9,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Memory Core
 
-- [ ] **CORE-01**: User can save a memory with content, optional title, and optional tags via MCP tool
-- [ ] **CORE-02**: User can retrieve a specific memory by ID via MCP tool
-- [ ] **CORE-03**: User can update an existing memory's content, title, or tags
-- [ ] **CORE-04**: User can archive a memory (soft delete, excluded from search but recoverable)
-- [ ] **CORE-05**: User can search memories by semantic similarity and receive ranked results with relevance scores
+- [x] **CORE-01**: User can save a memory with content, optional title, and optional tags via MCP tool
+- [x] **CORE-02**: User can retrieve a specific memory by ID via MCP tool
+- [x] **CORE-03**: User can update an existing memory's content, title, or tags
+- [x] **CORE-04**: User can archive a memory (soft delete, excluded from search but recoverable)
+- [x] **CORE-05**: User can search memories by semantic similarity and receive ranked results with relevance scores
 - [x] **CORE-06**: User can tag memories with categories (fact, decision, learning, pattern, preference, architecture)
 - [x] **CORE-07**: Memories persist across agent sessions in Postgres
 - [x] **CORE-08**: Raw text is stored alongside embeddings (enables re-embedding on provider change)
@@ -54,7 +54,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Infrastructure
 
-- [ ] **INFR-01**: MCP server exposes all memory operations as tools via stdio transport
+- [x] **INFR-01**: MCP server exposes all memory operations as tools via stdio transport
 - [x] **INFR-02**: Storage layer is abstracted behind an interface (Postgres + pgvector as default implementation)
 - [x] **INFR-03**: Embedding provider is abstracted behind an interface (Amazon Titan v2 as default implementation)
 - [x] **INFR-04**: Database schema supports pgvector with HNSW indexing for fast similarity search
@@ -101,11 +101,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CORE-01 | Phase 1 | Pending |
-| CORE-02 | Phase 1 | Pending |
-| CORE-03 | Phase 1 | Pending |
-| CORE-04 | Phase 1 | Pending |
-| CORE-05 | Phase 1 | Pending |
+| CORE-01 | Phase 1 | Complete |
+| CORE-02 | Phase 1 | Complete |
+| CORE-03 | Phase 1 | Complete |
+| CORE-04 | Phase 1 | Complete |
+| CORE-05 | Phase 1 | Complete |
 | CORE-06 | Phase 1 | Complete |
 | CORE-07 | Phase 1 | Complete |
 | CORE-08 | Phase 1 | Complete |
@@ -131,7 +131,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUTO-03 | Phase 4 | Pending |
 | AUTO-04 | Phase 4 | Pending |
 | AUTO-05 | Phase 4 | Pending |
-| INFR-01 | Phase 1 | Pending |
+| INFR-01 | Phase 1 | Complete |
 | INFR-02 | Phase 1 | Complete |
 | INFR-03 | Phase 1 | Complete |
 | INFR-04 | Phase 1 | Complete |
