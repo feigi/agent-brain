@@ -29,6 +29,26 @@ describe("Team Activity", () => {
       expect(typeof result.meta.team_activity!.new_memories).toBe("number");
       expect(typeof result.meta.team_activity!.updated_memories).toBe("number");
       expect(typeof result.meta.team_activity!.commented_memories).toBe("number");
+      expect(result.meta.team_activity!.commented_memories).toBeGreaterThanOrEqual(0);
+    });
+
+    it("team_activity.commented_memories counts commented memories since last session", async () => {
+      // First session to establish baseline
+      await service.sessionStart("test-project", "alice");
+
+      // Create a memory authored by alice
+      const { data: memory } = await service.create({
+        project_id: "test-project", content: "A note for discussion", type: "fact",
+        author: "alice", scope: "project",
+      });
+
+      // Bob comments on alice's memory (self-comment is blocked, so use different user)
+      await new Promise(resolve => setTimeout(resolve, 50));
+      await service.addComment(memory.id, "bob", "Great insight");
+
+      // Second session -- commented_memories should reflect the comment
+      const result = await service.sessionStart("test-project", "alice");
+      expect(result.meta.team_activity!.commented_memories).toBeGreaterThanOrEqual(1);
     });
 
     it("team_activity counts new memories since last session", async () => {
