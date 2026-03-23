@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
-import { toolResponse, withErrorHandling, validateMemoryType } from "./tool-utils.js";
+import { toolResponse, withErrorHandling } from "./tool-utils.js";
 
 /** Parse cursor string (format: "created_at|id") into object for the repository layer */
 function parseCursor(cursor: string | undefined): { created_at: string; id: string } | undefined {
@@ -24,7 +24,11 @@ export function registerMemoryList(server: McpServer, memoryService: MemoryServi
         project_id: z.string().describe("Project slug"),
         scope: z.enum(["project", "user"]).catch("project").describe("List scope"),
         user_id: z.string().optional().describe("Required when scope is 'user'"),
-        type: z.string().optional().describe("Filter by memory type: fact, decision, learning, pattern, preference, architecture"),
+        type: z
+          .enum(["fact", "decision", "learning", "pattern", "preference", "architecture"])
+          .optional()
+          .catch(undefined)
+          .describe("Filter by memory type"),
         tags: z.array(z.string()).optional().catch(undefined).describe("Filter by tags (memories matching ANY of these tags)"),
         sort_by: z.enum(["created_at", "updated_at"]).catch("created_at").describe("Sort field"),
         order: z.enum(["asc", "desc"]).catch("desc").describe("Sort order"),
@@ -38,7 +42,7 @@ export function registerMemoryList(server: McpServer, memoryService: MemoryServi
           project_id: params.project_id,
           scope: params.scope,
           user_id: params.user_id,
-          type: params.type ? validateMemoryType(params.type) : undefined,
+          type: params.type,
           tags: params.tags,
           sort_by: params.sort_by,
           order: params.order,
