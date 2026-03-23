@@ -14,10 +14,10 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **CORE-03**: User can update an existing memory's content, title, or tags
 - [ ] **CORE-04**: User can archive a memory (soft delete, excluded from search but recoverable)
 - [ ] **CORE-05**: User can search memories by semantic similarity and receive ranked results with relevance scores
-- [ ] **CORE-06**: User can tag memories with categories (fact, decision, learning, pattern, preference, architecture)
-- [ ] **CORE-07**: Memories persist across agent sessions in Postgres
-- [ ] **CORE-08**: Raw text is stored alongside embeddings (enables re-embedding on provider change)
-- [ ] **CORE-09**: Embedding model metadata is stored with each memory (model name, dimensions)
+- [x] **CORE-06**: User can tag memories with categories (fact, decision, learning, pattern, preference, architecture)
+- [x] **CORE-07**: Memories persist across agent sessions in Postgres
+- [x] **CORE-08**: Raw text is stored alongside embeddings (enables re-embedding on provider change)
+- [x] **CORE-09**: Embedding model metadata is stored with each memory (model name, dimensions)
 
 ### Scoping
 
@@ -57,8 +57,8 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **INFR-01**: MCP server exposes all memory operations as tools via stdio transport
 - [ ] **INFR-02**: Storage layer is abstracted behind an interface (Postgres + pgvector as default implementation)
 - [ ] **INFR-03**: Embedding provider is abstracted behind an interface (Amazon Titan v2 as default implementation)
-- [ ] **INFR-04**: Database schema supports pgvector with HNSW indexing for fast similarity search
-- [ ] **INFR-05**: Database migrations are managed programmatically (Drizzle ORM)
+- [x] **INFR-04**: Database schema supports pgvector with HNSW indexing for fast similarity search
+- [x] **INFR-05**: Database migrations are managed programmatically (Drizzle ORM)
 
 ## v2 Requirements
 
@@ -106,10 +106,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CORE-03 | Phase 1 | Pending |
 | CORE-04 | Phase 1 | Pending |
 | CORE-05 | Phase 1 | Pending |
-| CORE-06 | Phase 1 | Pending |
-| CORE-07 | Phase 1 | Pending |
-| CORE-08 | Phase 1 | Pending |
-| CORE-09 | Phase 1 | Pending |
+| CORE-06 | Phase 1 | Complete |
+| CORE-07 | Phase 1 | Complete |
+| CORE-08 | Phase 1 | Complete |
+| CORE-09 | Phase 1 | Complete |
 | SCOP-01 | Phase 1 | Pending |
 | SCOP-02 | Phase 1 | Pending |
 | SCOP-03 | Phase 2 | Pending |
@@ -134,8 +134,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INFR-01 | Phase 1 | Pending |
 | INFR-02 | Phase 1 | Pending |
 | INFR-03 | Phase 1 | Pending |
-| INFR-04 | Phase 1 | Pending |
-| INFR-05 | Phase 1 | Pending |
+| INFR-04 | Phase 1 | Complete |
+| INFR-05 | Phase 1 | Complete |
 
 **Coverage:**
 - v1 requirements: 35 total
