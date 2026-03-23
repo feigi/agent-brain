@@ -7,6 +7,8 @@ import { runMigrations } from "./db/migrate.js";
 import { createEmbeddingProvider } from "./providers/embedding/index.js";
 import { DrizzleMemoryRepository } from "./repositories/memory-repository.js";
 import { DrizzleProjectRepository } from "./repositories/project-repository.js";
+import { DrizzleCommentRepository } from "./repositories/comment-repository.js";
+import { DrizzleSessionTrackingRepository } from "./repositories/session-repository.js";
 import { MemoryService } from "./services/memory-service.js";
 import { registerAllTools } from "./tools/index.js";
 import { logger } from "./utils/logger.js";
@@ -28,7 +30,9 @@ async function main() {
   // Initialize repositories and service
   const memoryRepo = new DrizzleMemoryRepository(db);
   const projectRepo = new DrizzleProjectRepository(db);
-  const memoryService = new MemoryService(memoryRepo, projectRepo, embedder);
+  const commentRepo = new DrizzleCommentRepository(db);
+  const sessionRepo = new DrizzleSessionTrackingRepository(db);
+  const memoryService = new MemoryService(memoryRepo, projectRepo, embedder, commentRepo, sessionRepo);
 
   // Create MCP server
   const server = new McpServer({
@@ -36,7 +40,7 @@ async function main() {
     version: config.version,
   });
 
-  // Register all 8 tools (D-01)
+  // Register all 11 tools (D-01)
   registerAllTools(server, memoryService);
 
   // Connect stdio transport (D-49)

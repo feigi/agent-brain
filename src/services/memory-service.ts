@@ -1,8 +1,8 @@
-import type { Memory, MemoryCreate, MemoryUpdate, MemoryWithRelevance } from "../types/memory.js";
+import type { Memory, MemoryCreate, MemoryUpdate, MemoryWithRelevance, Comment, MemoryGetResponse, MemoryWithChangeType } from "../types/memory.js";
 import type { Envelope } from "../types/envelope.js";
 import type { EmbeddingProvider } from "../providers/embedding/types.js";
-import type { MemoryRepository, ProjectRepository, ListOptions, SearchOptions, StaleOptions } from "../repositories/types.js";
-import { NotFoundError, EmbeddingError, AuthorizationError } from "../utils/errors.js";
+import type { MemoryRepository, ProjectRepository, ListOptions, SearchOptions, StaleOptions, CommentRepository, SessionTrackingRepository } from "../repositories/types.js";
+import { NotFoundError, EmbeddingError, AuthorizationError, ValidationError } from "../utils/errors.js";
 import { generateId } from "../utils/id.js";
 import { logger } from "../utils/logger.js";
 import { computeRelevance, OVER_FETCH_FACTOR } from "../utils/scoring.js";
@@ -16,6 +16,8 @@ export class MemoryService {
     private readonly memoryRepo: MemoryRepository,
     private readonly projectRepo: ProjectRepository,
     private readonly embeddingProvider: EmbeddingProvider,
+    private readonly commentRepo?: CommentRepository,
+    private readonly sessionRepo?: SessionTrackingRepository,
   ) {}
 
   // D-11: Project=shared, User=owner only
@@ -113,6 +115,151 @@ export class MemoryService {
 
     const timing = Date.now() - start;
     return { data: memory, meta: { timing } };
+  }
+
+  // D-63: Enhanced get with full comments array and capability booleans
+  async getWithComments(id: string, userId: string): Promise<Envelope<MemoryGetResponse>> {
+    const start = Date.now();
+
+    const memory = await this.memoryRepo.findById(id);
+    if (!memory) throw new NotFoundError("Memory", id);
+
+    // D-17: user-scoped memories return not-found for non-owners
+    if (!this.canAccess(memory, userId)) {
+      throw new NotFoundError("Memory", id);
+    }
+
+    // D-63: Full comments array on memory_get only (oldest-first from repository)
+    const commentsList: Comment[] = this.commentRepo
+      ? await this.commentRepo.findByMemoryId(id)
+      : [];
+
+    // D-72: Capability booleans
+    const isOwner = memory.author === userId;
+    const isProject = memory.scope === 'project';
+    const capabilities = {
+      can_edit: this.canAccess(memory, userId),
+      can_archive: this.canAccess(memory, userId),
+      can_verify: this.canAccess(memory, userId),
+      // D-56: no self-comment; user-scoped memories can't have comments (owner blocks self-comment)
+      can_comment: isProject && !isOwner,
+    };
+
+    const timing = Date.now() - start;
+    return {
+      data: {
+        ...memory,
+        comments: commentsList,
+        ...capabilities,
+      },
+      meta: { timing },
+    };
+  }
+
+  // D-44 through D-50: Add comment to a project memory authored by another user
+  async addComment(
+    memoryId: string,
+    userId: string,
+    content: string,
+  ): Promise<Envelope<Comment>> {
+    const start = Date.now();
+    if (!this.commentRepo) throw new Error("CommentRepository not initialized");
+
+    // Fetch parent memory
+    const memory = await this.memoryRepo.findById(memoryId);
+    if (!memory) throw new NotFoundError("Memory", memoryId);
+
+    // D-55: No comments on archived memories
+    if (memory.archived_at) {
+      throw new ValidationError("Cannot comment on an archived memory.");
+    }
+
+    // D-48: Comments inherit parent scope access rules
+    // User-scoped memories: only owner can access. But D-56 blocks self-comment.
+    // So user-scoped memories effectively cannot have comments.
+    if (memory.scope === 'user') {
+      if (memory.author !== userId) {
+        throw new NotFoundError("Memory", memoryId); // D-17: hide existence
+      }
+      // Owner trying to comment on their own user-scoped memory = self-comment block
+      throw new ValidationError("Cannot comment on your own memory. Use memory_update to add context.");
+    }
+
+    // D-56: No self-commenting on project memories
+    if (memory.author === userId) {
+      throw new ValidationError("Cannot comment on your own memory. Use memory_update to add context.");
+    }
+
+    // D-49: Soft limit ~1000 chars -- warn but allow
+    if (content.length > 1000) {
+      logger.warn(`Comment content exceeds 1000 chars (${content.length})`);
+    }
+
+    // D-50: Soft limit ~50 comments per memory -- warn but allow
+    const currentCount = await this.commentRepo.countByMemoryId(memoryId);
+    if (currentCount >= 50) {
+      logger.warn(`Memory ${memoryId} has ${currentCount} comments (soft limit 50)`);
+    }
+
+    const commentId = generateId();
+    const comment = await this.commentRepo.create({
+      id: commentId,
+      memory_id: memoryId,
+      author: userId,
+      content,
+    });
+
+    const timing = Date.now() - start;
+    return {
+      data: comment,
+      meta: { comment_count: currentCount + 1, timing },
+    };
+  }
+
+  // D-33 through D-40: List memories with change_type for team activity awareness
+  async listRecentActivity(
+    projectId: string,
+    userId: string,
+    since: Date,
+    limit: number = 10,
+    excludeSelf: boolean = false,
+  ): Promise<Envelope<MemoryWithChangeType[]>> {
+    const start = Date.now();
+
+    const recentMemories = await this.memoryRepo.findRecentActivity({
+      project_id: projectId,
+      user_id: userId,
+      since,
+      limit,
+      exclude_self: excludeSelf,
+    });
+
+    // D-37: Determine change_type for each result
+    const withChangeType: MemoryWithChangeType[] = recentMemories.map((memory) => ({
+      ...memory,
+      change_type: this.getChangeType(memory, since),
+    }));
+
+    const timing = Date.now() - start;
+    return {
+      data: withChangeType,
+      meta: { count: withChangeType.length, timing },
+    };
+  }
+
+  // D-37, D-62: Determine change_type based on timestamps
+  private getChangeType(
+    memory: Memory,
+    since: Date,
+  ): 'created' | 'updated' | 'commented' {
+    if (memory.created_at >= since) return 'created';
+    if (
+      memory.last_comment_at &&
+      memory.updated_at.getTime() === memory.last_comment_at.getTime()
+    ) {
+      return 'commented';
+    }
+    return 'updated';
   }
 
   // D-27: Re-embed when content or title changes
@@ -247,42 +394,67 @@ export class MemoryService {
   ): Promise<Envelope<MemoryWithRelevance[]>> {
     const start = Date.now();
 
+    // D-34: Auto-create project
+    await this.projectRepo.findOrCreate(projectId);
+
+    // D-28: Track session, get previous session timestamp
+    let previousSession: Date | null = null;
+    if (this.sessionRepo) {
+      previousSession = await this.sessionRepo.upsert(userId, projectId);
+    }
+
+    // D-31: First session falls back to 7 days
+    const FIRST_SESSION_FALLBACK_DAYS = 7;
+    const since = previousSession
+      ?? new Date(Date.now() - FIRST_SESSION_FALLBACK_DAYS * 24 * 60 * 60 * 1000);
+
+    let result: Envelope<MemoryWithRelevance[]>;
     if (context) {
       // D-14: With context, use semantic search with composite scoring
       // D-15: Always search both scopes
       // min_similarity = -1 -- session start should be maximally permissive
-      // (mock embeddings can produce negative cosine similarity)
-      return this.search(context, projectId, "both", userId, limit, -1);
+      result = await this.search(context, projectId, "both", userId, limit, -1);
+    } else {
+      // D-14: Without context, fetch recent memories ranked by recency
+      const recentMemories = await this.memoryRepo.listRecentBothScopes({
+        project_id: projectId,
+        user_id: userId,
+        limit,
+      });
+
+      // Apply composite scoring with similarity = 1.0 (neutral baseline)
+      const scored: MemoryWithRelevance[] = recentMemories.map((memory) => ({
+        ...memory,
+        relevance: computeRelevance(
+          1.0, // neutral similarity -- recency dominates
+          memory.created_at,
+          memory.verified_at,
+          config.recencyHalfLifeDays,
+        ),
+      }));
+      scored.sort((a, b) => b.relevance - a.relevance);
+      const timing = Date.now() - start;
+      result = { data: scored, meta: { count: scored.length, timing } };
     }
 
-    // D-14: Without context, fetch recent memories ranked by recency
-    // Use limit directly (no over-fetch needed -- no re-ranking by similarity)
-    const recentMemories = await this.memoryRepo.listRecentBothScopes({
-      project_id: projectId,
-      user_id: userId,
-      limit,
-    });
-
-    // Apply composite scoring with similarity = 1.0 (neutral baseline)
-    // so recency and verification dominate the score
-    const scored: MemoryWithRelevance[] = recentMemories.map((memory) => ({
-      ...memory,
-      relevance: computeRelevance(
-        1.0, // neutral similarity -- recency dominates
-        memory.created_at,
-        memory.verified_at,
-        config.recencyHalfLifeDays,
-      ),
-    }));
-
-    // Already sorted by created_at DESC from DB, but re-sort by relevance
-    // (verification boost can change order slightly)
-    scored.sort((a, b) => b.relevance - a.relevance);
+    // D-29: Add team_activity counts to meta
+    let teamActivity: { new_memories: number; updated_memories: number; commented_memories: number; since: string } | undefined;
+    if (this.memoryRepo.countTeamActivity) {
+      const counts = await this.memoryRepo.countTeamActivity(projectId, userId, since);
+      teamActivity = {
+        ...counts,
+        since: since.toISOString(),
+      };
+    }
 
     const timing = Date.now() - start;
     return {
-      data: scored,
-      meta: { count: scored.length, timing },
+      data: result.data,
+      meta: {
+        ...result.meta,
+        timing,
+        team_activity: teamActivity,
+      },
     };
   }
 

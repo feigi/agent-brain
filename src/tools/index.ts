@@ -9,6 +9,8 @@ import { registerMemoryList } from "./memory-list.js";
 import { registerMemoryVerify } from "./memory-verify.js";
 import { registerMemoryListStale } from "./memory-list-stale.js";
 import { registerMemorySessionStart } from "./memory-session-start.js";
+import { registerMemoryComment } from "./memory-comment.js";
+import { registerMemoryListRecent } from "./memory-list-recent.js";
 
 export function registerAllTools(server: McpServer, memoryService: MemoryService): void {
   registerMemoryCreate(server, memoryService);
@@ -20,4 +22,6 @@ export function registerAllTools(server: McpServer, memoryService: MemoryService
   registerMemoryVerify(server, memoryService);
   registerMemoryListStale(server, memoryService);
   registerMemorySessionStart(server, memoryService);
+  registerMemoryComment(server, memoryService);
+  registerMemoryListRecent(server, memoryService);
 }
