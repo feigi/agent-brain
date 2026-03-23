@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Ready to execute
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-03-23T13:56:42.381Z"
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-03-23T14:03:29.349Z"
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 7
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-23)
 ## Current Position
 
 Phase: 02 (retrieval-quality-and-session-lifecycle) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Plan: 2 of 3
 | Phase 01 P03 | 4min | 2 tasks | 11 files |
 | Phase 01 P04 | 25min | 3 tasks | 12 files |
 | Phase 02 P01 | 4min | 2 tasks | 8 files |
+| Phase 02 P02 | 4min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,9 @@ Recent decisions affecting current work:
 - [Phase 01]: Added .catch() on optional Zod tool schemas for defensive MCP client handling
 - [Phase 02]: Composite relevance formula: 0.80*similarity + 0.15*recency + 0.05*verified (D-01/D-02/D-03)
 - [Phase 02]: Repository search maps raw cosine similarity to relevance field -- composite scoring layered by service in Plan 02
+- [Phase 02]: Over-fetch 3x candidates at repository, re-rank with composite relevance in service layer
+- [Phase 02]: Cross-scope search uses single SQL query with OR condition (not two separate queries)
+- [Phase 02]: Raw SQL similarity alias stripped in repository to prevent field leaking at API boundary
 
 ### Pending Todos
 
@@ -85,6 +89,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T13:56:42.379Z
-Stopped at: Completed 02-01-PLAN.md
+Last session: 2026-03-23T14:03:29.347Z
+Stopped at: Completed 02-02-PLAN.md
 Resume file: None

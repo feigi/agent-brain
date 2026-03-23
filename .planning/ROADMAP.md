@@ -50,7 +50,7 @@ Plans:
 
 Plans:
 - [x] 02-01-PLAN.md -- Scoring functions, MemoryWithRelevance type, and config extension
-- [ ] 02-02-PLAN.md -- Cross-scope search and composite scoring in search pipeline
+- [x] 02-02-PLAN.md -- Cross-scope search and composite scoring in search pipeline
 - [ ] 02-03-PLAN.md -- memory_session_start MCP tool and integration tests
 
 ### Phase 3: Team Collaboration

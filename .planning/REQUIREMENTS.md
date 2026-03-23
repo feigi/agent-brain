@@ -23,12 +23,12 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **SCOP-01**: Memories are scoped to a project — agents only see memories for their current project
 - [x] **SCOP-02**: User-level memories follow the user across all projects
-- [ ] **SCOP-03**: Agent can search both project and user memories in a single query
+- [x] **SCOP-03**: Agent can search both project and user memories in a single query
 - [x] **SCOP-04**: Cross-project memory leakage is prevented at the database level (RLS)
 
 ### Retrieval
 
-- [ ] **RETR-01**: Semantic search returns memories ranked by vector similarity
+- [x] **RETR-01**: Semantic search returns memories ranked by vector similarity
 - [x] **RETR-02**: Relevance scoring combines semantic similarity with recency weighting
 - [x] **RETR-03**: Search results include relevance score, creation date, author, and tags
 - [ ] **RETR-04**: Agent can auto-load relevant memories at session start based on project context
@@ -112,9 +112,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CORE-09 | Phase 1 | Complete |
 | SCOP-01 | Phase 1 | Complete |
 | SCOP-02 | Phase 1 | Complete |
-| SCOP-03 | Phase 2 | Pending |
+| SCOP-03 | Phase 2 | Complete |
 | SCOP-04 | Phase 1 | Complete |
-| RETR-01 | Phase 2 | Pending |
+| RETR-01 | Phase 2 | Complete |
 | RETR-02 | Phase 2 | Complete |
 | RETR-03 | Phase 2 | Complete |
 | RETR-04 | Phase 2 | Pending |
