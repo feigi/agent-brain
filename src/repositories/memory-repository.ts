@@ -436,7 +436,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
 
   async countTeamActivity(projectId: string, userId: string, since: Date): Promise<TeamActivityCounts> {
     // D-30: team_activity includes the user's own changes -- do NOT filter by author
-    const [newCount, updatedCount] = await Promise.all([
+    const [newCount, updatedCount, commentedCount] = await Promise.all([
       this.db
         .select({ count: sql<number>`count(*)::int` })
         .from(memories)
@@ -458,12 +458,23 @@ export class DrizzleMemoryRepository implements MemoryRepository {
             lt(memories.created_at, since),
           )
         ),
+      this.db
+        .select({ count: sql<number>`count(distinct ${comments.memory_id})::int` })
+        .from(comments)
+        .innerJoin(memories, eq(comments.memory_id, memories.id))
+        .where(
+          and(
+            eq(memories.project_id, projectId),
+            isNull(memories.archived_at),
+            gt(comments.created_at, since),
+          )
+        ),
     ]);
 
     return {
       new_memories: newCount[0]?.count ?? 0,
       updated_memories: updatedCount[0]?.count ?? 0,
-      commented_memories: 0, // Populated by service layer using CommentRepository
+      commented_memories: commentedCount[0]?.count ?? 0,
     };
   }
 }
