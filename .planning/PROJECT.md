@@ -12,22 +12,21 @@ Agents remember what matters across sessions — no team knowledge is lost becau
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] Two memory scopes: project-level and user-level — Validated in Phase 1
+- [x] Abstracted storage layer (Postgres + pgvector default, swappable) — Validated in Phase 1
+- [x] Abstracted embedding provider layer — Validated in Phase 1
+- [x] MCP server with save, search, and retrieve memory tools — Validated in Phase 1
+- [x] Semantic search via vector embeddings (Amazon Titan via Bedrock, provider-swappable) — Validated in Phase 1
+- [x] Session-start auto-load of relevant memories — Validated in Phase 2
 
 ### Active
 
-- [ ] MCP server with save, search, and retrieve memory tools
-- [ ] Semantic search via vector embeddings (Amazon Titan via Bedrock, provider-swappable)
-- [ ] Abstracted storage layer (Postgres + pgvector default, swappable)
-- [ ] Abstracted embedding provider layer
-- [ ] Two memory scopes: project-level and user-level
 - [ ] Team sharing — multiple users see shared project memories
 - [ ] Authentication and authorization for team access
 - [ ] Auto-write: agent autonomously saves insights mid-session
 - [ ] System prompt guidance for what's worth remembering
 - [ ] Session-end review: agent extracts and saves learnings
 - [ ] Manual user saves via MCP tools
-- [ ] Session-start auto-load of relevant memories
 
 ### Out of Scope
 
@@ -79,4 +78,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-23 after initialization*
+*Last updated: 2026-03-23 after Phase 2 completion — retrieval quality and session lifecycle*
