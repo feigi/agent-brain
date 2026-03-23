@@ -12,7 +12,7 @@ Agentic Brain delivers a long-term memory system for AI agents, exposed as an MC
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation and Core Memory** - MCP server with save, search, retrieve, and persist memory operations
+- [x] **Phase 1: Foundation and Core Memory** - MCP server with save, search, retrieve, and persist memory operations (completed 2026-03-23)
 - [ ] **Phase 2: Retrieval Quality and Session Lifecycle** - Enhanced search ranking, recency weighting, and session-start auto-load
 - [ ] **Phase 3: Team Collaboration** - Multi-user access, threaded comments, provenance, and staleness detection
 - [ ] **Phase 4: Agent Autonomy** - Autonomous capture, session-end review, write budgets, and deduplication
@@ -35,7 +35,7 @@ Plans:
 - [x] 01-01-PLAN.md -- Project scaffold, database schema, Docker, types, and utilities
 - [x] 01-02-PLAN.md -- Embedding providers, repository layer, and memory service
 - [x] 01-03-PLAN.md -- All 8 MCP tool handlers and server entry point
-- [ ] 01-04-PLAN.md -- Integration tests, seed script, and end-to-end verification
+- [x] 01-04-PLAN.md -- Integration tests, seed script, and end-to-end verification
 
 ### Phase 2: Retrieval Quality and Session Lifecycle
 **Goal**: Agents get noticeably better search results through relevance scoring and can auto-load relevant memories at session start
@@ -88,7 +88,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation and Core Memory | 0/4 | Planned | - |
+| 1. Foundation and Core Memory | 4/4 | Complete   | 2026-03-23 |
 | 2. Retrieval Quality and Session Lifecycle | 0/2 | Not started | - |
 | 3. Team Collaboration | 0/2 | Not started | - |
 | 4. Agent Autonomy | 0/1 | Not started | - |

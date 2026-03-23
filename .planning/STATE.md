@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to execute
-stopped_at: Completed 01-03-PLAN.md
-last_updated: "2026-03-23T03:47:10.710Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 01-04-PLAN.md - Phase 1 complete (4/4 plans)
+last_updated: "2026-03-23T11:19:29.756Z"
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # Project State
@@ -49,6 +49,7 @@ Plan: 4 of 4
 | Phase 01 P01 | 14min | 2 tasks | 22 files |
 | Phase 01 P02 | 4min | 2 tasks | 8 files |
 | Phase 01 P03 | 4min | 2 tasks | 11 files |
+| Phase 01 P04 | 25min | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -65,6 +66,10 @@ Recent decisions affecting current work:
 - [Phase 01]: Cursor pagination uses compound cursor (timestamp + id) serialized as string for transport
 - [Phase 01]: Tool parameter user_id maps to MemoryCreate.author -- MCP tool schema uses user_id for agent ergonomics, service uses author for provenance
 - [Phase 01]: z.record(z.string(), z.unknown()) required for zod v4 metadata -- v4 requires explicit key type argument
+- [Phase 01]: Fixed cosine distance SQL operator precedence -- pgvector 1-distance requires parentheses around <=> expression
+- [Phase 01]: Disabled vitest file parallelism for shared Docker Postgres integration tests
+- [Phase 01]: Suppressed PostgreSQL NOTICE messages on connection -- prevents stdout corruption in MCP stdio transport
+- [Phase 01]: Added .catch() on optional Zod tool schemas for defensive MCP client handling
 
 ### Pending Todos
 
@@ -77,6 +82,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T03:47:10.708Z
-Stopped at: Completed 01-03-PLAN.md
+Last session: 2026-03-23T11:19:29.754Z
+Stopped at: Completed 01-04-PLAN.md - Phase 1 complete (4/4 plans)
 Resume file: None
