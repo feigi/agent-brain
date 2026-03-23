@@ -48,6 +48,13 @@ export interface MemoryRepository {
   verify(id: string, verifiedBy: string): Promise<Memory | null>;
   findRecentActivity(options: RecentActivityOptions): Promise<Memory[]>;
   countTeamActivity(projectId: string, userId: string, since: Date): Promise<TeamActivityCounts>;
+  findDuplicates(options: {
+    embedding: number[];
+    projectId: string;
+    scope: 'project' | 'user';
+    userId: string;
+    threshold: number;
+  }): Promise<Array<{ id: string; title: string; relevance: number; scope: string }>>;
 }
 
 export interface ProjectRepository {

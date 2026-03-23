@@ -434,6 +434,53 @@ export class DrizzleMemoryRepository implements MemoryRepository {
     return result.map(rowToMemory);
   }
 
+  // D-16: Scope-aware duplicate detection using cosine similarity
+  async findDuplicates(options: {
+    embedding: number[];
+    projectId: string;
+    scope: 'project' | 'user';
+    userId: string;
+    threshold: number;
+  }): Promise<Array<{ id: string; title: string; relevance: number; scope: string }>> {
+    const distance = cosineDistance(memories.embedding, options.embedding);
+    const similarity = sql<number>`(1 - (${distance}))`;
+
+    const conditions: SQL[] = [isNull(memories.archived_at)];
+
+    if (options.scope === 'project') {
+      conditions.push(eq(memories.project_id, options.projectId));
+    } else {
+      // D-16: User memories check against BOTH user AND project scope
+      conditions.push(
+        or(
+          eq(memories.project_id, options.projectId),
+          and(eq(memories.author, options.userId), eq(memories.scope, 'user')),
+        )!,
+      );
+    }
+
+    const result = await this.db
+      .select({
+        id: memories.id,
+        title: memories.title,
+        scope: memories.scope,
+        similarity,
+      })
+      .from(memories)
+      .where(and(...conditions))
+      .orderBy(desc(similarity))
+      .limit(1);
+
+    return result
+      .filter(row => Number(row.similarity) >= options.threshold)
+      .map(row => ({
+        id: row.id,
+        title: row.title,
+        relevance: Number(row.similarity),
+        scope: row.scope,
+      }));
+  }
+
   async countTeamActivity(projectId: string, userId: string, since: Date): Promise<TeamActivityCounts> {
     // D-30: team_activity includes the user's own changes -- do NOT filter by author
     const [newCount, updatedCount, commentedCount] = await Promise.all([

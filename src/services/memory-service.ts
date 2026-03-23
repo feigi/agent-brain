@@ -1,4 +1,4 @@
-import type { Memory, MemoryCreate, MemoryUpdate, MemoryWithRelevance, Comment, MemoryGetResponse, MemoryWithChangeType } from "../types/memory.js";
+import type { Memory, MemoryCreate, MemoryUpdate, MemoryWithRelevance, Comment, MemoryGetResponse, MemoryWithChangeType, CreateSkipResult } from "../types/memory.js";
 import type { Envelope } from "../types/envelope.js";
 import type { EmbeddingProvider } from "../providers/embedding/types.js";
 import type { MemoryRepository, ProjectRepository, ListOptions, SearchOptions, StaleOptions, CommentRepository, SessionTrackingRepository, SessionRepository } from "../repositories/types.js";
@@ -38,8 +38,35 @@ export class MemoryService {
   // D-19: Concatenate title + content for embedding input
   // D-34: Auto-create project on first mention
   // D-54: Fail entirely if embedding fails (no partial state)
-  async create(input: MemoryCreate): Promise<Envelope<Memory>> {
+  // Phase 4: Three-stage pre-save guard chain (session validation, budget, dedup)
+  async create(input: MemoryCreate): Promise<Envelope<Memory | CreateSkipResult>> {
     const start = Date.now();
+
+    // Phase 4: Guard 1 -- Session validation (D-19)
+    // Autonomous writes (agent-auto or session-review) require session_id
+    const isAutonomous = input.source === 'agent-auto' || input.source === 'session-review';
+    if (isAutonomous && !input.session_id) {
+      throw new ValidationError("session_id is required for autonomous writes (source: 'agent-auto' or 'session-review').");
+    }
+
+    // Phase 4: Guard 2 -- Budget check (D-10, D-12, D-13)
+    // Manual writes (source: 'manual') bypass budget checks entirely
+    if (isAutonomous && input.session_id && this.sessionLifecycleRepo) {
+      const budget = await this.sessionLifecycleRepo.getBudget(input.session_id);
+      if (budget && budget.used >= budget.limit) {
+        return {
+          data: {
+            skipped: true,
+            reason: 'budget_exceeded' as const,
+            message: `Write budget exceeded (${budget.used}/${budget.limit}). Use source 'manual' to force-save.`,
+          },
+          meta: {
+            budget: { used: budget.used, limit: budget.limit, exceeded: true },
+            timing: Date.now() - start,
+          },
+        };
+      }
+    }
 
     // D-20: Warn on large content but allow
     if (input.content.length > MAX_CONTENT_WARNING) {
@@ -66,6 +93,31 @@ export class MemoryService {
       if (error instanceof EmbeddingError) throw error;
       const message = error instanceof Error ? error.message : String(error);
       throw new EmbeddingError(`Failed to generate embedding: ${message}`);
+    }
+
+    // Phase 4: Guard 3 -- Semantic duplicate detection (D-14, D-15, D-16, D-17)
+    const duplicates = await this.memoryRepo.findDuplicates({
+      embedding,
+      projectId: input.project_id,
+      scope: input.scope ?? 'project',
+      userId: input.author,
+      threshold: config.duplicateThreshold,
+    });
+
+    if (duplicates.length > 0) {
+      const dupInfo = duplicates[0];
+      const message = dupInfo.scope !== (input.scope ?? 'project')
+        ? `This already exists as shared knowledge (memory ${dupInfo.id}).`
+        : `A similar memory already exists (memory ${dupInfo.id}, ${Math.round(dupInfo.relevance * 100)}% similar). Consider updating it instead.`;
+      return {
+        data: {
+          skipped: true,
+          reason: 'duplicate' as const,
+          message,
+          duplicate: { id: dupInfo.id, title: dupInfo.title, relevance: dupInfo.relevance, scope: dupInfo.scope },
+        },
+        meta: { timing: Date.now() - start },
+      };
     }
 
     const id = generateId();
@@ -99,7 +151,19 @@ export class MemoryService {
     const memory = await this.memoryRepo.create(memoryData);
     const timing = Date.now() - start;
 
-    return { data: memory, meta: { timing } };
+    // Phase 4: Post-insert budget increment (D-10)
+    // Increment budget after successful save for autonomous writes
+    const budgetResult = isAutonomous && input.session_id && this.sessionLifecycleRepo
+      ? await this.sessionLifecycleRepo.incrementBudgetUsed(input.session_id, config.writeBudgetPerSession)
+      : undefined;
+
+    return {
+      data: memory,
+      meta: {
+        timing,
+        ...(budgetResult ? { budget: { used: budgetResult.used, limit: config.writeBudgetPerSession, exceeded: false } } : {}),
+      },
+    };
   }
 
   async get(id: string, userId: string): Promise<Envelope<Memory>> {
