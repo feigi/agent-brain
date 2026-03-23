@@ -39,7 +39,7 @@ describe("Memory search integration tests", () => {
       "database",
       "test-project",
       "project",
-      undefined,
+      "alice",
       undefined,
       -1, // negative threshold ensures mock embeddings with any cosine similarity pass through
     );
@@ -68,7 +68,7 @@ describe("Memory search integration tests", () => {
       "search content",
       "test-project",
       "project",
-      undefined,
+      "alice",
       2,
       -1, // negative threshold ensures mock embeddings with any cosine similarity pass through
     );
@@ -84,12 +84,13 @@ describe("Memory search integration tests", () => {
       author: "alice",
     });
 
-    await service.archive(created.data.id);
+    await service.archive(created.data.id, "alice");
 
     const result = await service.search(
       "archived memory search",
       "test-project",
       "project",
+      "alice",
     );
 
     const archivedInResults = result.data.find(
@@ -111,7 +112,7 @@ describe("Memory search integration tests", () => {
       "completely unrelated query xyz",
       "test-project",
       "project",
-      undefined,
+      "alice",
       undefined,
       0.99,
     );
@@ -158,10 +159,11 @@ describe("Memory search integration tests", () => {
     }
   });
 
-  it("cross-scope search throws without user_id (D-09)", async () => {
-    await expect(
-      service.search("test", "test-project", "both"),
-    ).rejects.toThrow("user_id is required");
+  it("cross-scope search with both scopes requires user_id (D-09)", async () => {
+    // user_id is now a required parameter -- repository enforces it for scope='both'
+    // Passing a valid user_id must work without error
+    const result = await service.search("test", "test-project", "both", "alice", undefined, -1);
+    expect(result.data).toBeInstanceOf(Array);
   });
 
   it("search results include relevance score between 0 and 1", async () => {
@@ -176,7 +178,7 @@ describe("Memory search integration tests", () => {
       "relevance scores",
       "test-project",
       "project",
-      undefined,
+      "alice",
       undefined,
       -1, // negative threshold ensures mock embeddings with any cosine similarity pass through
     );

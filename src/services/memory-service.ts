@@ -2,7 +2,7 @@ import type { Memory, MemoryCreate, MemoryUpdate, MemoryWithRelevance } from "..
 import type { Envelope } from "../types/envelope.js";
 import type { EmbeddingProvider } from "../providers/embedding/types.js";
 import type { MemoryRepository, ProjectRepository, ListOptions, SearchOptions, StaleOptions } from "../repositories/types.js";
-import { NotFoundError, EmbeddingError } from "../utils/errors.js";
+import { NotFoundError, EmbeddingError, AuthorizationError } from "../utils/errors.js";
 import { generateId } from "../utils/id.js";
 import { logger } from "../utils/logger.js";
 import { computeRelevance, OVER_FETCH_FACTOR } from "../utils/scoring.js";
@@ -17,6 +17,19 @@ export class MemoryService {
     private readonly projectRepo: ProjectRepository,
     private readonly embeddingProvider: EmbeddingProvider,
   ) {}
+
+  // D-11: Project=shared, User=owner only
+  private canAccess(memory: Memory, userId: string): boolean {
+    if (memory.scope === 'project') return true;
+    return memory.author === userId;
+  }
+
+  // D-12: Descriptive error for mutations
+  private assertCanModify(memory: Memory, userId: string): void {
+    if (!this.canAccess(memory, userId)) {
+      throw new AuthorizationError("Cannot modify user-scoped memory owned by another user.");
+    }
+  }
 
   // D-03: Auto-generate title if not provided
   // D-19: Concatenate title + content for embedding input
@@ -86,11 +99,15 @@ export class MemoryService {
     return { data: memory, meta: { timing } };
   }
 
-  async get(id: string): Promise<Envelope<Memory>> {
+  async get(id: string, userId: string): Promise<Envelope<Memory>> {
     const start = Date.now();
 
     const memory = await this.memoryRepo.findById(id);
     if (!memory) {
+      throw new NotFoundError("Memory", id);
+    }
+    // D-17: user-scoped memories return "not found" for non-owners (don't leak existence)
+    if (!this.canAccess(memory, userId)) {
       throw new NotFoundError("Memory", id);
     }
 
@@ -99,20 +116,21 @@ export class MemoryService {
   }
 
   // D-27: Re-embed when content or title changes
-  async update(id: string, expectedVersion: number, updates: MemoryUpdate): Promise<Envelope<Memory>> {
+  async update(id: string, expectedVersion: number, updates: MemoryUpdate, userId: string): Promise<Envelope<Memory>> {
     const start = Date.now();
+
+    // Fetch first for access control check (also needed for re-embedding)
+    const existing = await this.memoryRepo.findById(id);
+    if (!existing) {
+      throw new NotFoundError("Memory", id);
+    }
+    this.assertCanModify(existing, userId);
 
     const needsReEmbed = updates.content !== undefined || updates.title !== undefined;
 
     let embeddingUpdates: { embedding?: number[]; embedding_model?: string; embedding_dimensions?: number } = {};
 
     if (needsReEmbed) {
-      // Get existing memory to build full embedding input
-      const existing = await this.memoryRepo.findById(id);
-      if (!existing) {
-        throw new NotFoundError("Memory", id);
-      }
-
       const newTitle = updates.title ?? existing.title;
       const newContent = updates.content ?? existing.content;
       const embeddingInput = `${newTitle}\n\n${newContent}`;
@@ -143,10 +161,21 @@ export class MemoryService {
   }
 
   // D-06: Accepts single ID or array
-  async archive(ids: string | string[]): Promise<Envelope<{ archived_count: number }>> {
+  // D-15: Check access on each memory before archiving
+  async archive(ids: string | string[], userId: string): Promise<Envelope<{ archived_count: number }>> {
     const start = Date.now();
 
     const idArray = Array.isArray(ids) ? ids : [ids];
+
+    // Check access on each memory before archiving
+    for (const id of idArray) {
+      const memory = await this.memoryRepo.findById(id);
+      if (memory) {
+        // D-67: If memory not found, archive is idempotent -- skip check
+        this.assertCanModify(memory, userId);
+      }
+    }
+
     const archivedCount = await this.memoryRepo.archive(idArray);
 
     const timing = Date.now() - start;
@@ -157,7 +186,7 @@ export class MemoryService {
     query: string,
     project_id: string,
     scope: "project" | "user" | "both",
-    user_id?: string,
+    user_id: string,
     limit?: number,
     min_similarity?: number,
   ): Promise<Envelope<MemoryWithRelevance[]>> {
@@ -274,10 +303,19 @@ export class MemoryService {
     };
   }
 
-  async verify(id: string, verifiedBy: string): Promise<Envelope<Memory>> {
+  async verify(id: string, userId: string): Promise<Envelope<Memory>> {
     const start = Date.now();
 
-    const memory = await this.memoryRepo.verify(id, verifiedBy);
+    const existing = await this.memoryRepo.findById(id);
+    if (!existing) {
+      throw new NotFoundError("Memory", id);
+    }
+    // D-20: project=anyone can verify, user=owner only
+    if (!this.canAccess(existing, userId)) {
+      throw new AuthorizationError("Cannot verify user-scoped memory owned by another user.");
+    }
+
+    const memory = await this.memoryRepo.verify(id, userId);
     if (!memory) {
       throw new NotFoundError("Memory", id);
     }
@@ -288,6 +326,7 @@ export class MemoryService {
 
   async listStale(
     project_id: string,
+    userId: string,
     threshold_days: number,
     limit?: number,
     cursor?: { created_at: string; id: string },
@@ -301,11 +340,14 @@ export class MemoryService {
       cursor,
     });
 
+    // D-16: Filter out user-scoped memories not owned by requesting user
+    const filtered = result.memories.filter(m => this.canAccess(m, userId));
+
     const timing = Date.now() - start;
     return {
-      data: result.memories,
+      data: filtered,
       meta: {
-        count: result.memories.length,
+        count: filtered.length,
         has_more: result.has_more,
         cursor: result.cursor ? `${result.cursor.created_at}|${result.cursor.id}` : undefined,
         timing,

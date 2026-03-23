@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
+import { slugSchema } from "../utils/validation.js";
 import { toolResponse, withErrorHandling } from "./tool-utils.js";
 
 /** Parse cursor string (format: "created_at|id") into object for the repository layer */
@@ -19,9 +20,10 @@ export function registerMemoryListStale(server: McpServer, memoryService: Memory
     "memory_list_stale",
     {
       description:
-        'List memories that haven\'t been verified within a threshold. Helps identify knowledge that may be outdated. Example: memory_list_stale({ project_id: "my-project", threshold_days: 30 })',
+        'List memories that haven\'t been verified within a threshold. Helps identify knowledge that may be outdated. user_id is required -- only project-scoped memories and your own user-scoped memories are returned. Example: memory_list_stale({ project_id: "my-project", user_id: "alice", threshold_days: 30 })',
       inputSchema: {
-        project_id: z.string().describe("Project slug"),
+        project_id: slugSchema.describe("Project slug (e.g., 'my-project')"),
+        user_id: slugSchema.describe("User identifier (e.g., 'alice'). Required for scope-based access control."),
         threshold_days: z.number().int().min(1).default(30).describe("Days since last verification (default 30)"),
         limit: z.number().int().min(1).max(100).default(20).describe("Max results per page (default 20)"),
         cursor: z.string().optional().describe("Pagination cursor from previous response"),
@@ -31,6 +33,7 @@ export function registerMemoryListStale(server: McpServer, memoryService: Memory
       return withErrorHandling(async () => {
         const result = await memoryService.listStale(
           params.project_id,
+          params.user_id,
           params.threshold_days,
           params.limit,
           parseCursor(params.cursor),

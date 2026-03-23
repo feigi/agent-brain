@@ -29,6 +29,7 @@ describe("Memory scoping integration tests", () => {
       "deployment pipelines",
       "project-b",
       "project",
+      "alice",
     );
 
     const crossProjectMatch = result.data.find(
@@ -85,7 +86,7 @@ describe("Memory scoping integration tests", () => {
       author: "alice",
     });
 
-    const staleResult = await service.listStale("test-project", 30);
+    const staleResult = await service.listStale("test-project", "alice", 30);
 
     expect(staleResult.data.length).toBeGreaterThan(0);
     const found = staleResult.data.find((m) => m.id === created.data.id);
@@ -103,7 +104,7 @@ describe("Memory scoping integration tests", () => {
     // Verify the memory (sets verified_at to now)
     await service.verify(created.data.id, "alice");
 
-    const staleResult = await service.listStale("test-project", 30);
+    const staleResult = await service.listStale("test-project", "alice", 30);
 
     const found = staleResult.data.find((m) => m.id === created.data.id);
     expect(found).toBeUndefined();

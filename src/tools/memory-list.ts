@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
+import { slugSchema } from "../utils/validation.js";
 import { toolResponse, withErrorHandling } from "./tool-utils.js";
 
 /** Parse cursor string (format: "created_at|id") into object for the repository layer */
@@ -19,11 +20,11 @@ export function registerMemoryList(server: McpServer, memoryService: MemoryServi
     "memory_list",
     {
       description:
-        'Browse memories with filtering, sorting, and pagination. Use for browsing by type or tags. For semantic search, use memory_search instead. Example: memory_list({ project_id: "my-project", type: "decision" })',
+        'Browse memories with filtering, sorting, and pagination. user_id is required for access control. Use for browsing by type or tags. For semantic search, use memory_search instead. Example: memory_list({ project_id: "my-project", user_id: "alice", type: "decision" })',
       inputSchema: {
-        project_id: z.string().describe("Project slug"),
-        scope: z.enum(["project", "user"]).catch("project").describe("List scope"),
-        user_id: z.string().optional().describe("Required when scope is 'user'"),
+        project_id: slugSchema.describe("Project slug (e.g., 'my-project')"),
+        scope: z.enum(["project", "user"]).catch("project").describe("List scope: 'project' (shared team memories) or 'user' (your private memories)"),
+        user_id: slugSchema.describe("User identifier (e.g., 'alice'). Required for access control."),
         type: z
           .enum(["fact", "decision", "learning", "pattern", "preference", "architecture"])
           .optional()

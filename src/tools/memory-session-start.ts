@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
+import { slugSchema } from "../utils/validation.js";
 import { toolResponse, withErrorHandling } from "./tool-utils.js";
 
 export function registerMemorySessionStart(server: McpServer, memoryService: MemoryService): void {
@@ -9,11 +10,12 @@ export function registerMemorySessionStart(server: McpServer, memoryService: Mem
     {
       description:
         'Load relevant memories at session start. Searches both project and user scopes. '
+        + 'user_id is required to load your private memories alongside shared project memories. '
         + 'Provide context for relevance-ranked results, or omit for recent memories. '
         + 'Example: memory_session_start({ project_id: "my-project", user_id: "alice" })',
       inputSchema: {
-        project_id: z.string().describe("Project slug"),
-        user_id: z.string().describe("User identifier"),
+        project_id: slugSchema.describe("Project slug (e.g., 'my-project')"),
+        user_id: slugSchema.describe("User identifier (e.g., 'alice'). Required to load user-scoped memories."),
         context: z.string().optional().describe("What the agent is working on (used for semantic relevance ranking)"),
         limit: z.number().int().min(1).max(50).default(10).describe("Max memories to return (default 10)"),
       },

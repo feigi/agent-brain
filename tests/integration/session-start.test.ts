@@ -139,7 +139,7 @@ describe("memory_session_start integration tests", () => {
       type: "fact",
       author: "alice",
     });
-    await service.archive(created.data.id);
+    await service.archive(created.data.id, "alice");
 
     const result = await service.sessionStart("test-project", "alice");
 

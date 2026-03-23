@@ -62,7 +62,7 @@ describe("Memory CRUD integration tests", () => {
       tags: ["deploy", "ci"],
     });
 
-    const fetched = await service.get(result.data.id);
+    const fetched = await service.get(result.data.id, "bob");
     expect(fetched.data.source).toBe("manual");
     expect(fetched.data.session_id).toBe("sess-1");
     expect(fetched.data.metadata).toEqual({ file: "README.md" });
@@ -77,13 +77,13 @@ describe("Memory CRUD integration tests", () => {
       author: "alice",
     });
 
-    const fetched = await service.get(created.data.id);
+    const fetched = await service.get(created.data.id, "alice");
     expect(fetched.data.content).toBe("Retrievable memory");
     expect(fetched.data.id).toBe(created.data.id);
   });
 
   it("throws NotFoundError for non-existent ID", async () => {
-    await expect(service.get("nonexistent-id-12345")).rejects.toThrow(
+    await expect(service.get("nonexistent-id-12345", "alice")).rejects.toThrow(
       NotFoundError,
     );
   });
@@ -98,7 +98,7 @@ describe("Memory CRUD integration tests", () => {
 
     const updated = await service.update(created.data.id, 1, {
       content: "Updated content",
-    });
+    }, "alice");
 
     expect(updated.data.version).toBe(2);
     expect(updated.data.content).toBe("Updated content");
@@ -117,7 +117,7 @@ describe("Memory CRUD integration tests", () => {
 
     const updated = await service.update(created.data.id, 1, {
       content: "Completely different content for re-embedding",
-    });
+    }, "alice");
 
     // The embedding model should still be set (re-embedding happened)
     expect(updated.data.embedding_model).toBe("mock-deterministic");
@@ -136,11 +136,11 @@ describe("Memory CRUD integration tests", () => {
     // First update succeeds (version 1 -> 2)
     await service.update(created.data.id, 1, {
       content: "First update",
-    });
+    }, "alice");
 
     // Second update with stale version 1 fails
     await expect(
-      service.update(created.data.id, 1, { content: "Stale update" }),
+      service.update(created.data.id, 1, { content: "Stale update" }, "alice"),
     ).rejects.toThrow(ConflictError);
   });
 
@@ -152,11 +152,11 @@ describe("Memory CRUD integration tests", () => {
       author: "alice",
     });
 
-    const result = await service.archive(created.data.id);
+    const result = await service.archive(created.data.id, "alice");
     expect(result.data.archived_count).toBe(1);
 
     // Archived memory not returned by get
-    await expect(service.get(created.data.id)).rejects.toThrow(NotFoundError);
+    await expect(service.get(created.data.id, "alice")).rejects.toThrow(NotFoundError);
   });
 
   it("archives multiple memories in bulk", async () => {
@@ -173,7 +173,7 @@ describe("Memory CRUD integration tests", () => {
       author: "alice",
     });
 
-    const result = await service.archive([m1.data.id, m2.data.id]);
+    const result = await service.archive([m1.data.id, m2.data.id], "alice");
     expect(result.data.archived_count).toBe(2);
   });
 
@@ -185,9 +185,9 @@ describe("Memory CRUD integration tests", () => {
       author: "alice",
     });
 
-    await service.archive(created.data.id);
+    await service.archive(created.data.id, "alice");
     // Second archive should succeed without error
-    const result = await service.archive(created.data.id);
+    const result = await service.archive(created.data.id, "alice");
     // Already archived, so count is 0 (no new archives)
     expect(result.data.archived_count).toBe(0);
   });
