@@ -13,5 +13,11 @@ export interface Envelope<T> {
       since: string;            // ISO timestamp
     };
     comment_count?: number;     // D-67: memory_comment response
+    session_id?: string;        // Phase 4: returned from session_start
+    budget?: {                  // Phase 4: returned from memory_create for autonomous writes
+      used: number;
+      limit: number;
+      exceeded: boolean;
+    };
   };
 }

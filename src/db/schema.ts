@@ -69,6 +69,16 @@ export const comments = pgTable(
   ]
 );
 
+// Phase 4: Session lifecycle table for budget tracking and agent autonomy (D-18)
+export const sessions = pgTable("sessions", {
+  id: text("id").primaryKey(),               // nanoid session_id (D-18)
+  user_id: text("user_id").notNull(),
+  project_id: text("project_id").notNull()
+    .references(() => projects.id),
+  budget_used: integer("budget_used").notNull().default(0),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // D-28: Track last session per user per project for team activity detection
 export const sessionTracking = pgTable(
   "session_tracking",

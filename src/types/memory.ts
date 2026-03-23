@@ -79,3 +79,11 @@ export interface MemoryUpdate {
 export interface MemoryWithRelevance extends Memory {
   relevance: number;
 }
+
+// Phase 4: Discriminated union result for autonomous memory_create (budget or dedup skip)
+export interface CreateSkipResult {
+  skipped: true;
+  reason: 'budget_exceeded' | 'duplicate';
+  message: string;
+  duplicate?: { id: string; title: string; relevance: number; scope?: string };
+}

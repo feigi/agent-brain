@@ -65,6 +65,14 @@ export interface SessionTrackingRepository {
   upsert(userId: string, projectId: string): Promise<Date | null>;  // returns previous last_session_at or null
 }
 
+// Phase 4: Session lifecycle repository for autonomous write budget tracking
+export interface SessionRepository {
+  createSession(id: string, userId: string, projectId: string): Promise<void>;
+  getBudget(sessionId: string): Promise<{ used: number; limit: number } | null>;
+  incrementBudgetUsed(sessionId: string, limit: number): Promise<{ used: number; exceeded: boolean }>;
+  findById(sessionId: string): Promise<{ id: string; user_id: string; project_id: string; budget_used: number } | null>;
+}
+
 export interface RecentActivityOptions {
   project_id: string;
   user_id: string;
