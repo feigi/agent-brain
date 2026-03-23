@@ -207,6 +207,52 @@ export class MemoryService {
     };
   }
 
+  async sessionStart(
+    projectId: string,
+    userId: string,
+    context?: string,
+    limit: number = 10,
+  ): Promise<Envelope<MemoryWithRelevance[]>> {
+    const start = Date.now();
+
+    if (context) {
+      // D-14: With context, use semantic search with composite scoring
+      // D-15: Always search both scopes
+      // min_similarity = 0.0 -- session start should be permissive
+      return this.search(context, projectId, "both", userId, limit, 0.0);
+    }
+
+    // D-14: Without context, fetch recent memories ranked by recency
+    // Use limit directly (no over-fetch needed -- no re-ranking by similarity)
+    const recentMemories = await this.memoryRepo.listRecentBothScopes({
+      project_id: projectId,
+      user_id: userId,
+      limit,
+    });
+
+    // Apply composite scoring with similarity = 1.0 (neutral baseline)
+    // so recency and verification dominate the score
+    const scored: MemoryWithRelevance[] = recentMemories.map((memory) => ({
+      ...memory,
+      relevance: computeRelevance(
+        1.0, // neutral similarity -- recency dominates
+        memory.created_at,
+        memory.verified_at,
+        config.recencyHalfLifeDays,
+      ),
+    }));
+
+    // Already sorted by created_at DESC from DB, but re-sort by relevance
+    // (verification boost can change order slightly)
+    scored.sort((a, b) => b.relevance - a.relevance);
+
+    const timing = Date.now() - start;
+    return {
+      data: scored,
+      meta: { count: scored.length, timing },
+    };
+  }
+
   async list(options: ListOptions): Promise<Envelope<Memory[]>> {
     const start = Date.now();
 

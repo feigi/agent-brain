@@ -23,6 +23,12 @@ export interface SearchOptions {
   min_similarity?: number;
 }
 
+export interface RecentBothScopesOptions {
+  project_id: string;
+  user_id: string;
+  limit: number;
+}
+
 export interface StaleOptions {
   project_id: string;
   threshold_days: number;
@@ -38,6 +44,7 @@ export interface MemoryRepository {
   search(options: SearchOptions): Promise<MemoryWithRelevance[]>;
   list(options: ListOptions): Promise<{ memories: Memory[]; has_more: boolean; cursor?: { created_at: string; id: string } }>;
   findStale(options: StaleOptions): Promise<{ memories: Memory[]; has_more: boolean; cursor?: { created_at: string; id: string } }>;
+  listRecentBothScopes(options: RecentBothScopesOptions): Promise<Memory[]>;
   verify(id: string): Promise<Memory | null>;
 }
 

@@ -7,7 +7,7 @@ import type { Database } from "../db/index.js";
 import { memories } from "../db/schema.js";
 import type { Memory, MemoryWithRelevance } from "../types/memory.js";
 import { ConflictError } from "../utils/errors.js";
-import type { MemoryRepository, ListOptions, SearchOptions, StaleOptions } from "./types.js";
+import type { MemoryRepository, ListOptions, SearchOptions, StaleOptions, RecentBothScopesOptions } from "./types.js";
 
 // D-44: Explicit column selection -- never return embedding vector
 const memoryColumns = {
@@ -338,6 +338,25 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       has_more: hasMore,
       cursor: hasMore ? cursor : undefined,
     };
+  }
+
+  async listRecentBothScopes(options: RecentBothScopesOptions): Promise<Memory[]> {
+    const result = await this.db
+      .select(memoryColumns)
+      .from(memories)
+      .where(
+        and(
+          isNull(memories.archived_at),
+          or(
+            eq(memories.project_id, options.project_id),
+            and(eq(memories.author, options.user_id), eq(memories.scope, "user")),
+          )!,
+        ),
+      )
+      .orderBy(desc(memories.created_at), desc(memories.id))
+      .limit(options.limit);
+
+    return result.map(rowToMemory);
   }
 
   async verify(id: string): Promise<Memory | null> {
