@@ -18,11 +18,11 @@ Agents remember what matters across sessions — no team knowledge is lost becau
 - [x] MCP server with save, search, and retrieve memory tools — Validated in Phase 1
 - [x] Semantic search via vector embeddings (Amazon Titan via Bedrock, provider-swappable) — Validated in Phase 1
 - [x] Session-start auto-load of relevant memories — Validated in Phase 2
+- [x] Team sharing — multiple users see shared project memories — Validated in Phase 3
+- [x] Authentication and authorization for team access — Validated in Phase 3
 
 ### Active
 
-- [ ] Team sharing — multiple users see shared project memories
-- [ ] Authentication and authorization for team access
 - [ ] Auto-write: agent autonomously saves insights mid-session
 - [ ] System prompt guidance for what's worth remembering
 - [ ] Session-end review: agent extracts and saves learnings
@@ -78,4 +78,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-23 after Phase 2 completion — retrieval quality and session lifecycle*
+*Last updated: 2026-03-23 after Phase 3 completion — team collaboration (access control, comments, team activity)*
