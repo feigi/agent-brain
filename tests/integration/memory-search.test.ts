@@ -14,7 +14,7 @@ describe("Memory search integration tests", () => {
     await closeDb();
   });
 
-  it("returns results ranked by similarity (highest first)", async () => {
+  it("returns results ranked by relevance (highest first)", async () => {
     // Create memories with distinct content
     await service.create({
       project_id: "test-project",
@@ -41,14 +41,14 @@ describe("Memory search integration tests", () => {
       "project",
       undefined,
       undefined,
-      0, // allow any similarity -- mock embeddings have low scores
+      0, // allow any relevance -- mock embeddings have low scores
     );
 
-    // Should return results with similarity scores in descending order
+    // Should return results with relevance scores in descending order
     expect(result.data.length).toBeGreaterThan(0);
     for (let i = 1; i < result.data.length; i++) {
-      expect(result.data[i - 1].similarity).toBeGreaterThanOrEqual(
-        result.data[i].similarity,
+      expect(result.data[i - 1].relevance).toBeGreaterThanOrEqual(
+        result.data[i].relevance,
       );
     }
   });
@@ -70,7 +70,7 @@ describe("Memory search integration tests", () => {
       "project",
       undefined,
       2,
-      0, // allow any similarity -- mock embeddings have low scores
+      0, // allow any relevance -- mock embeddings have low scores
     );
 
     expect(result.data.length).toBeLessThanOrEqual(2);
@@ -98,7 +98,7 @@ describe("Memory search integration tests", () => {
     expect(archivedInResults).toBeUndefined();
   });
 
-  it("filters by min_similarity threshold", async () => {
+  it("filters by min_relevance threshold", async () => {
     await service.create({
       project_id: "test-project",
       content: "Some generic content",
@@ -120,28 +120,28 @@ describe("Memory search integration tests", () => {
     expect(result.data.length).toBe(0);
   });
 
-  it("search results include similarity score between 0 and 1", async () => {
+  it("search results include relevance score between 0 and 1", async () => {
     await service.create({
       project_id: "test-project",
-      content: "Testing similarity scores in search results",
+      content: "Testing relevance scores in search results",
       type: "fact",
       author: "alice",
     });
 
     const result = await service.search(
-      "similarity scores",
+      "relevance scores",
       "test-project",
       "project",
       undefined,
       undefined,
-      0, // allow any similarity
+      0, // allow any relevance
     );
 
     expect(result.data.length).toBeGreaterThan(0);
     for (const memory of result.data) {
-      expect(memory.similarity).toBeTypeOf("number");
-      expect(memory.similarity).toBeGreaterThan(0);
-      expect(memory.similarity).toBeLessThanOrEqual(1);
+      expect(memory.relevance).toBeTypeOf("number");
+      expect(memory.relevance).toBeGreaterThan(0);
+      expect(memory.relevance).toBeLessThanOrEqual(1);
     }
   });
 });

@@ -1,4 +1,4 @@
-import type { Memory, MemoryCreate, MemoryUpdate, MemoryWithScore } from "../types/memory.js";
+import type { Memory, MemoryCreate, MemoryUpdate, MemoryWithRelevance } from "../types/memory.js";
 import type { Envelope } from "../types/envelope.js";
 import type { EmbeddingProvider } from "../providers/embedding/types.js";
 import type { MemoryRepository, ProjectRepository, ListOptions, SearchOptions, StaleOptions } from "../repositories/types.js";
@@ -155,7 +155,7 @@ export class MemoryService {
     user_id?: string,
     limit?: number,
     min_similarity?: number,
-  ): Promise<Envelope<MemoryWithScore[]>> {
+  ): Promise<Envelope<MemoryWithRelevance[]>> {
     const start = Date.now();
 
     // Generate embedding for query text

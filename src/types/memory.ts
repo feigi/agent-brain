@@ -49,7 +49,7 @@ export interface MemoryUpdate {
   metadata?: Record<string, unknown>;
 }
 
-// D-43: Search result includes similarity score
-export interface MemoryWithScore extends Memory {
-  similarity: number;
+// D-05, D-06: Search result with relevance score (renamed from MemoryWithScore/similarity)
+export interface MemoryWithRelevance extends Memory {
+  relevance: number;
 }

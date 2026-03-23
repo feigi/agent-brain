@@ -1,4 +1,4 @@
-import type { Memory, MemoryCreate, MemoryUpdate, MemoryWithScore } from "../types/memory.js";
+import type { Memory, MemoryCreate, MemoryUpdate, MemoryWithRelevance } from "../types/memory.js";
 
 // INFR-02: Repository interfaces -- abstract storage layer
 
@@ -35,7 +35,7 @@ export interface MemoryRepository {
   findById(id: string): Promise<Memory | null>;
   update(id: string, expectedVersion: number, updates: Partial<Memory> & { embedding?: number[] | null }): Promise<Memory>;
   archive(ids: string[]): Promise<number>;
-  search(options: SearchOptions): Promise<MemoryWithScore[]>;
+  search(options: SearchOptions): Promise<MemoryWithRelevance[]>;
   list(options: ListOptions): Promise<{ memories: Memory[]; has_more: boolean; cursor?: { created_at: string; id: string } }>;
   findStale(options: StaleOptions): Promise<{ memories: Memory[]; has_more: boolean; cursor?: { created_at: string; id: string } }>;
   verify(id: string): Promise<Memory | null>;

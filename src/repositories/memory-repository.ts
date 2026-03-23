@@ -5,7 +5,7 @@ import {
 import type { SQL } from "drizzle-orm";
 import type { Database } from "../db/index.js";
 import { memories } from "../db/schema.js";
-import type { Memory, MemoryWithScore } from "../types/memory.js";
+import type { Memory, MemoryWithRelevance } from "../types/memory.js";
 import { ConflictError } from "../utils/errors.js";
 import type { MemoryRepository, ListOptions, SearchOptions, StaleOptions } from "./types.js";
 
@@ -142,7 +142,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
   }
 
   // RESEARCH Pattern 5: Cosine similarity search
-  async search(options: SearchOptions): Promise<MemoryWithScore[]> {
+  async search(options: SearchOptions): Promise<MemoryWithRelevance[]> {
     const limit = options.limit ?? 10;          // D-41
     const minSimilarity = options.min_similarity ?? 0.3; // D-42
 
@@ -180,7 +180,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       .filter((row) => Number(row.similarity) >= minSimilarity)
       .map((row) => ({
         ...rowToMemory(row),
-        similarity: Number(row.similarity),
+        relevance: Number(row.similarity),
       }));
   }
 
