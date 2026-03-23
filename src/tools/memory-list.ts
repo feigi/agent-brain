@@ -22,15 +22,16 @@ export function registerMemoryList(server: McpServer, memoryService: MemoryServi
         'Browse memories with filtering, sorting, and pagination. Use for browsing by type or tags. For semantic search, use memory_search instead. Example: memory_list({ project_id: "my-project", type: "decision" })',
       inputSchema: {
         project_id: z.string().describe("Project slug"),
-        scope: z.enum(["project", "user"]).default("project").describe("List scope"),
+        scope: z.enum(["project", "user"]).catch("project").describe("List scope"),
         user_id: z.string().optional().describe("Required when scope is 'user'"),
         type: z
           .enum(["fact", "decision", "learning", "pattern", "preference", "architecture"])
           .optional()
+          .catch(undefined)
           .describe("Filter by memory type"),
-        tags: z.array(z.string()).optional().describe("Filter by tags (memories matching ANY of these tags)"),
-        sort_by: z.enum(["created_at", "updated_at"]).default("created_at").describe("Sort field"),
-        order: z.enum(["asc", "desc"]).default("desc").describe("Sort order"),
+        tags: z.array(z.string()).optional().catch(undefined).describe("Filter by tags (memories matching ANY of these tags)"),
+        sort_by: z.enum(["created_at", "updated_at"]).catch("created_at").describe("Sort field"),
+        order: z.enum(["asc", "desc"]).catch("desc").describe("Sort order"),
         cursor: z.string().optional().describe("Pagination cursor from previous response"),
         limit: z.number().int().min(1).max(100).default(20).describe("Max results per page (default 20)"),
       },

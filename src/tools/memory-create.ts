@@ -15,9 +15,9 @@ export function registerMemoryCreate(server: McpServer, memoryService: MemorySer
         title: z.string().optional().describe("Optional title. Auto-generated from content if omitted."),
         type: z
           .enum(["fact", "decision", "learning", "pattern", "preference", "architecture"])
-          .describe("Memory category type"),
-        tags: z.array(z.string()).optional().describe("Free-form categorization tags"),
-        scope: z.enum(["project", "user"]).default("project").describe("'project' scopes to this project, 'user' follows you across projects"),
+          .describe("Memory category type: fact, decision, learning, pattern, preference, architecture"),
+        tags: z.array(z.string()).optional().catch(undefined).describe("Free-form categorization tags"),
+        scope: z.enum(["project", "user"]).catch("project").describe("'project' scopes to this project, 'user' follows you across projects"),
         user_id: z.string().describe("Who is creating this memory (author for provenance)"),
         source: z.string().optional().describe("Origin: 'manual', 'agent-auto', 'session-review', or custom"),
         session_id: z.string().optional().describe("Agent session ID to group related memories"),

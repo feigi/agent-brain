@@ -17,8 +17,9 @@ export function registerMemoryUpdate(server: McpServer, memoryService: MemorySer
         type: z
           .enum(["fact", "decision", "learning", "pattern", "preference", "architecture"])
           .optional()
+          .catch(undefined)
           .describe("New memory category type"),
-        tags: z.array(z.string()).optional().describe("New tags (replaces existing)"),
+        tags: z.array(z.string()).optional().catch(undefined).describe("New tags (replaces existing)"),
         metadata: z.record(z.string(), z.unknown()).optional().describe("New metadata (replaces existing)"),
         user_id: z.string().describe("Who is making this update"),
       },
