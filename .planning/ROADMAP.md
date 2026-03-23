@@ -79,10 +79,13 @@ Plans:
   2. Agent performs a session-end review that extracts and saves key learnings
   3. Write budget enforces a maximum number of autonomous saves per session, preventing memory bloat
   4. Saving a memory that is semantically near-identical to an existing one is detected and prevented
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 04-01: TBD
+- [ ] 04-01-PLAN.md -- Sessions table, config, types, session repository, and session_id generation in session_start
+- [ ] 04-02-PLAN.md -- MCP prompt resource for memory capture guidance and Claude Code hook templates
+- [ ] 04-03-PLAN.md -- Write budget enforcement and semantic duplicate detection in memory_create
+- [ ] 04-04-PLAN.md -- Unit and integration tests for session lifecycle, budget, dedup, and prompt resource
 
 ## Progress
 
@@ -94,4 +97,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | 1. Foundation and Core Memory | 4/4 | Complete   | 2026-03-23 |
 | 2. Retrieval Quality and Session Lifecycle | 0/3 | Not started | - |
 | 3. Team Collaboration | 5/5 | Complete   | 2026-03-23 |
-| 4. Agent Autonomy | 0/1 | Not started | - |
+| 4. Agent Autonomy | 0/4 | Not started | - |
