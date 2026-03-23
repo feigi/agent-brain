@@ -2,6 +2,8 @@ import "dotenv/config";
 import { createDb, type Database } from "../src/db/index.js";
 import { DrizzleMemoryRepository } from "../src/repositories/memory-repository.js";
 import { DrizzleProjectRepository } from "../src/repositories/project-repository.js";
+import { DrizzleCommentRepository } from "../src/repositories/comment-repository.js";
+import { DrizzleSessionTrackingRepository } from "../src/repositories/session-repository.js";
 import { MockEmbeddingProvider } from "../src/providers/embedding/mock.js";
 import { MemoryService } from "../src/services/memory-service.js";
 import { memories, projects, comments, sessionTracking } from "../src/db/schema.js";
@@ -23,7 +25,9 @@ export function createTestService(): MemoryService {
   const memoryRepo = new DrizzleMemoryRepository(testDb);
   const projectRepo = new DrizzleProjectRepository(testDb);
   const embedder = new MockEmbeddingProvider();
-  return new MemoryService(memoryRepo, projectRepo, embedder);
+  const commentRepo = new DrizzleCommentRepository(testDb);
+  const sessionRepo = new DrizzleSessionTrackingRepository(testDb);
+  return new MemoryService(memoryRepo, projectRepo, embedder, commentRepo, sessionRepo);
 }
 
 /** Truncate all tables between tests (D-64) */
