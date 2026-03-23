@@ -11,6 +11,7 @@ import { DrizzleCommentRepository } from "./repositories/comment-repository.js";
 import { DrizzleSessionTrackingRepository } from "./repositories/session-repository.js";
 import { MemoryService } from "./services/memory-service.js";
 import { registerAllTools } from "./tools/index.js";
+import { registerMemoryGuidance } from "./prompts/memory-guidance.js";
 import { logger } from "./utils/logger.js";
 
 async function main() {
@@ -42,6 +43,9 @@ async function main() {
 
   // Register all 11 tools (D-01)
   registerAllTools(server, memoryService);
+
+  // Register memory guidance prompt resource (AUTO-02)
+  registerMemoryGuidance(server);
 
   // Connect stdio transport (D-49)
   const transport = new StdioServerTransport();
