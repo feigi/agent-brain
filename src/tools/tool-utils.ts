@@ -1,5 +1,18 @@
 import type { Envelope } from "../types/envelope.js";
-import { DomainError } from "../utils/errors.js";
+import { DomainError, ValidationError } from "../utils/errors.js";
+
+const VALID_MEMORY_TYPES = ["fact", "decision", "learning", "pattern", "preference", "architecture"] as const;
+export type ValidMemoryType = (typeof VALID_MEMORY_TYPES)[number];
+
+/** Validate and coerce a memory type string. MCP clients (e.g. Inspector) may send empty strings. */
+export function validateMemoryType(value: string): ValidMemoryType {
+  const trimmed = value.trim();
+  if (!trimmed) throw new ValidationError("type is required");
+  if (!VALID_MEMORY_TYPES.includes(trimmed as ValidMemoryType)) {
+    throw new ValidationError(`Invalid type: '${trimmed}'. Must be one of: ${VALID_MEMORY_TYPES.join(", ")}`);
+  }
+  return trimmed as ValidMemoryType;
+}
 
 /** Wrap an Envelope as MCP CallToolResult content */
 export function toolResponse<T>(envelope: Envelope<T>): { content: { type: "text"; text: string }[] } {
