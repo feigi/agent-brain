@@ -2,7 +2,7 @@
 phase: 2
 slug: retrieval-quality-and-session-lifecycle
 status: draft
-nyquist_compliant: false
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-03-23
 ---
@@ -38,22 +38,23 @@ created: 2026-03-23
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 02-01-01 | 01 | 1 | RETR-01 | unit | `npx vitest run src/scoring` | ❌ W0 | ⬜ pending |
-| 02-01-02 | 01 | 1 | RETR-02 | unit | `npx vitest run src/scoring` | ❌ W0 | ⬜ pending |
-| 02-02-01 | 02 | 1 | RETR-03 | unit | `npx vitest run src/repository` | ❌ W0 | ⬜ pending |
-| 02-02-02 | 02 | 1 | RETR-04 | unit | `npx vitest run src/repository` | ❌ W0 | ⬜ pending |
-| 02-03-01 | 03 | 2 | RETR-05 | integration | `npx vitest run src/tools` | ❌ W0 | ⬜ pending |
-| 02-03-02 | 03 | 2 | SCOP-03 | integration | `npx vitest run src/tools` | ❌ W0 | ⬜ pending |
+| 02-01-01 | 01 | 1 | RETR-02 | unit | `npx vitest run tests/unit/scoring.test.ts -x` | No (W0) | pending |
+| 02-01-02 | 01 | 1 | RETR-03 | compile | `npx tsc --noEmit` | N/A (type rename) | pending |
+| 02-02-01 | 02 | 2 | SCOP-03 | compile | `npx tsc --noEmit` | N/A (repo update) | pending |
+| 02-02-02 | 02 | 2 | RETR-01, RETR-03 | integration | `npx vitest run tests/integration/memory-search.test.ts tests/integration/memory-scoping.test.ts -x` | Yes (needs update) | pending |
+| 02-03-01 | 03 | 3 | RETR-04 | compile | `npx tsc --noEmit` | N/A (service method) | pending |
+| 02-03-02 | 03 | 3 | RETR-04, RETR-05 | integration | `npx vitest run tests/integration/session-start.test.ts -x` | No (W0) | pending |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+*Status: pending / green / red / flaky*
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `src/scoring/__tests__/composite-score.test.ts` — stubs for RETR-01, RETR-02
-- [ ] `src/repository/__tests__/cross-scope-search.test.ts` — stubs for RETR-03, RETR-04
-- [ ] `src/tools/__tests__/session-start.test.ts` — stubs for RETR-05, SCOP-03
+- [ ] `tests/unit/scoring.test.ts` -- unit tests for `computeRelevance()` and `exponentialDecay()` (created by Plan 02-01 Task 1 via TDD)
+- [ ] `tests/integration/memory-search.test.ts` -- update existing `.similarity` references to `.relevance` (updated by Plan 02-02 Task 2)
+- [ ] `tests/integration/memory-scoping.test.ts` -- verify no stale `.similarity` field references (verified by Plan 02-02 Task 2)
+- [ ] `tests/integration/session-start.test.ts` -- integration tests for `memory_session_start` tool (created by Plan 02-03 Task 2)
 
 *Existing vitest infrastructure from Phase 1 covers framework requirements.*
 
@@ -67,11 +68,11 @@ created: 2026-03-23
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 15s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 15s
+- [x] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** pending
