@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Ready to execute
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-03-23T22:37:31.236Z"
+stopped_at: Completed 04-03-PLAN.md
+last_updated: "2026-03-23T22:41:11.389Z"
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 16
-  completed_plans: 14
+  completed_plans: 15
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-23)
 ## Current Position
 
 Phase: 04 (agent-autonomy) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 
 ## Performance Metrics
 
@@ -60,6 +60,7 @@ Plan: 3 of 4
 | Phase 03-team-collaboration P03-05 | 5min | 2 tasks | 2 files |
 | Phase 04 P02 | 2min | 2 tasks | 5 files |
 | Phase 04 P01 | 8min | 2 tasks | 8 files |
+| Phase 04-agent-autonomy P04-03 | 1min | 1 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -105,6 +106,8 @@ Recent decisions affecting current work:
 - [Phase 04]: sessions table separate from session_tracking: lifecycle/budget vs team activity timestamps
 - [Phase 04]: Atomic budget increment via UPDATE WHERE budget_used < limit RETURNING -- no application-level locking
 - [Phase 04]: sessionLifecycleRepo optional 6th param in MemoryService -- preserves backward compatibility for existing tests
+- [Phase 04]: Guard order in memory_create: session validation -> budget check -> embed -> dedup -> insert -- fail fast on cheapest checks before incurring embedding cost
+- [Phase 04]: Post-insert budget increment (not pre-insert decrement) avoids consuming budget on failed writes (embedding error, dedup skip)
 
 ### Pending Todos
 
@@ -117,6 +120,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T22:37:31.234Z
-Stopped at: Completed 04-01-PLAN.md
+Last session: 2026-03-23T22:41:11.387Z
+Stopped at: Completed 04-03-PLAN.md
 Resume file: None
