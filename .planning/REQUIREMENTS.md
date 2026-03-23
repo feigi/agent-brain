@@ -46,7 +46,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Agent Autonomy
 
-- [ ] **AUTO-01**: Agent can autonomously save insights mid-session without explicit user instruction
+- [x] **AUTO-01**: Agent can autonomously save insights mid-session without explicit user instruction
 - [x] **AUTO-02**: System prompt guidance defines what patterns are worth remembering (decisions, conventions, gotchas, architecture)
 - [x] **AUTO-03**: Agent can perform session-end review and extract key learnings
 - [ ] **AUTO-04**: Write budget limits the number of autonomous saves per session (prevents memory bloat)
@@ -126,7 +126,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TEAM-05 | Phase 3 | Complete |
 | TEAM-06 | Phase 3 | Complete |
 | TEAM-07 | Phase 3 | Complete |
-| AUTO-01 | Phase 4 | Pending |
+| AUTO-01 | Phase 4 | Complete |
 | AUTO-02 | Phase 4 | Complete |
 | AUTO-03 | Phase 4 | Complete |
 | AUTO-04 | Phase 4 | Pending |
