@@ -9,6 +9,7 @@ services:
       POSTGRES_DB: agentic_brain
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-extensions.sql:/docker-entrypoint-initdb.d/01-extensions.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U agentic -d agentic_brain"]
       interval: 5s
