@@ -147,7 +147,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
     const minSimilarity = options.min_similarity ?? 0.3; // D-42
 
     const distance = cosineDistance(memories.embedding, options.embedding);
-    const similarity = sql<number>`1 - ${distance}`;
+    const similarity = sql<number>`1 - (${distance})`;
 
     const conditions: SQL[] = [isNull(memories.archived_at)];
 
