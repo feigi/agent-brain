@@ -21,10 +21,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Scoping
 
-- [ ] **SCOP-01**: Memories are scoped to a project — agents only see memories for their current project
-- [ ] **SCOP-02**: User-level memories follow the user across all projects
+- [x] **SCOP-01**: Memories are scoped to a project — agents only see memories for their current project
+- [x] **SCOP-02**: User-level memories follow the user across all projects
 - [ ] **SCOP-03**: Agent can search both project and user memories in a single query
-- [ ] **SCOP-04**: Cross-project memory leakage is prevented at the database level (RLS)
+- [x] **SCOP-04**: Cross-project memory leakage is prevented at the database level (RLS)
 
 ### Retrieval
 
@@ -55,8 +55,8 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Infrastructure
 
 - [ ] **INFR-01**: MCP server exposes all memory operations as tools via stdio transport
-- [ ] **INFR-02**: Storage layer is abstracted behind an interface (Postgres + pgvector as default implementation)
-- [ ] **INFR-03**: Embedding provider is abstracted behind an interface (Amazon Titan v2 as default implementation)
+- [x] **INFR-02**: Storage layer is abstracted behind an interface (Postgres + pgvector as default implementation)
+- [x] **INFR-03**: Embedding provider is abstracted behind an interface (Amazon Titan v2 as default implementation)
 - [x] **INFR-04**: Database schema supports pgvector with HNSW indexing for fast similarity search
 - [x] **INFR-05**: Database migrations are managed programmatically (Drizzle ORM)
 
@@ -110,10 +110,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CORE-07 | Phase 1 | Complete |
 | CORE-08 | Phase 1 | Complete |
 | CORE-09 | Phase 1 | Complete |
-| SCOP-01 | Phase 1 | Pending |
-| SCOP-02 | Phase 1 | Pending |
+| SCOP-01 | Phase 1 | Complete |
+| SCOP-02 | Phase 1 | Complete |
 | SCOP-03 | Phase 2 | Pending |
-| SCOP-04 | Phase 1 | Pending |
+| SCOP-04 | Phase 1 | Complete |
 | RETR-01 | Phase 2 | Pending |
 | RETR-02 | Phase 2 | Pending |
 | RETR-03 | Phase 2 | Pending |
@@ -132,8 +132,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUTO-04 | Phase 4 | Pending |
 | AUTO-05 | Phase 4 | Pending |
 | INFR-01 | Phase 1 | Pending |
-| INFR-02 | Phase 1 | Pending |
-| INFR-03 | Phase 1 | Pending |
+| INFR-02 | Phase 1 | Complete |
+| INFR-03 | Phase 1 | Complete |
 | INFR-04 | Phase 1 | Complete |
 | INFR-05 | Phase 1 | Complete |
 

@@ -33,7 +33,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 - [x] 01-01-PLAN.md -- Project scaffold, database schema, Docker, types, and utilities
-- [ ] 01-02-PLAN.md -- Embedding providers, repository layer, and memory service
+- [x] 01-02-PLAN.md -- Embedding providers, repository layer, and memory service
 - [ ] 01-03-PLAN.md -- All 8 MCP tool handlers and server entry point
 - [ ] 01-04-PLAN.md -- Integration tests, seed script, and end-to-end verification
 
