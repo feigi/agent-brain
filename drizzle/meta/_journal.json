@@ -15,6 +15,13 @@
       "when": 1774296635631,
       "tag": "0001_team_collaboration",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1774305355129,
+      "tag": "0002_worthless_human_cannonball",
+      "breakpoints": true
     }
   ]
 }

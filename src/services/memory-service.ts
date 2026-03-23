@@ -1,7 +1,7 @@
 import type { Memory, MemoryCreate, MemoryUpdate, MemoryWithRelevance, Comment, MemoryGetResponse, MemoryWithChangeType } from "../types/memory.js";
 import type { Envelope } from "../types/envelope.js";
 import type { EmbeddingProvider } from "../providers/embedding/types.js";
-import type { MemoryRepository, ProjectRepository, ListOptions, SearchOptions, StaleOptions, CommentRepository, SessionTrackingRepository } from "../repositories/types.js";
+import type { MemoryRepository, ProjectRepository, ListOptions, SearchOptions, StaleOptions, CommentRepository, SessionTrackingRepository, SessionRepository } from "../repositories/types.js";
 import { NotFoundError, EmbeddingError, AuthorizationError, ValidationError } from "../utils/errors.js";
 import { generateId } from "../utils/id.js";
 import { logger } from "../utils/logger.js";
@@ -18,6 +18,7 @@ export class MemoryService {
     private readonly embeddingProvider: EmbeddingProvider,
     private readonly commentRepo?: CommentRepository,
     private readonly sessionRepo?: SessionTrackingRepository,
+    private readonly sessionLifecycleRepo?: SessionRepository,
   ) {}
 
   // D-11: Project=shared, User=owner only
@@ -397,6 +398,10 @@ export class MemoryService {
     // D-34: Auto-create project
     await this.projectRepo.findOrCreate(projectId);
 
+    // Phase 4: Generate session_id and create session record for budget tracking (D-18)
+    const sessionId = generateId();
+    await this.sessionLifecycleRepo?.createSession(sessionId, userId, projectId);
+
     // D-28: Track session, get previous session timestamp
     let previousSession: Date | null = null;
     if (this.sessionRepo) {
@@ -454,6 +459,7 @@ export class MemoryService {
         ...result.meta,
         timing,
         team_activity: teamActivity,
+        session_id: sessionId,
       },
     };
   }
