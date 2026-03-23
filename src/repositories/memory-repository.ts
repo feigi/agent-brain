@@ -1,16 +1,17 @@
 import {
-  eq, and, isNull, gt, lt, sql, desc, asc, inArray, arrayOverlaps, or,
+  eq, and, isNull, gt, lt, sql, desc, asc, inArray, arrayOverlaps, or, gte,
   cosineDistance,
 } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import type { Database } from "../db/index.js";
-import { memories } from "../db/schema.js";
+import { memories, comments } from "../db/schema.js";
 import type { Memory, MemoryWithRelevance } from "../types/memory.js";
 import { ConflictError } from "../utils/errors.js";
 import type { MemoryRepository, ListOptions, SearchOptions, StaleOptions, RecentBothScopesOptions, RecentActivityOptions, TeamActivityCounts } from "./types.js";
 
 // D-44: Explicit column selection -- never return embedding vector
-const memoryColumns = {
+// Base columns without computed comment_count (used in INSERT/UPDATE RETURNING)
+const baseMemoryColumns = {
   id: memories.id,
   project_id: memories.project_id,
   content: memories.content,
@@ -29,16 +30,31 @@ const memoryColumns = {
   updated_at: memories.updated_at,
   verified_at: memories.verified_at,
   archived_at: memories.archived_at,
-  verified_by: memories.verified_by,
-  last_comment_at: memories.last_comment_at,
+  verified_by: memories.verified_by,              // D-19
+  last_comment_at: memories.last_comment_at,      // D-62
 } as const;
 
-function rowToMemory(row: typeof memoryColumns extends Record<string, infer _> ? Record<string, unknown> : never & { comment_count?: number }): Memory {
-  return { ...row as unknown as Memory, comment_count: (row as Record<string, unknown>).comment_count as number ?? 0 };
+function rowToMemory(row: Record<string, unknown>): Memory {
+  const result = { ...row } as unknown as Memory;
+  // Ensure comment_count is a number (PostgreSQL COUNT can return string via bigint)
+  const rawCount = (row as Record<string, unknown>).comment_count;
+  result.comment_count = rawCount !== undefined && rawCount !== null
+    ? Number(rawCount)
+    : 0;
+  return result;
 }
 
 export class DrizzleMemoryRepository implements MemoryRepository {
   constructor(private readonly db: Database) {}
+
+  // Returns columns including correlated subquery for comment_count
+  // Used in SELECT queries (not RETURNING clauses which don't support subqueries well)
+  private memoryColumns() {
+    return {
+      ...baseMemoryColumns,
+      comment_count: sql<number>`(SELECT COUNT(*)::int FROM comments WHERE comments.memory_id = ${memories.id})`.as('comment_count'),
+    };
+  }
 
   async create(memory: Memory & { embedding: number[] }): Promise<Memory> {
     const result = await this.db
@@ -60,14 +76,15 @@ export class DrizzleMemoryRepository implements MemoryRepository {
         embedding_dimensions: memory.embedding_dimensions,
         version: memory.version,
       })
-      .returning(memoryColumns);
+      .returning(baseMemoryColumns);
 
-    return rowToMemory(result[0]);
+    // New memories have no comments yet -- set comment_count to 0 explicitly
+    return rowToMemory({ ...result[0], comment_count: 0 });
   }
 
   async findById(id: string): Promise<Memory | null> {
     const result = await this.db
-      .select(memoryColumns)
+      .select(this.memoryColumns())
       .from(memories)
       .where(and(eq(memories.id, id), isNull(memories.archived_at)))
       .limit(1);
@@ -109,7 +126,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
           isNull(memories.archived_at),
         )
       )
-      .returning(memoryColumns);
+      .returning({ id: memories.id });
 
     if (result.length === 0) {
       throw new ConflictError(
@@ -117,7 +134,12 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       );
     }
 
-    return rowToMemory(result[0]);
+    // Re-fetch to get comment_count via correlated subquery
+    const updated = await this.findById(id);
+    if (!updated) {
+      throw new ConflictError(`Memory ${id} not found after update`);
+    }
+    return updated;
   }
 
   // D-28: Archive nulls out embedding vector
@@ -179,7 +201,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
 
     const result = await this.db
       .select({
-        ...memoryColumns,
+        ...this.memoryColumns(),
         similarity,
       })
       .from(memories)
@@ -264,7 +286,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
 
     // D-46: Fetch limit+1 to determine has_more
     const result = await this.db
-      .select(memoryColumns)
+      .select(this.memoryColumns())
       .from(memories)
       .where(and(...conditions))
       .orderBy(orderFn(sortColumn), orderFn(memories.id))
@@ -320,7 +342,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
     }
 
     const result = await this.db
-      .select(memoryColumns)
+      .select(this.memoryColumns())
       .from(memories)
       .where(and(...conditions))
       .orderBy(desc(memories.created_at), desc(memories.id))
@@ -344,7 +366,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
 
   async listRecentBothScopes(options: RecentBothScopesOptions): Promise<Memory[]> {
     const result = await this.db
-      .select(memoryColumns)
+      .select(this.memoryColumns())
       .from(memories)
       .where(
         and(
@@ -372,27 +394,41 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       .where(
         and(eq(memories.id, id), isNull(memories.archived_at))
       )
-      .returning(memoryColumns);
+      .returning({ id: memories.id });
 
-    return result.length > 0 ? rowToMemory(result[0]) : null;
+    if (result.length === 0) return null;
+    // Re-fetch to get comment_count via correlated subquery
+    return this.findById(id);
   }
 
   async findRecentActivity(options: RecentActivityOptions): Promise<Memory[]> {
-    const conditions = [
-      eq(memories.project_id, options.project_id),
+    const conditions: SQL[] = [
       isNull(memories.archived_at),
-      gt(memories.updated_at, options.since),
+      eq(memories.project_id, options.project_id),
+      or(
+        gte(memories.created_at, options.since),
+        gte(memories.updated_at, options.since),
+      )!,
     ];
 
+    // D-38: exclude_self filters out memories authored by requesting user
     if (options.exclude_self) {
       conditions.push(sql`${memories.author} != ${options.user_id}`);
     }
 
+    // Scope enforcement: only project memories + requesting user's own user-scoped memories
+    conditions.push(
+      or(
+        eq(memories.scope, 'project'),
+        and(eq(memories.scope, 'user'), eq(memories.author, options.user_id)),
+      )!,
+    );
+
     const result = await this.db
-      .select(memoryColumns)
+      .select(this.memoryColumns())
       .from(memories)
       .where(and(...conditions))
-      .orderBy(desc(memories.updated_at))
+      .orderBy(desc(memories.updated_at), desc(memories.id))
       .limit(options.limit);
 
     return result.map(rowToMemory);

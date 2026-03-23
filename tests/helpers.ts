@@ -4,7 +4,7 @@ import { DrizzleMemoryRepository } from "../src/repositories/memory-repository.j
 import { DrizzleProjectRepository } from "../src/repositories/project-repository.js";
 import { MockEmbeddingProvider } from "../src/providers/embedding/mock.js";
 import { MemoryService } from "../src/services/memory-service.js";
-import { memories, projects } from "../src/db/schema.js";
+import { memories, projects, comments, sessionTracking } from "../src/db/schema.js";
 
 let db: Database;
 
@@ -29,7 +29,9 @@ export function createTestService(): MemoryService {
 /** Truncate all tables between tests (D-64) */
 export async function truncateAll(): Promise<void> {
   const testDb = getTestDb();
-  await testDb.delete(memories); // delete all rows (FK-safe order: memories first)
+  await testDb.delete(comments);         // FK: references memories
+  await testDb.delete(sessionTracking);   // FK: references projects
+  await testDb.delete(memories);          // FK: references projects
   await testDb.delete(projects);
 }
 
