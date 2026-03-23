@@ -23,10 +23,10 @@ Agents remember what matters across sessions — no team knowledge is lost becau
 
 ### Active
 
-- [ ] Auto-write: agent autonomously saves insights mid-session
-- [ ] System prompt guidance for what's worth remembering
-- [ ] Session-end review: agent extracts and saves learnings
-- [ ] Manual user saves via MCP tools
+- [x] Auto-write: agent autonomously saves insights mid-session — Validated in Phase 4
+- [x] System prompt guidance for what's worth remembering — Validated in Phase 4
+- [x] Session-end review: agent extracts and saves learnings — Validated in Phase 4
+- [x] Manual user saves via MCP tools — Validated in Phase 4
 
 ### Out of Scope
 
@@ -60,9 +60,15 @@ Agents remember what matters across sessions — no team knowledge is lost becau
 | Abstracted storage + embedding layers | Avoid vendor lock-in, enable future flexibility | — Pending |
 | Two memory scopes (project + user) | Agents need both project context and user-specific knowledge | — Pending |
 
+## Current State
+
+Phase 4 complete — all 4 milestone phases delivered. MCP server is fully featured with session lifecycle, team collaboration, and agent autonomy. 140/140 tests passing.
+
 ## Evolution
 
 This document evolves at phase transitions and milestone boundaries.
+
+Last updated: 2026-03-23
 
 **After each phase transition** (via `/gsd:transition`):
 1. Requirements invalidated? → Move to Out of Scope with reason
