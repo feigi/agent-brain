@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to execute
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-03-23T14:03:29.349Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 02-03-PLAN.md
+last_updated: "2026-03-23T14:08:45.011Z"
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -52,6 +52,7 @@ Plan: 3 of 3
 | Phase 01 P04 | 25min | 3 tasks | 12 files |
 | Phase 02 P01 | 4min | 2 tasks | 8 files |
 | Phase 02 P02 | 4min | 2 tasks | 6 files |
+| Phase 02 P03 | 2min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,9 @@ Recent decisions affecting current work:
 - [Phase 02]: Over-fetch 3x candidates at repository, re-rank with composite relevance in service layer
 - [Phase 02]: Cross-scope search uses single SQL query with OR condition (not two separate queries)
 - [Phase 02]: Raw SQL similarity alias stripped in repository to prevent field leaking at API boundary
+- [Phase 02]: Session start with context delegates to search() with min_similarity=-1 for maximum permissiveness
+- [Phase 02]: Session start without context uses similarity=1.0 baseline so recency and verification dominate composite score
+- [Phase 02]: Dedicated listRecentBothScopes repository method rather than extending ListOptions -- avoids cascading changes
 
 ### Pending Todos
 
@@ -89,6 +93,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T14:03:29.347Z
-Stopped at: Completed 02-02-PLAN.md
+Last session: 2026-03-23T14:08:45.009Z
+Stopped at: Completed 02-03-PLAN.md
 Resume file: None
