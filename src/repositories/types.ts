@@ -1,4 +1,4 @@
-import type { Memory, MemoryCreate, MemoryUpdate, MemoryWithRelevance } from "../types/memory.js";
+import type { Memory, MemoryCreate, MemoryUpdate, MemoryWithRelevance, Comment } from "../types/memory.js";
 
 // INFR-02: Repository interfaces -- abstract storage layer
 
@@ -45,10 +45,36 @@ export interface MemoryRepository {
   list(options: ListOptions): Promise<{ memories: Memory[]; has_more: boolean; cursor?: { created_at: string; id: string } }>;
   findStale(options: StaleOptions): Promise<{ memories: Memory[]; has_more: boolean; cursor?: { created_at: string; id: string } }>;
   listRecentBothScopes(options: RecentBothScopesOptions): Promise<Memory[]>;
-  verify(id: string): Promise<Memory | null>;
+  verify(id: string, verifiedBy: string): Promise<Memory | null>;
+  findRecentActivity(options: RecentActivityOptions): Promise<Memory[]>;
+  countTeamActivity(projectId: string, userId: string, since: Date): Promise<TeamActivityCounts>;
 }
 
 export interface ProjectRepository {
   findOrCreate(slug: string): Promise<{ id: string; created_at: Date }>;
   findById(slug: string): Promise<{ id: string; created_at: Date } | null>;
+}
+
+export interface CommentRepository {
+  create(comment: { id: string; memory_id: string; author: string; content: string }): Promise<Comment>;
+  findByMemoryId(memoryId: string): Promise<Comment[]>;
+  countByMemoryId(memoryId: string): Promise<number>;
+}
+
+export interface SessionTrackingRepository {
+  upsert(userId: string, projectId: string): Promise<Date | null>;  // returns previous last_session_at or null
+}
+
+export interface RecentActivityOptions {
+  project_id: string;
+  user_id: string;
+  since: Date;
+  limit: number;
+  exclude_self: boolean;
+}
+
+export interface TeamActivityCounts {
+  new_memories: number;
+  updated_memories: number;
+  commented_memories: number;
 }

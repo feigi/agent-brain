@@ -202,12 +202,12 @@ describe("Memory CRUD integration tests", () => {
 
     expect(created.data.verified_at).toBeNull();
 
-    const verified = await service.verify(created.data.id);
+    const verified = await service.verify(created.data.id, "alice");
     expect(verified.data.verified_at).toBeInstanceOf(Date);
   });
 
   it("verify on non-existent throws NotFoundError", async () => {
-    await expect(service.verify("nonexistent-id-12345")).rejects.toThrow(
+    await expect(service.verify("nonexistent-id-12345", "alice")).rejects.toThrow(
       NotFoundError,
     );
   });

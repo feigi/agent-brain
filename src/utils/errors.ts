@@ -32,3 +32,9 @@ export class EmbeddingError extends DomainError {
     super(message, "EMBEDDING_ERROR", 502);
   }
 }
+
+export class AuthorizationError extends DomainError {
+  constructor(message: string) {
+    super(message, "AUTHORIZATION_ERROR", 403);
+  }
+}

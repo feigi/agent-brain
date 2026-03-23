@@ -7,7 +7,7 @@ import type { Database } from "../db/index.js";
 import { memories } from "../db/schema.js";
 import type { Memory, MemoryWithRelevance } from "../types/memory.js";
 import { ConflictError } from "../utils/errors.js";
-import type { MemoryRepository, ListOptions, SearchOptions, StaleOptions, RecentBothScopesOptions } from "./types.js";
+import type { MemoryRepository, ListOptions, SearchOptions, StaleOptions, RecentBothScopesOptions, RecentActivityOptions, TeamActivityCounts } from "./types.js";
 
 // D-44: Explicit column selection -- never return embedding vector
 const memoryColumns = {
@@ -29,10 +29,12 @@ const memoryColumns = {
   updated_at: memories.updated_at,
   verified_at: memories.verified_at,
   archived_at: memories.archived_at,
+  verified_by: memories.verified_by,
+  last_comment_at: memories.last_comment_at,
 } as const;
 
-function rowToMemory(row: typeof memoryColumns extends Record<string, infer _> ? Record<string, unknown> : never): Memory {
-  return row as unknown as Memory;
+function rowToMemory(row: typeof memoryColumns extends Record<string, infer _> ? Record<string, unknown> : never & { comment_count?: number }): Memory {
+  return { ...row as unknown as Memory, comment_count: (row as Record<string, unknown>).comment_count as number ?? 0 };
 }
 
 export class DrizzleMemoryRepository implements MemoryRepository {
@@ -359,12 +361,13 @@ export class DrizzleMemoryRepository implements MemoryRepository {
     return result.map(rowToMemory);
   }
 
-  async verify(id: string): Promise<Memory | null> {
+  async verify(id: string, verifiedBy: string): Promise<Memory | null> {
     const result = await this.db
       .update(memories)
       .set({
         verified_at: sql`now()`,
         updated_at: sql`now()`,
+        verified_by: verifiedBy,
       })
       .where(
         and(eq(memories.id, id), isNull(memories.archived_at))
@@ -372,5 +375,60 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       .returning(memoryColumns);
 
     return result.length > 0 ? rowToMemory(result[0]) : null;
+  }
+
+  async findRecentActivity(options: RecentActivityOptions): Promise<Memory[]> {
+    const conditions = [
+      eq(memories.project_id, options.project_id),
+      isNull(memories.archived_at),
+      gt(memories.updated_at, options.since),
+    ];
+
+    if (options.exclude_self) {
+      conditions.push(sql`${memories.author} != ${options.user_id}`);
+    }
+
+    const result = await this.db
+      .select(memoryColumns)
+      .from(memories)
+      .where(and(...conditions))
+      .orderBy(desc(memories.updated_at))
+      .limit(options.limit);
+
+    return result.map(rowToMemory);
+  }
+
+  async countTeamActivity(projectId: string, userId: string, since: Date): Promise<TeamActivityCounts> {
+    const [newCount, updatedCount] = await Promise.all([
+      this.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(memories)
+        .where(
+          and(
+            eq(memories.project_id, projectId),
+            isNull(memories.archived_at),
+            gt(memories.created_at, since),
+            sql`${memories.author} != ${userId}`,
+          )
+        ),
+      this.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(memories)
+        .where(
+          and(
+            eq(memories.project_id, projectId),
+            isNull(memories.archived_at),
+            gt(memories.updated_at, since),
+            lt(memories.created_at, since),
+            sql`${memories.author} != ${userId}`,
+          )
+        ),
+    ]);
+
+    return {
+      new_memories: newCount[0]?.count ?? 0,
+      updated_memories: updatedCount[0]?.count ?? 0,
+      commented_memories: 0, // Populated by service layer using CommentRepository
+    };
   }
 }

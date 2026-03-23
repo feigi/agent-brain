@@ -8,14 +8,15 @@ export function registerMemoryVerify(server: McpServer, memoryService: MemorySer
     "memory_verify",
     {
       description:
-        'Mark a memory as still accurate. Updates the verified_at timestamp. Use when you\'ve confirmed a memory\'s content is still correct. Example: memory_verify({ id: "abc123" })',
+        'Mark a memory as still accurate. Updates the verified_at timestamp. Use when you\'ve confirmed a memory\'s content is still correct. Example: memory_verify({ id: "abc123", user_id: "alice" })',
       inputSchema: {
         id: z.string().describe("Memory ID to verify"),
+        user_id: z.string().describe("User ID of the person verifying the memory"),
       },
     },
     async (params) => {
       return withErrorHandling(async () => {
-        const result = await memoryService.verify(params.id);
+        const result = await memoryService.verify(params.id, params.user_id);
         return toolResponse(result);
       });
     },

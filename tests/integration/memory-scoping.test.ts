@@ -101,7 +101,7 @@ describe("Memory scoping integration tests", () => {
     });
 
     // Verify the memory (sets verified_at to now)
-    await service.verify(created.data.id);
+    await service.verify(created.data.id, "alice");
 
     const staleResult = await service.listStale("test-project", 30);
 

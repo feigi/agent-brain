@@ -75,6 +75,9 @@ export class MemoryService {
       updated_at: now,
       verified_at: null,
       archived_at: null,
+      comment_count: 0,
+      last_comment_at: null,
+      verified_by: null,
     };
 
     const memory = await this.memoryRepo.create(memoryData);
@@ -271,10 +274,10 @@ export class MemoryService {
     };
   }
 
-  async verify(id: string): Promise<Envelope<Memory>> {
+  async verify(id: string, verifiedBy: string): Promise<Envelope<Memory>> {
     const start = Date.now();
 
-    const memory = await this.memoryRepo.verify(id);
+    const memory = await this.memoryRepo.verify(id, verifiedBy);
     if (!memory) {
       throw new NotFoundError("Memory", id);
     }

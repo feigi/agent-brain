@@ -24,6 +24,32 @@ export interface Memory {
   updated_at: Date;
   verified_at: Date | null;
   archived_at: Date | null;
+  comment_count: number;           // D-61: computed via COUNT, present on all responses
+  last_comment_at: Date | null;    // D-62: for change_type detection
+  verified_by: string | null;      // D-19: who verified
+}
+
+// D-47: Comment on a memory by a team member
+export interface Comment {
+  id: string;
+  memory_id: string;
+  author: string;
+  content: string;
+  created_at: Date;
+}
+
+// D-72, D-63: Enhanced response for memory_get with comments and capability flags
+export interface MemoryGetResponse extends Memory {
+  comments: Comment[];
+  can_comment: boolean;
+  can_edit: boolean;
+  can_archive: boolean;
+  can_verify: boolean;
+}
+
+// D-37: Memory with change type for memory_list_recent
+export interface MemoryWithChangeType extends Memory {
+  change_type: 'created' | 'updated' | 'commented';
 }
 
 // Input type for creating a memory

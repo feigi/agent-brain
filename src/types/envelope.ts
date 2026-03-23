@@ -6,5 +6,12 @@ export interface Envelope<T> {
     timing?: number;  // ms
     cursor?: string;
     has_more?: boolean;
+    team_activity?: {           // D-29: session_start only
+      new_memories: number;
+      updated_memories: number;
+      commented_memories: number;
+      since: string;            // ISO timestamp
+    };
+    comment_count?: number;     // D-67: memory_comment response
   };
 }
