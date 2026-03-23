@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Ready to execute
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-03-23T20:17:05.918Z"
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-03-23T20:26:46.438Z"
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 11
-  completed_plans: 8
+  completed_plans: 9
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-23)
 ## Current Position
 
 Phase: 03 (team-collaboration) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Plan: 2 of 4
 | Phase 02 P02 | 4min | 2 tasks | 6 files |
 | Phase 02 P03 | 2min | 2 tasks | 6 files |
 | Phase 03 P01 | 5min | 2 tasks | 12 files |
+| Phase 03 P02 | 7 | 2 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -85,6 +86,9 @@ Recent decisions affecting current work:
 - [Phase 03]: comment_count defaults to 0 in memory create path; rowToMemory falls back to 0 when not in SELECT
 - [Phase 03]: verify(id, verifiedBy) signature threaded through interface, repository, service, and tool layers for provenance tracking
 - [Phase 03]: slugSchema enforces /^[a-z0-9]+(?:-[a-z0-9]+)*$/ max 64 chars for user_id and project_id -- shared validator in src/utils/validation.ts
+- [Phase 03]: baseMemoryColumns (static) for RETURNING, memoryColumns() method with correlated subquery for SELECT -- mutations re-fetch via findById for comment_count
+- [Phase 03]: Not-found masking (D-17): get() returns NotFoundError for non-owners of user-scoped memories to prevent existence leakage
+- [Phase 03]: user_id required in all service methods and tools -- slug validation enforced at tool layer, access control enforced at service layer
 
 ### Pending Todos
 
@@ -97,6 +101,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T20:17:05.916Z
-Stopped at: Completed 03-01-PLAN.md
+Last session: 2026-03-23T20:26:46.436Z
+Stopped at: Completed 03-02-PLAN.md
 Resume file: None

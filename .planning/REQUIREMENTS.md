@@ -36,13 +36,13 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Team Collaboration
 
-- [ ] **TEAM-01**: Multiple users can read and write to shared project memories
-- [ ] **TEAM-02**: Authentication identifies which user/agent is writing memories
+- [x] **TEAM-01**: Multiple users can read and write to shared project memories
+- [x] **TEAM-02**: Authentication identifies which user/agent is writing memories
 - [x] **TEAM-03**: Each memory records its author (provenance tracking)
 - [x] **TEAM-04**: User can append a comment to an existing memory (threaded notes)
 - [x] **TEAM-05**: Threaded comments preserve the original memory content and add context
 - [x] **TEAM-06**: User can verify a memory is still accurate (updates verified_at timestamp)
-- [ ] **TEAM-07**: Agent can list memories that haven't been verified within a configurable threshold (staleness detection)
+- [x] **TEAM-07**: Agent can list memories that haven't been verified within a configurable threshold (staleness detection)
 
 ### Agent Autonomy
 
@@ -119,13 +119,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RETR-03 | Phase 2 | Complete |
 | RETR-04 | Phase 2 | Complete |
 | RETR-05 | Phase 2 | Complete |
-| TEAM-01 | Phase 3 | Pending |
-| TEAM-02 | Phase 3 | Pending |
+| TEAM-01 | Phase 3 | Complete |
+| TEAM-02 | Phase 3 | Complete |
 | TEAM-03 | Phase 3 | Complete |
 | TEAM-04 | Phase 3 | Complete |
 | TEAM-05 | Phase 3 | Complete |
 | TEAM-06 | Phase 3 | Complete |
-| TEAM-07 | Phase 3 | Pending |
+| TEAM-07 | Phase 3 | Complete |
 | AUTO-01 | Phase 4 | Pending |
 | AUTO-02 | Phase 4 | Pending |
 | AUTO-03 | Phase 4 | Pending |
