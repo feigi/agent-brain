@@ -16,5 +16,6 @@ export const config = {
   recencyHalfLifeDays: Number(process.env.RECENCY_HALF_LIFE_DAYS ?? "14"),
   writeBudgetPerSession: Number(process.env.WRITE_BUDGET_PER_SESSION ?? "10"),
   duplicateThreshold: Number(process.env.DUPLICATE_THRESHOLD ?? "0.90"),
+  port: Number(process.env.PORT ?? "19898"),
   version: "0.1.0",
 } as const;
