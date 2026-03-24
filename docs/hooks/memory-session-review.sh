@@ -1,12 +1,13 @@
 #!/bin/bash
 # Claude Code Stop Hook: Session-End Memory Review
-# Only fires if real work (file edits, task management) was done this session.
+# Only fires if real work (file edits, task management, or git commits) was done this session.
 
 INPUT=$(cat)
 STOP_ACTIVE=$(echo "$INPUT" | jq -r '.stop_hook_active // "false"')
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // "unknown"')
 TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // ""')
 STATE_FILE="/tmp/claude-session-reviewed-${SESSION_ID}"
+START_FILE="/tmp/claude-session-start-${SESSION_ID}"
 
 # If Claude is responding to the review prompt, mark session as reviewed and allow stop
 if [ "$STOP_ACTIVE" = "true" ]; then
@@ -19,9 +20,17 @@ if [ -f "$STATE_FILE" ]; then
   exit 0
 fi
 
-# Check if any meaningful work was done (file edits, task management)
+# Record session start time on first invocation (used for git commit check)
+if [ ! -f "$START_FILE" ]; then
+  date -u +"%Y-%m-%dT%H:%M:%SZ" > "$START_FILE"
+fi
+SESSION_START=$(cat "$START_FILE")
+
+# Check if any meaningful work was done (file edits, task management, or git commits)
 # Skip the review for sessions that were just questions or exploration
 HAS_WORK=false
+
+# 1. Check transcript for file-modifying tool use
 if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
   if grep -qE '"name":\s*"(Edit|Write|NotebookEdit|TaskCreate|TaskUpdate|TaskStop)"' "$TRANSCRIPT_PATH" 2>/dev/null; then
     HAS_WORK=true
@@ -29,6 +38,16 @@ if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
 else
   # No transcript available — always review to be safe
   HAS_WORK=true
+fi
+
+# 2. Check for git commits made since session start (failsafe: skip if not a git repo)
+if [ "$HAS_WORK" = "false" ] && [ -n "$SESSION_START" ]; then
+  CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
+  if [ -n "$CWD" ] && git -C "$CWD" rev-parse --git-dir >/dev/null 2>&1; then
+    if git -C "$CWD" log --oneline --after="$SESSION_START" 2>/dev/null | grep -q .; then
+      HAS_WORK=true
+    fi
+  fi
 fi
 
 if [ "$HAS_WORK" = "false" ]; then
