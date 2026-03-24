@@ -28,6 +28,7 @@
     "@modelcontextprotocol/sdk": "^1.27.1",
     "dotenv": "^16.0.0",
     "drizzle-orm": "^0.45.1",
+    "express": "^5.2.1",
     "nanoid": "^5.1.7",
     "pgvector": "^0.2.1",
     "postgres": "^3.4.8",
@@ -37,6 +38,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@modelcontextprotocol/inspector": "^0.21.1",
+    "@types/express": "^5.0.6",
     "@types/node": "^22.0.0",
     "drizzle-kit": "^0.31.10",
     "eslint": "^10.1.0",
