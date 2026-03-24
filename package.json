@@ -7,7 +7,7 @@
     "agentic-brain": "bin/agentic-brain.mjs"
   },
   "scripts": {
-    "dev": "docker compose -f docker-compose.yml -f docker-compose.ollama.yml up -d --wait && npx drizzle-kit migrate && EMBEDDING_PROVIDER=ollama EMBEDDING_DIMENSIONS=768 tsx watch src/server.ts",
+    "dev": "docker compose up -d --wait && npx drizzle-kit migrate && EMBEDDING_PROVIDER=ollama EMBEDDING_DIMENSIONS=768 tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
