@@ -133,6 +133,6 @@ None — v1.0 milestone complete. Starting fresh for v1.1.
 ## Session Continuity
 
 Last session: 2026-03-24T01:30:23.653Z
-Last activity: 2026-03-24 - Completed quick task 260324-2zs: Add Claude Code integration section to README
+Last activity: 2026-03-24 - Completed quick task 260324-3fy: Change EMBEDDING_PROVIDER from mock to ollama in the .env file
 Stopped at: Completed quick task 260324-3fy
 Resume file: None
