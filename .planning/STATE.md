@@ -129,10 +129,11 @@ None — v1.0 milestone complete. Starting fresh for v1.1.
 | 260324-1iq | Add docker-compose.ollama.yml with Ollama service, update .env.example and README with embedding provider docs | 2026-03-24 | [260324-1iq-add-docker-compose-ollama-yml-with-ollam](./quick/260324-1iq-add-docker-compose-ollama-yml-with-ollam/) |
 | 260324-2zs | Add Claude Code integration section to README with CLAUDE.md snippet and session-review hook | 2026-03-24 | [260324-2zs-add-claude-code-integration-section-to-r](./quick/260324-2zs-add-claude-code-integration-section-to-r/) |
 | 260324-3fy | Change EMBEDDING_PROVIDER from mock to ollama in .env for local Ollama embeddings | 2026-03-24 | [260324-3fy-change-embedding-provider-from-mock-to-o](./quick/260324-3fy-change-embedding-provider-from-mock-to-o/) |
+| 260324-3sx | Merge docker-compose.ollama.yml into docker-compose.yml for single-file local dev | 2026-03-24 | [260324-3sx-merge-the-two-docker-compose-files](./quick/260324-3sx-merge-the-two-docker-compose-files/) |
 
 ## Session Continuity
 
-Last session: 2026-03-24T01:30:23.653Z
-Last activity: 2026-03-24 - Completed quick task 260324-3fy: Change EMBEDDING_PROVIDER from mock to ollama in the .env file
-Stopped at: Completed quick task 260324-3fy
+Last session: 2026-03-24T01:44:18.542Z
+Last activity: 2026-03-24 - Completed quick task 260324-3sx: Merge docker compose files
+Stopped at: Completed quick task 260324-3sx
 Resume file: None
