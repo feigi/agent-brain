@@ -162,16 +162,42 @@ Add to `~/.claude/settings.json` (global) or project `.claude/settings.json`. Fo
 
 ### 5. Integrate with Claude Code (optional)
 
-Two optional enhancements that make Claude Code work better with Agentic Brain.
+Three hooks make Claude Code work seamlessly with Agentic Brain: automatic memory loading at session start, a guard that prevents writes to Claude Code's built-in file-based memory, and a session-review prompt at session end.
 
-#### Add instructions to your CLAUDE.md
+**Prerequisites:** `jq` installed (`brew install jq` on macOS).
 
-Create or edit `CLAUDE.md` in your project root (or `~/.claude/CLAUDE.md` for global) and paste this snippet. It tells Claude Code when and how to use the memory tools:
+#### Step 1: Copy hook scripts
+
+```bash
+mkdir -p ~/.claude/hooks
+cp hooks/memory-session-start.sh ~/.claude/hooks/
+cp hooks/memory-guard.sh ~/.claude/hooks/
+cp hooks/memory-session-review.sh ~/.claude/hooks/
+chmod +x ~/.claude/hooks/memory-session-start.sh ~/.claude/hooks/memory-guard.sh ~/.claude/hooks/memory-session-review.sh
+```
+
+#### Step 2: Add hooks to settings
+
+Merge the entries from `hooks/settings-snippet.json` into your `~/.claude/settings.json`:
+
+| Hook | Purpose |
+|------|---------|
+| **SessionStart** `memory-session-start.sh` | Loads relevant memories into the session via `additionalContext` |
+| **PreToolUse** `memory-guard.sh` | Blocks Write/Edit/MultiEdit to `~/.claude/projects/*/memory/*`, redirecting to agent-brain MCP tools |
+| **Stop** `memory-session-review.sh` | Prompts Claude to reflect and save learnings before ending a session |
+
+#### Step 3: Add instructions to your CLAUDE.md
+
+Create or edit `~/.claude/CLAUDE.md` (global) and paste this snippet. It tells Claude Code to use agent-brain instead of the built-in file-based memory:
 
 ````markdown
-## Agent Memory
+## Memory System
 
-This project uses [Agentic Brain](https://github.com/feigi/agent-brain) for shared team knowledge.
+This user uses **agent-brain** (MCP server) as their sole memory system across all projects. Do NOT use Claude Code's built-in file-based auto-memory system (`~/.claude/projects/**/memory/`). All memory operations go through agent-brain MCP tools.
+
+**Reading memory:** Relevant memories are loaded automatically at session start via the SessionStart hook. Use `memory_search` for additional lookups during the session.
+
+**Writing memory:** Use `memory_create` to save learnings, decisions, conventions, and patterns. Never write to MEMORY.md or create files in the memory/ directory.
 
 ### Available Tools
 
@@ -206,43 +232,6 @@ If the user mentions decisions, temporary changes, or gotchas that the team shou
 
 Always **number** memories and include **author**, **date**, **title**, **type**, and **scope**. The user may refer to memories by number (e.g. "archive memory 2", "comment on 1").
 ````
-
-#### Add a session-review hook (optional)
-
-A Stop hook can remind Claude to review and save learnings before ending a session.
-
-**Prerequisites:** `jq` installed (`brew install jq` on macOS).
-
-**Step 1:** Copy the hook script:
-
-```bash
-mkdir -p .claude/hooks
-cp docs/hooks/memory-session-review.sh .claude/hooks/
-chmod +x .claude/hooks/memory-session-review.sh
-```
-
-**Step 2:** Add to `.claude/settings.json`:
-
-```json
-{
-  "hooks": {
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/memory-session-review.sh",
-            "timeout": 10
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-When Claude is about to stop, the hook blocks the first attempt and asks Claude to reflect on the session and save key learnings. See `docs/hooks/README.md` for details.
 
 ### 5b. Integrate with GitHub Copilot (optional)
 
