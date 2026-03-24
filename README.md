@@ -93,8 +93,8 @@ Key variables:
 # Database (defaults work with docker compose)
 DATABASE_URL=postgresql://agentic:agentic@localhost:5432/agentic_brain
 
-# Embedding provider: "mock" for local dev, "ollama" for local real embeddings, "titan" for production
-EMBEDDING_PROVIDER=mock
+# Embedding provider: "ollama" for local dev, "titan" for production
+EMBEDDING_PROVIDER=ollama
 
 # AWS (required when EMBEDDING_PROVIDER=titan)
 AWS_REGION=us-east-1
@@ -106,7 +106,7 @@ AWS_REGION=us-east-1
 npm run dev
 ```
 
-This starts Postgres via Docker, runs migrations, and starts the MCP server on stdio.
+This starts Postgres + Ollama via Docker (downloading `nomic-embed-text` on first run — ~274MB), runs migrations, and starts the MCP server on stdio.
 
 ### 4. Connect to Claude Code
 
@@ -120,7 +120,8 @@ Add to your Claude Code MCP settings (`~/.claude/settings.json` or project `.cla
       "args": ["tsx", "/path/to/agent-brain/src/server.ts"],
       "env": {
         "DATABASE_URL": "postgresql://agentic:agentic@localhost:5432/agentic_brain",
-        "EMBEDDING_PROVIDER": "mock"
+        "EMBEDDING_PROVIDER": "ollama",
+        "EMBEDDING_DIMENSIONS": "768"
       }
     }
   }
@@ -139,26 +140,22 @@ Opens a visual UI to invoke tools and inspect responses directly.
 
 ### Embedding providers
 
-**Mock (default)** -- Returns random vectors. Good for testing tool behavior without real embeddings. No setup needed.
+**Ollama (default)** -- Runs `nomic-embed-text` locally. Real semantic search without AWS credentials. Started automatically by `npm run dev`.
+
+```bash
+EMBEDDING_PROVIDER=ollama
+EMBEDDING_DIMENSIONS=768
+OLLAMA_BASE_URL=http://localhost:11434  # default
+OLLAMA_MODEL=nomic-embed-text           # default
+```
+
+First startup downloads the model (~274MB).
+
+**Mock** -- Returns random vectors. Useful for CI or testing tool behavior without real embeddings. No Docker required beyond Postgres.
 
 ```bash
 EMBEDDING_PROVIDER=mock
 ```
-
-**Ollama (local real embeddings)** -- Runs nomic-embed-text locally via Ollama. Real semantic search without AWS credentials.
-
-```bash
-# Start Postgres + Ollama (pulls nomic-embed-text on first run)
-docker compose -f docker-compose.yml -f docker-compose.ollama.yml up -d
-
-# Configure
-EMBEDDING_PROVIDER=ollama
-EMBEDDING_DIMENSIONS=768
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=nomic-embed-text
-```
-
-First startup takes a few minutes to download the model (~274MB).
 
 **Titan V2 (production)** -- Amazon Titan Text Embeddings V2 via Bedrock. Requires AWS credentials.
 
