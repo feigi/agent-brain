@@ -100,7 +100,7 @@ Always **number** memories and include **author**, **date**, **title**, **type**
 
 ### Component 2: PreToolUse Guard Hook
 
-A new hook script that blocks Write/Edit calls targeting the auto-memory directory. Returns a block decision with guidance to use agent-brain instead.
+A new hook script that blocks Write/Edit/MultiEdit calls targeting the auto-memory directory. Returns a block decision with guidance to use agent-brain instead.
 
 **File:** `hooks/memory-guard.sh` (in agent-brain repo, copied to `~/.claude/hooks/` on install)
 
@@ -113,7 +113,8 @@ INPUT=$(cat)
 FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .tool_input.filePath // ""')
 
 # Block writes targeting Claude Code auto-memory paths
-if [[ "$FILE_PATH" == */.claude/*/memory/* ]] || [[ "$FILE_PATH" == */.claude/*/memory.md ]]; then
+# Actual path pattern: ~/.claude/projects/<project-slug>/memory/<file>.md
+if [[ "$FILE_PATH" == */.claude/projects/*/memory/* ]]; then
   cat <<'EOF'
 {"decision":"block","reason":"Do not write to Claude Code's file-based memory. Use agent-brain MCP tools instead: memory_create to save new memories, memory_update to modify existing ones."}
 EOF
@@ -128,7 +129,7 @@ exit 0
 
 ```json
 {
-  "matcher": "Write|Edit",
+  "matcher": "Write|Edit|MultiEdit",
   "hooks": [
     {
       "type": "command",
@@ -177,7 +178,7 @@ Do not pre-seed stubs across all project memory directories.
 
 ### Component 5: Settings Configuration Update
 
-Update `hooks/settings-snippet.json` to include all three hooks (for onboarding reference):
+Update `hooks/settings-snippet.json` to include all three hook entries as a **reference subset** for onboarding. This is not a complete `settings.json` replacement — new team members merge these entries into their existing settings alongside any other hooks they have.
 
 ```json
 {
@@ -195,7 +196,7 @@ Update `hooks/settings-snippet.json` to include all three hooks (for onboarding 
     ],
     "PreToolUse": [
       {
-        "matcher": "Write|Edit",
+        "matcher": "Write|Edit|MultiEdit",
         "hooks": [
           {
             "type": "command",
@@ -231,7 +232,7 @@ Update `hooks/settings-snippet.json` to include all three hooks (for onboarding 
 | `hooks/settings-snippet.json` | Replace with full three-hook config |
 | `~/.claude/CLAUDE.md` | Replace "Agent Memory" section with "Memory System" section |
 | `~/.claude/projects/-Users-chris-dev-agent-brain/memory/MEMORY.md` | Replace with stub |
-| `~/.claude/settings.json` | Remove PostToolUse `memory-md-guard.sh`, add PreToolUse `memory-guard.sh` |
+| `~/.claude/settings.json` | Remove PostToolUse `memory-md-guard.sh`, add PreToolUse `memory-guard.sh` (merge into existing hooks, do not replace) |
 
 ### Files to Create
 
@@ -273,6 +274,6 @@ Manual process for now. Automation deferred until team grows.
 | Risk | Mitigation |
 |------|------------|
 | Model ignores CLAUDE.md under context compression | Guard hook blocks writes regardless of instruction compliance |
-| Guard hook regex misses an auto-memory path variant | Pattern matches both `*/.claude/*/memory/*` and `*/.claude/*/memory.md` — covers known Claude Code paths |
+| Guard hook regex misses an auto-memory path variant | Pattern `*/.claude/projects/*/memory/*` matches Claude Code's known auto-memory path structure |
 | Session-start hook fails for projects without agent-brain data | `memory_session_start` returns empty result gracefully; hook outputs nothing |
 | Agent-brain MCP server not running | Session-start hook fails silently (stderr suppressed); model falls back to session-only context. Stop hook still prompts but memory_create calls fail — acceptable degradation |
