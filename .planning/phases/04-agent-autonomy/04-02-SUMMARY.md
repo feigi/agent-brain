@@ -2,14 +2,16 @@
 phase: 04-agent-autonomy
 plan: "02"
 subsystem: prompts-and-hooks
-tags: [mcp-prompt, memory-guidance, claude-code-hooks, session-review, stop-hook]
+tags:
+  [mcp-prompt, memory-guidance, claude-code-hooks, session-review, stop-hook]
 dependency_graph:
   requires: []
   provides: [memory-guidance-prompt, session-review-hooks]
   affects: [src/server.ts]
 tech_stack:
   added: []
-  patterns: [mcp-registerPrompt, claude-code-stop-hook, infinite-loop-prevention]
+  patterns:
+    [mcp-registerPrompt, claude-code-stop-hook, infinite-loop-prevention]
 key_files:
   created:
     - src/prompts/memory-guidance.ts
@@ -77,14 +79,17 @@ None - all files contain complete, working content.
 ## Self-Check: PASSED
 
 Files created:
+
 - `src/prompts/memory-guidance.ts` — FOUND
 - `docs/hooks/memory-session-review.sh` — FOUND
 - `docs/hooks/settings-snippet.json` — FOUND
 - `docs/hooks/README.md` — FOUND
 
 Modified files:
+
 - `src/server.ts` — FOUND (contains `registerMemoryGuidance`)
 
 Commits:
+
 - `5aa8aa3` — feat(04-02): add MCP prompt resource for memory capture guidance
 - `db8e3cd` — feat(04-02): add Claude Code hook templates for session-end review

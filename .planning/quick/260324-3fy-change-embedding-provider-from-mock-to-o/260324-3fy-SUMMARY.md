@@ -41,6 +41,7 @@ completed: 2026-03-24
 - **Files modified:** 1
 
 ## Accomplishments
+
 - Updated EMBEDDING_PROVIDER from `mock` to `ollama` in .env
 - Updated comment to list all three options: `# Embedding provider: titan | ollama | mock`
 
@@ -49,23 +50,30 @@ completed: 2026-03-24
 .env is listed in .gitignore so changes to it are not tracked by git. No commit is created for this task.
 
 ## Files Created/Modified
+
 - `.env` - Changed EMBEDDING_PROVIDER=mock to EMBEDDING_PROVIDER=ollama; updated provider comment
 
 ## Decisions Made
+
 - .env is correctly gitignored so the change is local only — no commit required
 
 ## Deviations from Plan
+
 None - plan executed exactly as written.
 
 ## Issues Encountered
+
 None.
 
 ## User Setup Required
+
 None - change applies to local .env only.
 
 ## Next Phase Readiness
+
 Dev server will now use Ollama for embeddings. Ollama must be running locally (via `docker-compose -f docker-compose.ollama.yml up`) for embeddings to work.
 
 ---
-*Phase: quick-260324-3fy*
-*Completed: 2026-03-24*
+
+_Phase: quick-260324-3fy_
+_Completed: 2026-03-24_

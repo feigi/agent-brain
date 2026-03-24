@@ -2,14 +2,36 @@
 phase: 04-agent-autonomy
 plan: 04
 subsystem: testing
-tags: [tests, unit-tests, integration-tests, budget, dedup, session-lifecycle, prompt-resource]
+tags:
+  [
+    tests,
+    unit-tests,
+    integration-tests,
+    budget,
+    dedup,
+    session-lifecycle,
+    prompt-resource,
+  ]
 dependency_graph:
   requires: [04-01, 04-02, 04-03]
-  provides: [test-coverage-AUTO-01, test-coverage-AUTO-02, test-coverage-AUTO-03, test-coverage-AUTO-04, test-coverage-AUTO-05]
-  affects: [tests/unit, tests/integration, tests/helpers, src/prompts/memory-guidance]
+  provides:
+    [
+      test-coverage-AUTO-01,
+      test-coverage-AUTO-02,
+      test-coverage-AUTO-03,
+      test-coverage-AUTO-04,
+      test-coverage-AUTO-05,
+    ]
+  affects:
+    [tests/unit, tests/integration, tests/helpers, src/prompts/memory-guidance]
 tech_stack:
   added: []
-  patterns: [vitest-mocks-for-unit-tests, real-database-for-integration, deterministic-mock-embedding-for-dedup]
+  patterns:
+    [
+      vitest-mocks-for-unit-tests,
+      real-database-for-integration,
+      deterministic-mock-embedding-for-dedup,
+    ]
 key_files:
   created:
     - tests/unit/budget.test.ts (7 unit tests for budget enforcement logic)
@@ -89,7 +111,7 @@ Unit and integration test suite covering all five AUTO requirements: budget enfo
 
 ## Decisions Made
 
-1. **Project-scope dedup isolation tested cross-project**: The `findDuplicates` method scopes to `project_id`, meaning all memories in a project (both user and project scoped) are candidates for project-scoped dedup. The test verifies that memories in *different* projects don't cross-contaminate. This accurately reflects the implementation's scope boundaries.
+1. **Project-scope dedup isolation tested cross-project**: The `findDuplicates` method scopes to `project_id`, meaning all memories in a project (both user and project scoped) are candidates for project-scoped dedup. The test verifies that memories in _different_ projects don't cross-contaminate. This accurately reflects the implementation's scope boundaries.
 
 2. **Identical embedding via no-title creates**: Integration dedup tests use identical content with no explicit title so both creates auto-generate the same title (`content.slice(0, 80) + "..."`), producing identical embedding input and identical vectors (cosine similarity = 1.0). This is the documented pitfall (Pitfall 6) from RESEARCH.
 
@@ -100,6 +122,7 @@ Unit and integration test suite covering all five AUTO requirements: budget enfo
 ### Auto-fixed Issues
 
 **1. [Rule 2 - Missing Export] Exported MEMORY_GUIDANCE_TEXT from memory-guidance.ts**
+
 - **Found during:** Task 2, writing prompt-resource.test.ts
 - **Issue:** `MEMORY_GUIDANCE_TEXT` was a module-private `const`, impossible to import in tests
 - **Fix:** Changed `const MEMORY_GUIDANCE_TEXT` to `export const MEMORY_GUIDANCE_TEXT`
@@ -107,6 +130,7 @@ Unit and integration test suite covering all five AUTO requirements: budget enfo
 - **Commit:** cc3ee6f
 
 **2. [Rule 1 - Bug] Fixed project-scope dedup test expectation**
+
 - **Found during:** Task 2, integration test run
 - **Issue:** Test expected project-scoped memory NOT to be flagged when user-scoped memory existed in the same project. But `findDuplicates(scope: 'project')` searches `WHERE project_id = $projectId` (all memories in project), so user-scoped and project-scoped memories in the same project do share the dedup check. This is correct behavior.
 - **Fix:** Changed test to verify isolation across different projects instead (project-A user memory doesn't affect project-B dedup)
@@ -114,6 +138,7 @@ Unit and integration test suite covering all five AUTO requirements: budget enfo
 - **Commit:** cc3ee6f
 
 **3. [Rule 1 - Bug] Fixed dedup test using different embeddings**
+
 - **Found during:** Task 2, integration test run
 - **Issue:** Test created first memory WITH explicit title, second memory WITHOUT title. The embedding input is `title\n\ncontent`, so different title = different embedding = no duplicate detected.
 - **Fix:** Both creates use no explicit title so auto-generated titles are identical, producing identical embedding vectors
@@ -127,6 +152,7 @@ None.
 ## Self-Check: PASSED
 
 Files verified:
+
 - FOUND: tests/unit/budget.test.ts
 - FOUND: tests/unit/dedup.test.ts
 - FOUND: tests/integration/session-lifecycle.test.ts
@@ -134,6 +160,7 @@ Files verified:
 - FOUND: tests/integration/prompt-resource.test.ts
 
 Commits verified:
+
 - FOUND: 8c8a1e7 (Task 1 - unit tests)
 - FOUND: cc3ee6f (Task 2 - integration tests)
 

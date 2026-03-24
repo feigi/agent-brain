@@ -2,7 +2,16 @@
 phase: 03-team-collaboration
 plan: 04
 subsystem: testing
-tags: [integration-tests, unit-tests, vitest, access-control, comments, team-activity, validation]
+tags:
+  [
+    integration-tests,
+    unit-tests,
+    vitest,
+    access-control,
+    comments,
+    team-activity,
+    validation,
+  ]
 
 # Dependency graph
 requires:
@@ -48,7 +57,8 @@ key-decisions:
   - "Correlated subquery bug: Drizzle sql template parameterizes ${column} references as values -- raw SQL string required for correlated subquery column references"
   - "D-30 bug fix: countTeamActivity excluded requesting user's own memories via != userId filter -- D-30 spec says counts should include own changes, filter removed"
 
-requirements-completed: [TEAM-01, TEAM-02, TEAM-03, TEAM-04, TEAM-05, TEAM-06, TEAM-07]
+requirements-completed:
+  [TEAM-01, TEAM-02, TEAM-03, TEAM-04, TEAM-05, TEAM-06, TEAM-07]
 
 # Metrics
 duration: 6min
@@ -100,16 +110,18 @@ completed: 2026-03-23
 ### Auto-fixed Issues
 
 **1. [Rule 1 - Bug] Fixed correlated subquery in memoryColumns() always returning 0**
+
 - **Found during:** Task 2 (integration tests for access-control.test.ts)
-- **Issue:** `sql\`(SELECT COUNT(*)::int FROM comments WHERE comments.memory_id = ${memories.id})\`` causes Drizzle to parameterize `memories.id` as a bind value (the actual ID string being queried), rather than a SQL column reference. Every row's correlated subquery resolves against the literal value of the outer WHERE clause parameter, coincidentally also the same ID, but the comments table lookup compares against an ID that is bound once per query rather than correlating per row. Net effect: returns 0 instead of actual count.
-- **Fix:** Changed to raw SQL string `memories.id` (no `${}` interpolation): `sql\`(SELECT COUNT(*)::int FROM comments WHERE comments.memory_id = memories.id)\``
+- **Issue:** `sql\`(SELECT COUNT(\*)::int FROM comments WHERE comments.memory_id = ${memories.id})\``causes Drizzle to parameterize`memories.id` as a bind value (the actual ID string being queried), rather than a SQL column reference. Every row's correlated subquery resolves against the literal value of the outer WHERE clause parameter, coincidentally also the same ID, but the comments table lookup compares against an ID that is bound once per query rather than correlating per row. Net effect: returns 0 instead of actual count.
+- **Fix:** Changed to raw SQL string `memories.id` (no `${}` interpolation): `sql\`(SELECT COUNT(\*)::int FROM comments WHERE comments.memory_id = memories.id)\``
 - **Files modified:** `src/repositories/memory-repository.ts`
 - **Verification:** `comment_count field > memory has correct comment_count after comments added` passes; full suite 106/106
 - **Committed in:** `bb808a9` (Task 2 commit)
 
 **2. [Rule 1 - Bug] Fixed countTeamActivity incorrectly excluding user's own changes**
+
 - **Found during:** Task 2 (integration tests for team-activity.test.ts)
-- **Issue:** `countTeamActivity` filtered with `sql\`${memories.author} != ${userId}\`` which excludes the requesting user's own memories from the `new_memories` and `updated_memories` counts. D-30 spec: "team_activity includes the user's own changes -- a new session needs full context of what happened since last session, including your own past work."
+- **Issue:** `countTeamActivity` filtered with `sql\`${memories.author} != ${userId}\``which excludes the requesting user's own memories from the`new_memories`and`updated_memories` counts. D-30 spec: "team_activity includes the user's own changes -- a new session needs full context of what happened since last session, including your own past work."
 - **Fix:** Removed `author != userId` condition from both count queries in `countTeamActivity`
 - **Files modified:** `src/repositories/memory-repository.ts`
 - **Verification:** `D-30: team_activity includes user's own changes` passes; full suite 106/106
@@ -135,5 +147,6 @@ None -- all test functionality is fully implemented. The `content validation > r
 - Ready for Phase 4: Agent Autonomy
 
 ---
-*Phase: 03-team-collaboration*
-*Completed: 2026-03-23*
+
+_Phase: 03-team-collaboration_
+_Completed: 2026-03-23_

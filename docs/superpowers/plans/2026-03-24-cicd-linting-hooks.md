@@ -14,27 +14,29 @@
 
 ## File Map
 
-| File | Action | Responsibility |
-|------|--------|----------------|
-| `package.json` | Modify | Add devDependencies + scripts |
-| `eslint.config.mjs` | Create | ESLint flat config with TS + Prettier compat |
-| `.prettierrc` | Create | Prettier formatting options |
-| `.prettierignore` | Create | Files Prettier should skip |
-| `vitest.ci.config.ts` | Create | Unit-test-only Vitest config (no globalSetup) |
-| `tsconfig.json` | Modify | Add `vitest.ci.config.ts` and `eslint.config.mjs` to `include` |
-| `.husky/pre-commit` | Create | Pre-commit hook script |
-| `.github/workflows/ci.yml` | Create | GitHub Actions CI workflow |
+| File                       | Action | Responsibility                                                 |
+| -------------------------- | ------ | -------------------------------------------------------------- |
+| `package.json`             | Modify | Add devDependencies + scripts                                  |
+| `eslint.config.mjs`        | Create | ESLint flat config with TS + Prettier compat                   |
+| `.prettierrc`              | Create | Prettier formatting options                                    |
+| `.prettierignore`          | Create | Files Prettier should skip                                     |
+| `vitest.ci.config.ts`      | Create | Unit-test-only Vitest config (no globalSetup)                  |
+| `tsconfig.json`            | Modify | Add `vitest.ci.config.ts` and `eslint.config.mjs` to `include` |
+| `.husky/pre-commit`        | Create | Pre-commit hook script                                         |
+| `.github/workflows/ci.yml` | Create | GitHub Actions CI workflow                                     |
 
 ---
 
 ### Task 1: Install dependencies and add scripts
 
 **Files:**
+
 - Modify: `package.json`
 
 - [ ] **Step 1: Install dev dependencies**
 
 Run:
+
 ```bash
 npm install --save-dev eslint @eslint/js typescript-eslint eslint-config-prettier prettier husky
 ```
@@ -55,6 +57,7 @@ Add these scripts (leave existing scripts untouched):
 - [ ] **Step 3: Initialize Husky**
 
 Run:
+
 ```bash
 npx husky
 ```
@@ -73,6 +76,7 @@ git commit -m "chore: add eslint, prettier, husky devDependencies and scripts"
 ### Task 2: Configure ESLint
 
 **Files:**
+
 - Create: `eslint.config.mjs`
 - Modify: `tsconfig.json:18` (add to `include`)
 
@@ -110,6 +114,7 @@ to:
 - [ ] **Step 3: Run lint to verify it works**
 
 Run:
+
 ```bash
 npm run lint
 ```
@@ -128,6 +133,7 @@ git commit -m "chore: configure eslint with typescript-eslint and prettier compa
 ### Task 3: Configure Prettier
 
 **Files:**
+
 - Create: `.prettierrc`
 - Create: `.prettierignore`
 
@@ -158,6 +164,7 @@ coverage/
 - [ ] **Step 3: Run format check to see current state**
 
 Run:
+
 ```bash
 npm run format:check
 ```
@@ -176,6 +183,7 @@ git commit -m "chore: configure prettier with ignore rules"
 ### Task 4: Create CI-only Vitest config
 
 **Files:**
+
 - Create: `vitest.ci.config.ts`
 
 - [ ] **Step 1: Create the CI vitest config**
@@ -197,6 +205,7 @@ Note: No `globalSetup` — that's the point. The main `vitest.config.ts` has `gl
 - [ ] **Step 2: Run unit tests with the CI config**
 
 Run:
+
 ```bash
 npm run test:unit
 ```
@@ -215,11 +224,13 @@ git commit -m "chore: add vitest CI config for unit-tests-only runs"
 ### Task 5: Fix lint and format errors across codebase
 
 **Files:**
+
 - Modify: Various source files (autofix only)
 
 - [ ] **Step 1: Run Prettier to autoformat everything**
 
 Run:
+
 ```bash
 npm run format
 ```
@@ -229,17 +240,20 @@ Expected: Prettier rewrites files that don't match the config. Review the diff t
 - [ ] **Step 2: Run ESLint autofix**
 
 Run:
+
 ```bash
 npm run lint -- --fix
 ```
 
 Expected: ESLint fixes what it can. If unfixable errors remain, fix them manually. Common issues:
+
 - `@typescript-eslint/no-unused-vars` — remove unused imports/variables
 - `@typescript-eslint/no-explicit-any` — add types or use `unknown`
 
 - [ ] **Step 3: Run the full check to confirm clean**
 
 Run:
+
 ```bash
 npm run format:check && npm run lint && npm run typecheck
 ```
@@ -249,6 +263,7 @@ Expected: All three pass with exit 0.
 - [ ] **Step 4: Run tests to make sure nothing broke**
 
 Run:
+
 ```bash
 npm run test:unit
 ```
@@ -267,6 +282,7 @@ git commit -m "style: autoformat and fix lint errors across codebase"
 ### Task 6: Add pre-commit hook
 
 **Files:**
+
 - Create: `.husky/pre-commit`
 
 - [ ] **Step 1: Create the pre-commit hook**
@@ -284,6 +300,7 @@ git add -u
 - [ ] **Step 2: Make it executable**
 
 Run:
+
 ```bash
 chmod +x .husky/pre-commit
 ```
@@ -291,6 +308,7 @@ chmod +x .husky/pre-commit
 - [ ] **Step 3: Test the hook**
 
 Run:
+
 ```bash
 git add .husky/pre-commit
 git commit -m "chore: add husky pre-commit hook for format + lint"
@@ -303,11 +321,13 @@ Expected: The pre-commit hook runs (you'll see Prettier and ESLint output), then
 ### Task 7: Add GitHub Actions CI workflow
 
 **Files:**
+
 - Create: `.github/workflows/ci.yml`
 
 - [ ] **Step 1: Create the workflow file**
 
 Run:
+
 ```bash
 mkdir -p .github/workflows
 ```
@@ -363,6 +383,7 @@ git commit -m "ci: add github actions workflow for typecheck, lint, format, unit
 - [ ] **Step 1: Verify all checks pass**
 
 Run:
+
 ```bash
 npm run typecheck && npm run lint && npm run format:check && npm run test:unit
 ```

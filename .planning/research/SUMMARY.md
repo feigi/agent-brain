@@ -20,6 +20,7 @@ The dominant risk is noise over signal: agents over-write low-value memories, re
 The stack is a tight, well-justified set of tools with no framework overhead. The MCP SDK (`@modelcontextprotocol/sdk` 1.27.x) handles protocol concerns directly — no third-party wrappers. Drizzle ORM 0.45.x provides first-class pgvector support (`vector()` column type, `cosineDistance()`, HNSW index definitions) that Prisma cannot match. PostgreSQL 17 + pgvector 0.8.x on RDS is the single database for both relational and vector data, eliminating a separate vector service. Amazon Titan Text Embeddings V2 at 512 dimensions is the pragmatic choice: 99% of 1024-dim accuracy at half the storage cost, fully within AWS ecosystem.
 
 **Core technologies:**
+
 - TypeScript 5.9.x + Node.js 22 LTS — type safety is non-negotiable for a schema-sensitive system; Node 22 supports native TS stripping and is LTS through April 2027
 - `@modelcontextprotocol/sdk` 1.27.x — official SDK, Zod v4 schemas, stdio + Streamable HTTP transports; use directly, not wrapped
 - PostgreSQL 17 + pgvector 0.8.x — single DB for relational and vector data; pgvector 0.8.x on RDS PG 17.1+ adds iterative index scans and 5.7x query performance improvement
@@ -34,6 +35,7 @@ The stack is a tight, well-justified set of tools with no framework overhead. Th
 The product is most useful when it delivers two things quickly: agents can save and find memories within a session, and those memories persist across sessions. Everything else is an optimization.
 
 **Must have (table stakes, v1):**
+
 - Memory CRUD (save, get, update, archive) — MCP tools as first-class interface
 - Semantic search via vector embeddings — core retrieval; exact-match alone defeats the purpose
 - Memory persistence across sessions — the entire value proposition
@@ -45,6 +47,7 @@ The product is most useful when it delivers two things quickly: agents can save 
 - System prompt guidance (CLAUDE.md instructions) — shapes agent judgment on what is worth saving
 
 **Should have (v1.x, add when triggered by real usage):**
+
 - Agent auto-write (autonomous capture) — add after manual saves validated; risk of noise if threshold too low
 - Session-end review and extraction — add after auto-write patterns established; catches what was missed
 - Team sharing with access control — add when multiple users need shared project memory
@@ -54,6 +57,7 @@ The product is most useful when it delivers two things quickly: agents can save 
 - Memory export (JSON) — add when data portability is explicitly requested
 
 **Defer (v2+):**
+
 - Knowledge graph with entity resolution — not warranted until >1000 memories/project and semantic search precision degrades
 - Automatic memory consolidation/merging — information loss risk; defer until memory bloat is confirmed real
 - Web UI / dashboard — agents are primary consumers; CLI first
@@ -61,6 +65,7 @@ The product is most useful when it delivers two things quickly: agents can save 
 - Cross-repository memory sharing — start with strict project isolation
 
 **Anti-features (deliberate non-features):**
+
 - Real-time cross-agent sync (eventual consistency is fine for memory)
 - Memory decay with automatic deletion (use recency weighting + staleness detection + human review instead)
 - Complex RBAC (two scopes + simple access control covers 95% of cases)
@@ -71,6 +76,7 @@ The product is most useful when it delivers two things quickly: agents can save 
 The architecture is a clean four-layer stack: MCP tools (protocol handling, input validation) → services (business logic, orchestration) → provider interfaces (embedding, storage) → data layer (PostgreSQL + Bedrock). The server is passive — it exposes tools and data, never pushes or decides when to write. Agent behavior is driven entirely by system prompt instructions. This keeps the server simple and agent-agnostic.
 
 **Major components:**
+
 1. MCP Server Layer — `McpServer` with Zod-validated tools; thin dispatch to services; no business logic in tool handlers; 8 core tools mapped to 3 logical groups (memory CRUD, search, lifecycle)
 2. Services Layer — MemoryService (write path: embed → store), RetrievalService (read path: embed query → vector search → score), LifecycleService (staleness, verification, archival); each independently testable
 3. Provider Abstraction Layer — `EmbeddingProvider` interface (TitanProvider default) and `StorageProvider` interface (PgVectorStore default); concrete implementations injected at startup; swappable without touching business logic
@@ -78,6 +84,7 @@ The architecture is a clean four-layer stack: MCP tools (protocol handling, inpu
 5. Auth Layer — AuthContext (userId + projectId) resolved at MCP connection boundary, threaded through all service calls as first argument; RLS enforces isolation at DB level as safety net
 
 **Key patterns:**
+
 - Provider interface abstraction: external dependencies behind interfaces, injected at startup; keeps EmbeddingProvider and StorageProvider independently swappable
 - Scoped memory access via tenant context: every query scoped by project + user; RLS is the enforcement layer, application filtering is defense-in-depth
 - Service layer orchestration: tools dispatch, services orchestrate, providers handle I/O; each layer testable in isolation
@@ -113,6 +120,7 @@ Based on the dependency chain in ARCHITECTURE.md, the feature priority matrix in
 **Delivers:** A working MCP server that agents can configure, save notes to, and search. Validates that the core value proposition (memories survive across sessions and are findable by semantic search) actually works.
 
 **Addresses (from FEATURES.md P1):**
+
 - Memory CRUD (save, get, update, archive)
 - Semantic search via vector embeddings
 - PostgreSQL + pgvector storage layer
@@ -123,6 +131,7 @@ Based on the dependency chain in ARCHITECTURE.md, the feature priority matrix in
 - System prompt guidance (CLAUDE.md)
 
 **Avoids:**
+
 - Memory bloat: write budgets + dedup in `save_note` from day one
 - Embedding lock-in: raw text + model metadata in schema from day one
 - Schema over-engineering: target <12 columns, instrument what agents actually write
@@ -135,6 +144,7 @@ Based on the dependency chain in ARCHITECTURE.md, the feature priority matrix in
 **Delivers:** Noticeably better memory retrieval, session-start auto-load with token budget enforcement, conflict detection on writes, and the foundation for team sharing (auth layer).
 
 **Addresses (from FEATURES.md P2):**
+
 - Session-start auto-load (lazy loading pattern, 3-5 memories, 1,500-token cap)
 - Relevance scoring with recency weighting (formula: 0.6 semantic + 0.25 recency + 0.15 importance)
 - Conflict detection on save (>0.90 similarity = prompt update-vs-create, `supersedes` field)
@@ -143,6 +153,7 @@ Based on the dependency chain in ARCHITECTURE.md, the feature priority matrix in
 - Load testing at realistic memory volumes (pgvector performance verification)
 
 **Avoids:**
+
 - Session-start context overflow: token-budgeted auto-load, usage tracking
 - Conflicting memories: supersession mechanism
 - Memory poisoning: trust scoring + sanitization
@@ -155,6 +166,7 @@ Based on the dependency chain in ARCHITECTURE.md, the feature priority matrix in
 **Delivers:** Multiple users sharing project-scoped memories, threaded note comments (comment_note — unique differentiator), staleness detection and verification workflow, and memory export for data portability.
 
 **Addresses (from FEATURES.md P2):**
+
 - Team sharing with access control (project members see project memories; user memories private)
 - Threaded notes (comment_note — no competitor implements this)
 - Staleness detection (verified_at, list_stale, stale memory surfacing in sessions)
@@ -162,6 +174,7 @@ Based on the dependency chain in ARCHITECTURE.md, the feature priority matrix in
 - Session-end review and extraction
 
 **Avoids:**
+
 - Memory poisoning at team scale: RLS at DB level as enforcement layer (not just app-level filtering)
 - Over-complex RBAC: two scopes only; add granular permissions only on explicit user request
 
@@ -174,12 +187,14 @@ Based on the dependency chain in ARCHITECTURE.md, the feature priority matrix in
 **Delivers:** Autonomous agent memory capture with configurable thresholds, session-end review and learning extraction, batch re-embedding tooling for future model migrations, and performance optimizations based on real usage data.
 
 **Addresses (from FEATURES.md P2-P3):**
+
 - Agent auto-write (autonomous capture with budget enforcement)
 - Session-end review (LLM-driven reflection, extract learnings from session)
 - Batch re-embedding tooling (migration path for embedding model changes)
 - Memory quality metrics (which memories are actually referenced; feedback loop)
 
 **Avoids:**
+
 - Noise from auto-write: conservative thresholds, system prompt guidance tuning based on real data
 - Knowledge graph temptation: add only if retrieval quality demonstrably degrades at scale
 
@@ -194,21 +209,23 @@ Based on the dependency chain in ARCHITECTURE.md, the feature priority matrix in
 ### Research Flags
 
 Phases likely needing `/gsd:research-phase` during planning:
+
 - **Phase 3 (Team Sharing / Auth):** MCP authentication spec is actively evolving. Need to verify current Claude Code and Cursor support for bearer tokens vs. OAuth 2.1. Static bearer tokens are pragmatic for internal teams but the integration specifics need validation.
 - **Phase 4 (Agent Auto-write):** System prompt engineering for memory capture thresholds is empirically driven. The right triggers ("save architectural decisions but not debugging steps") need real usage data to calibrate. May benefit from researching system prompt patterns from doobidoo/mcp-memory-service and GitHub Copilot Memory.
 
 Phases with standard patterns (can skip research-phase):
+
 - **Phase 1 (Foundation):** MCP SDK, Drizzle + pgvector, Titan embeddings — all well-documented with HIGH-confidence sources. Build order is clear. No novel integrations.
 - **Phase 2 (Retrieval Quality):** Recency weighting formulas, vector search optimization, and session-start loading patterns are established in research. Load testing approach is standard.
 
 ## Confidence Assessment
 
-| Area | Confidence | Notes |
-|------|------------|-------|
-| Stack | HIGH | All major dependencies verified against official sources (MCP SDK 1.27.x, pgvector 0.8.x on RDS PG 17.1+, Drizzle 0.45.x stable pairing). Version compatibility table confirmed. Zod v3/v4 peer dep resolved. |
-| Features | HIGH | Competitor analysis is extensive (8 systems compared). Table stakes are clearly established by market. Differentiators validated against gap in self-hosted team memory. Anti-features backed by specific research (Mem0 26% selective vs. full capture). |
-| Architecture | HIGH | Four-layer architecture is standard for MCP servers. Provider interface pattern is well-established. RLS + tenant context pattern verified against AWS multi-tenant RDS documentation. Data flow diagrams are internally consistent. |
-| Pitfalls | HIGH | Each pitfall cross-verified across multiple sources. Memory poisoning backed by NeurIPS 2025 research (MINJA, 95% injection rate). pgvector scaling backed by production post-mortems. Context window bloat backed by measured data (55K+ tokens observed). |
+| Area         | Confidence | Notes                                                                                                                                                                                                                                                       |
+| ------------ | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stack        | HIGH       | All major dependencies verified against official sources (MCP SDK 1.27.x, pgvector 0.8.x on RDS PG 17.1+, Drizzle 0.45.x stable pairing). Version compatibility table confirmed. Zod v3/v4 peer dep resolved.                                               |
+| Features     | HIGH       | Competitor analysis is extensive (8 systems compared). Table stakes are clearly established by market. Differentiators validated against gap in self-hosted team memory. Anti-features backed by specific research (Mem0 26% selective vs. full capture).   |
+| Architecture | HIGH       | Four-layer architecture is standard for MCP servers. Provider interface pattern is well-established. RLS + tenant context pattern verified against AWS multi-tenant RDS documentation. Data flow diagrams are internally consistent.                        |
+| Pitfalls     | HIGH       | Each pitfall cross-verified across multiple sources. Memory poisoning backed by NeurIPS 2025 research (MINJA, 95% injection rate). pgvector scaling backed by production post-mortems. Context window bloat backed by measured data (55K+ tokens observed). |
 
 **Overall confidence:** HIGH
 
@@ -222,6 +239,7 @@ Phases with standard patterns (can skip research-phase):
 ## Sources
 
 ### Primary (HIGH confidence)
+
 - [MCP TypeScript SDK 1.27.x](https://github.com/modelcontextprotocol/typescript-sdk) — SDK architecture, transport options, tool definitions, Zod v4 compatibility
 - [pgvector GitHub](https://github.com/pgvector/pgvector) — Extension features, HNSW/IVFFlat indexes, v0.8.x changelog
 - [AWS RDS pgvector 0.8.x](https://aws.amazon.com/about-aws/whats-new/2024/11/amazon-rds-for-postgresql-pgvector-080/) — pgvector 0.8.0 support on RDS PostgreSQL 17.1+
@@ -232,6 +250,7 @@ Phases with standard patterns (can skip research-phase):
 - [Mem0 Research](https://mem0.ai/research) — 26% accuracy boost for selective vs. full capture
 
 ### Secondary (MEDIUM confidence)
+
 - [MCP Authorization spec](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization) — OAuth 2.1 patterns; spec noted as evolving
 - [Mem0 Architecture Paper](https://arxiv.org/abs/2504.19413) — Three-stage memory pipeline; informational, not a dependency
 - [Hindsight MCP Memory (Vectorize)](https://hindsight.vectorize.io/blog/2026/03/04/mcp-agent-memory) — Multi-strategy retrieval, cross-encoder reranking
@@ -241,9 +260,11 @@ Phases with standard patterns (can skip research-phase):
 - [Amazon Titan Embeddings Benchmark](https://www.philschmid.de/amazon-titan-embeddings) — Quality limitations vs. open-source alternatives
 
 ### Tertiary (LOW confidence)
+
 - [MCP Real Faults Taxonomy](https://arxiv.org/html/2603.05637v1) — 3,282 MCP server issues analyzed; directionally useful but broad
 - [State of MCP Server Security 2025 (Astrix)](https://astrix.security/learn/blog/state-of-mcp-server-security-2025/) — 53% static secret reliance, 8.5% OAuth adoption
 
 ---
-*Research completed: 2026-03-23*
-*Ready for roadmap: yes*
+
+_Research completed: 2026-03-23_
+_Ready for roadmap: yes_

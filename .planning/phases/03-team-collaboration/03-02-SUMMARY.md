@@ -2,7 +2,14 @@
 phase: 03-team-collaboration
 plan: 02
 subsystem: service-tools
-tags: [access-control, slug-validation, content-validation, scope-enforcement, multi-user]
+tags:
+  [
+    access-control,
+    slug-validation,
+    content-validation,
+    scope-enforcement,
+    multi-user,
+  ]
 
 # Dependency graph
 requires:
@@ -148,6 +155,7 @@ None.
 ## Self-Check: PASSED
 
 All files verified present. All commits verified in git log.
+
 - FOUND: src/repositories/memory-repository.ts
 - FOUND: src/services/memory-service.ts
 - FOUND: src/tools/memory-create.ts ... (all 9 tools)
@@ -156,5 +164,6 @@ All files verified present. All commits verified in git log.
 - FOUND: commit a3c85de (Task 2)
 
 ---
-*Phase: 03-team-collaboration*
-*Completed: 2026-03-23*
+
+_Phase: 03-team-collaboration_
+_Completed: 2026-03-23_

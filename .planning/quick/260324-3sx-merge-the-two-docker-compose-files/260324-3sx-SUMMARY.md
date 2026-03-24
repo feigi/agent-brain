@@ -36,10 +36,10 @@ Consolidated two Docker Compose files into one. The ollama service (image, ports
 
 ## Task Results
 
-| Task | Name | Commit | Files |
-|------|------|--------|-------|
-| 1 | Merge compose files and update dev script | 1dcd085 | docker-compose.yml, package.json |
-| 2 | Delete docker-compose.ollama.yml | a5aafe3 | docker-compose.ollama.yml (deleted) |
+| Task | Name                                      | Commit  | Files                               |
+| ---- | ----------------------------------------- | ------- | ----------------------------------- |
+| 1    | Merge compose files and update dev script | 1dcd085 | docker-compose.yml, package.json    |
+| 2    | Delete docker-compose.ollama.yml          | a5aafe3 | docker-compose.ollama.yml (deleted) |
 
 ## Verification Results
 

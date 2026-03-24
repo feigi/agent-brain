@@ -5,7 +5,8 @@ subsystem: session-lifecycle
 tags: [sessions, budget-tracking, schema, types, repository]
 dependency_graph:
   requires: []
-  provides: [sessions-table, session-repository, session-id-in-meta, budget-config]
+  provides:
+    [sessions-table, session-repository, session-id-in-meta, budget-config]
   affects: [memory-service, server, envelope-type, memory-types]
 tech_stack:
   added: []
@@ -75,6 +76,7 @@ None - plan executed exactly as written.
 ## Self-Check: PASSED
 
 Files verified:
+
 - FOUND: src/db/schema.ts (contains sessions and sessionTracking)
 - FOUND: src/config.ts (contains writeBudgetPerSession)
 - FOUND: src/types/envelope.ts (contains session_id)
@@ -86,6 +88,7 @@ Files verified:
 - FOUND: drizzle/0002_worthless_human_cannonball.sql (contains CREATE TABLE "sessions")
 
 Commits verified:
+
 - FOUND: 3325b84 (Task 1)
 - FOUND: 12649c5 (Task 2)
 

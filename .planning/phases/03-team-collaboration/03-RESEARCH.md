@@ -13,9 +13,11 @@ The existing codebase is well-structured for these additions. The repository abs
 **Primary recommendation:** Implement in layers -- database schema changes first (new tables + columns + migration), then access control infrastructure (validation + authorization), then new tools (comment + list_recent), then existing tool retrofits. Keep access control in the service layer, not the repository, consistent with the established app-layer filtering pattern from Phases 1-2.
 
 <user_constraints>
+
 ## User Constraints (from CONTEXT.md)
 
 ### Locked Decisions
+
 - **D-01:** Trust-the-client model -- user_id is a per-call parameter with no server-side verification. Stdio transport is inherently single-user (OS process owner). Multi-user safety comes from each user running their own server instance.
 - **D-02:** user_id stays per-call only -- no config-level default. Consistent with project_id being per-call (Phase 1 D-33). Explicit over convenient.
 - **D-03:** Trust is sufficient for v1 -- no RLS enforcement. Provenance via author field satisfies TEAM-02 at the trust level. Real auth enforcement deferred to HTTP transport (v2).
@@ -94,6 +96,7 @@ The existing codebase is well-structured for these additions. The repository abs
 - **D-76:** Keep server version at 0.1.0.
 
 ### Claude's Discretion
+
 - Exact slug validation regex and max length for user_id and project_id
 - Database indexes on comments table (memory_id index at minimum)
 - Comment creation + parent updated_at update as single transaction
@@ -103,27 +106,31 @@ The existing codebase is well-structured for these additions. The repository abs
 - Test DB setup for new tables and access control tests
 
 ### Deferred Ideas (OUT OF SCOPE)
+
 None -- discussion stayed within phase scope. All scope boundaries maintained:
+
 - HTTP transport / real authentication -> v2 / future phase
 - RLS database enforcement -> deferred with HTTP transport
 - Users table / user management -> not needed for trust-the-client model
 - Session history / analytics -> Phase 4 (Agent Autonomy) may revisit
 - Comment search / semantic matching -> not planned
 - Nested comment threading -> rejected in favor of flat
-</user_constraints>
+  </user_constraints>
 
 <phase_requirements>
+
 ## Phase Requirements
 
-| ID | Description | Research Support |
-|----|-------------|------------------|
-| TEAM-01 | Multiple users can read and write to shared project memories | Shared DB with per-user stdio instances (D-21). Scope-based access model (D-11): project=shared, user=private. All tools require user_id (D-13). |
-| TEAM-02 | Authentication identifies which user/agent is writing memories | Trust-the-client model (D-01): user_id is per-call parameter with slug validation (D-05). Maps to `author` field in service layer. |
-| TEAM-03 | Each memory records its author (provenance tracking) | Already implemented in Phase 1 (author field on memories). Phase 3 adds `verified_by` (D-19) and comment author tracking (D-47). |
-| TEAM-04 | User can append a comment to an existing memory (threaded notes) | New `comments` table (D-44) with flat threading (D-45). New `memory_comment` tool (D-65). Append-only (D-46). |
-| TEAM-05 | Threaded comments preserve original memory content and add context | Comments are separate table rows (D-44). No edits to comments (D-46). No re-embedding on comment (D-57). Parent version not bumped (D-54). |
-| TEAM-06 | User can verify a memory is still accurate | Already partially implemented (Phase 1 verify tool). Phase 3 adds `verified_by` field (D-19) and scope enforcement (D-20). |
-| TEAM-07 | Agent can list memories that haven't been verified within configurable threshold | Already implemented (Phase 1 list_stale tool). Phase 3 adds user_id requirement (D-13) and scope enforcement on results (D-16). |
+| ID      | Description                                                                      | Research Support                                                                                                                                 |
+| ------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| TEAM-01 | Multiple users can read and write to shared project memories                     | Shared DB with per-user stdio instances (D-21). Scope-based access model (D-11): project=shared, user=private. All tools require user_id (D-13). |
+| TEAM-02 | Authentication identifies which user/agent is writing memories                   | Trust-the-client model (D-01): user_id is per-call parameter with slug validation (D-05). Maps to `author` field in service layer.               |
+| TEAM-03 | Each memory records its author (provenance tracking)                             | Already implemented in Phase 1 (author field on memories). Phase 3 adds `verified_by` (D-19) and comment author tracking (D-47).                 |
+| TEAM-04 | User can append a comment to an existing memory (threaded notes)                 | New `comments` table (D-44) with flat threading (D-45). New `memory_comment` tool (D-65). Append-only (D-46).                                    |
+| TEAM-05 | Threaded comments preserve original memory content and add context               | Comments are separate table rows (D-44). No edits to comments (D-46). No re-embedding on comment (D-57). Parent version not bumped (D-54).       |
+| TEAM-06 | User can verify a memory is still accurate                                       | Already partially implemented (Phase 1 verify tool). Phase 3 adds `verified_by` field (D-19) and scope enforcement (D-20).                       |
+| TEAM-07 | Agent can list memories that haven't been verified within configurable threshold | Already implemented (Phase 1 list_stale tool). Phase 3 adds user_id requirement (D-13) and scope enforcement on results (D-16).                  |
+
 </phase_requirements>
 
 ## Standard Stack
@@ -131,15 +138,17 @@ None -- discussion stayed within phase scope. All scope boundaries maintained:
 No new dependencies needed. Phase 3 uses the established stack entirely.
 
 ### Core (already installed)
-| Library | Version | Purpose | Phase 3 Usage |
-|---------|---------|---------|---------------|
-| drizzle-orm | 0.45.1 | ORM + query builder | New tables (comments, session_tracking), `db.$count()` for comment_count, `db.transaction()` for comment creation, `onConflictDoUpdate` for session UPSERT |
-| drizzle-kit | 0.31.10 | Migrations | Generate migration for new tables + columns |
-| zod | 4.3.6 | Schema validation | `.regex()` for slug validation, `.trim()` + `.min(1)` for content validation |
-| nanoid | 5.x | ID generation | Comment IDs via existing `generateId()` |
-| vitest | 4.1.0 | Testing | Access control tests, comment tests, validation tests |
+
+| Library     | Version | Purpose             | Phase 3 Usage                                                                                                                                              |
+| ----------- | ------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| drizzle-orm | 0.45.1  | ORM + query builder | New tables (comments, session_tracking), `db.$count()` for comment_count, `db.transaction()` for comment creation, `onConflictDoUpdate` for session UPSERT |
+| drizzle-kit | 0.31.10 | Migrations          | Generate migration for new tables + columns                                                                                                                |
+| zod         | 4.3.6   | Schema validation   | `.regex()` for slug validation, `.trim()` + `.min(1)` for content validation                                                                               |
+| nanoid      | 5.x     | ID generation       | Comment IDs via existing `generateId()`                                                                                                                    |
+| vitest      | 4.1.0   | Testing             | Access control tests, comment tests, validation tests                                                                                                      |
 
 ### No New Packages Required
+
 Phase 3 is purely application-level logic using the existing stack. No install commands needed.
 
 ## Architecture Patterns
@@ -151,18 +160,20 @@ Phase 3 is purely application-level logic using the existing stack. No install c
 export const comments = pgTable(
   "comments",
   {
-    id: text("id").primaryKey(),                    // nanoid (D-51)
-    memory_id: text("memory_id").notNull()
-      .references(() => memories.id),               // FK to memories (D-44)
-    author: text("author").notNull(),               // who commented (D-47)
-    content: text("content").notNull(),             // comment text (D-47)
+    id: text("id").primaryKey(), // nanoid (D-51)
+    memory_id: text("memory_id")
+      .notNull()
+      .references(() => memories.id), // FK to memories (D-44)
+    author: text("author").notNull(), // who commented (D-47)
+    content: text("content").notNull(), // comment text (D-47)
     created_at: timestamp("created_at", { withTimezone: true })
-      .notNull().defaultNow(),                      // D-47
+      .notNull()
+      .defaultNow(), // D-47
   },
   (table) => [
-    index("comments_memory_id_idx").on(table.memory_id),       // Required for COUNT queries
-    index("comments_created_at_idx").on(table.created_at),     // For ordering
-  ]
+    index("comments_memory_id_idx").on(table.memory_id), // Required for COUNT queries
+    index("comments_created_at_idx").on(table.created_at), // For ordering
+  ],
 );
 ```
 
@@ -174,15 +185,17 @@ export const sessionTracking = pgTable(
   "session_tracking",
   {
     user_id: text("user_id").notNull(),
-    project_id: text("project_id").notNull()
+    project_id: text("project_id")
+      .notNull()
       .references(() => projects.id),
     last_session_at: timestamp("last_session_at", { withTimezone: true })
-      .notNull().defaultNow(),
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
     // Composite primary key on (user_id, project_id) for UPSERT target
     // Use primaryKey() or unique index
-  ]
+  ],
 );
 ```
 
@@ -216,6 +229,7 @@ const memoryColumnsWithCount = {
 **Critical note:** `db.$count()` returns a number but PostgreSQL count returns bigint which postgres.js interprets as string. Cast with `Number()` or use `sql<number>` pattern. The `$count` utility handles this internally -- verify in integration tests.
 
 **Alternative approach if $count causes issues:** Use a raw SQL subquery:
+
 ```typescript
 comment_count: sql<number>`(SELECT COUNT(*)::int FROM comments WHERE comments.memory_id = memories.id)`,
 ```
@@ -254,13 +268,18 @@ import { z } from "zod";
 const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const SLUG_MAX_LENGTH = 64;
 
-export const slugSchema = z.string()
+export const slugSchema = z
+  .string()
   .min(1, "Must not be empty")
   .max(SLUG_MAX_LENGTH, `Must be ${SLUG_MAX_LENGTH} characters or fewer`)
-  .regex(SLUG_REGEX, "Must be lowercase alphanumeric with hyphens (e.g., 'my-project')");
+  .regex(
+    SLUG_REGEX,
+    "Must be lowercase alphanumeric with hyphens (e.g., 'my-project')",
+  );
 
 // Reusable non-empty content validator
-export const contentSchema = z.string()
+export const contentSchema = z
+  .string()
   .trim()
   .min(1, "Content must not be empty or whitespace-only");
 ```
@@ -293,7 +312,8 @@ await this.db.transaction(async (tx) => {
 
 ```typescript
 // Source: https://orm.drizzle.team/docs/insert (onConflictDoUpdate section)
-await this.db.insert(sessionTracking)
+await this.db
+  .insert(sessionTracking)
   .values({
     user_id: userId,
     project_id: projectId,
@@ -320,7 +340,7 @@ function computeCapabilities(memory: Memory, userId: string) {
   return {
     can_edit: canAccess,
     can_archive: canAccess,
-    can_verify: canAccess,           // D-20: project=anyone, user=owner only
+    can_verify: canAccess, // D-20: project=anyone, user=owner only
     can_comment: isProject && !isOwner, // D-56: no self-comment; user-scoped can't have comments
   };
 }
@@ -332,11 +352,18 @@ function computeCapabilities(memory: Memory, userId: string) {
 **When to use:** `memory_list_recent` tool (D-37).
 
 ```typescript
-function getChangeType(memory: Memory & { last_comment_at: Date | null }, since: Date): 'created' | 'updated' | 'commented' {
-  if (memory.created_at >= since) return 'created';
+function getChangeType(
+  memory: Memory & { last_comment_at: Date | null },
+  since: Date,
+): "created" | "updated" | "commented" {
+  if (memory.created_at >= since) return "created";
   // D-62: if updated_at matches last_comment_at, the update was from a comment
-  if (memory.last_comment_at && memory.updated_at.getTime() === memory.last_comment_at.getTime()) return 'commented';
-  return 'updated';
+  if (
+    memory.last_comment_at &&
+    memory.updated_at.getTime() === memory.last_comment_at.getTime()
+  )
+    return "commented";
+  return "updated";
 }
 ```
 
@@ -390,61 +417,69 @@ tests/
 
 ## Don't Hand-Roll
 
-| Problem | Don't Build | Use Instead | Why |
-|---------|-------------|-------------|-----|
-| Correlated count subquery | Manual SQL string concatenation | `db.$count(comments, eq(...))` | Type-safe, tested by Drizzle, generates correct correlated subquery |
-| UPSERT for session tracking | SELECT-then-INSERT race condition | `db.insert().onConflictDoUpdate()` | Atomic, handles concurrent server instances safely |
-| Slug validation regex | Inline regex in each tool file | Shared `slugSchema` from validation.ts | Single source of truth, consistent error messages |
-| Transaction management | Manual BEGIN/COMMIT/ROLLBACK | `db.transaction(async (tx) => {})` | Drizzle handles cleanup, savepoints, error rollback |
-| Input trimming + empty check | `if (!content || !content.trim())` | `z.string().trim().min(1)` | Zod handles trimming + validation + error messages in one chain |
+| Problem                      | Don't Build                       | Use Instead                            | Why                                                                 |
+| ---------------------------- | --------------------------------- | -------------------------------------- | ------------------------------------------------------------------- | -------------------------- | --------------------------------------------------------------- |
+| Correlated count subquery    | Manual SQL string concatenation   | `db.$count(comments, eq(...))`         | Type-safe, tested by Drizzle, generates correct correlated subquery |
+| UPSERT for session tracking  | SELECT-then-INSERT race condition | `db.insert().onConflictDoUpdate()`     | Atomic, handles concurrent server instances safely                  |
+| Slug validation regex        | Inline regex in each tool file    | Shared `slugSchema` from validation.ts | Single source of truth, consistent error messages                   |
+| Transaction management       | Manual BEGIN/COMMIT/ROLLBACK      | `db.transaction(async (tx) => {})`     | Drizzle handles cleanup, savepoints, error rollback                 |
+| Input trimming + empty check | `if (!content                     |                                        | !content.trim())`                                                   | `z.string().trim().min(1)` | Zod handles trimming + validation + error messages in one chain |
 
 **Key insight:** Phase 3 introduces significant cross-cutting concerns (validation, authorization). These MUST be centralized in shared utilities, not copy-pasted into each tool file. A validation utility module and service-layer authorization methods prevent drift and reduce the surface area for bugs.
 
 ## Common Pitfalls
 
 ### Pitfall 1: comment_count Returns String Instead of Number
+
 **What goes wrong:** PostgreSQL `COUNT(*)` returns `bigint`, which postgres.js serializes as a string. `comment_count` shows up as `"3"` instead of `3`.
 **Why it happens:** bigint exceeds JavaScript's Number.MAX_SAFE_INTEGER range, so drivers default to string representation.
-**How to avoid:** Use `db.$count()` which should handle casting, but verify in integration tests. If not, use `sql<number>\`(SELECT COUNT(*)::int FROM comments ...)\`` with explicit `::int` cast, or apply `Number()` conversion in the repository's `rowToMemory` function.
+**How to avoid:** Use `db.$count()` which should handle casting, but verify in integration tests. If not, use `sql<number>\`(SELECT COUNT(\*)::int FROM comments ...)\``with explicit`::int`cast, or apply`Number()`conversion in the repository's`rowToMemory` function.
 **Warning signs:** Type errors in tests, JSON output showing string numbers.
 
 ### Pitfall 2: memoryColumns Object Must Be Updated Everywhere
+
 **What goes wrong:** Adding `verified_by` and `last_comment_at` to the schema but forgetting to add them to the `memoryColumns` constant in `memory-repository.ts` means they silently disappear from all query results.
 **Why it happens:** `memoryColumns` is an explicit column selection (D-44: never return embedding vector). Any new column must be manually added.
 **How to avoid:** When adding schema columns, immediately update `memoryColumns`, the `Memory` interface, and the `rowToMemory` function. These three must stay in sync.
 **Warning signs:** New fields showing up as `undefined` in responses.
 
 ### Pitfall 3: LEFT JOIN Multiplies Rows in Search/List
+
 **What goes wrong:** If comment_count is implemented via a LEFT JOIN + GROUP BY instead of a correlated subquery, the JOIN can multiply result rows and corrupt pagination or limit counts.
 **Why it happens:** LEFT JOIN produces one row per (memory, comment) pair before grouping.
 **How to avoid:** Use `db.$count()` correlated subquery pattern instead of LEFT JOIN + GROUP BY. D-60 mentions "LEFT JOIN cost" but the actual implementation should use correlated subqueries for correctness.
 **Warning signs:** Duplicate memories in results, incorrect pagination.
 
 ### Pitfall 4: Scope Enforcement on memory_get Returns "Not Found" (not "Forbidden")
+
 **What goes wrong:** D-17 says user-scoped memories return "not found" for non-owners. If you return a 403-style error instead, you leak information about the memory's existence.
 **Why it happens:** Natural instinct is to return "access denied" but the decision is deliberate -- hide existence.
 **How to avoid:** After fetching a memory by ID, check access. If access denied, throw `NotFoundError` (not a new `AuthorizationError`). Only use descriptive permission errors for mutation operations (update, archive, verify, comment) per D-12.
 **Warning signs:** "Cannot modify" error on a GET request.
 
 ### Pitfall 5: Transaction Isolation for Comment Creation
+
 **What goes wrong:** Without a transaction, comment insertion succeeds but the parent `updated_at`/`last_comment_at` update fails (or vice versa). Data becomes inconsistent.
 **Why it happens:** Two separate queries without transaction guarantees.
 **How to avoid:** Always use `db.transaction()` for comment creation. Verify the parent memory exists and is not archived INSIDE the transaction to prevent TOCTOU races.
 **Warning signs:** `last_comment_at` is null on a memory that has comments, or `updated_at` doesn't reflect latest comment.
 
 ### Pitfall 6: Self-Comment Check Must Use Memory's Author, Not Current user_id
+
 **What goes wrong:** The self-comment block (D-56) should check `memory.author === user_id`. If the check is inverted or uses the wrong field, it blocks everyone except the author.
 **Why it happens:** Confusing "the commenter is the author" with "the commenter is not the author."
 **How to avoid:** Clear variable naming: `isAuthor = memory.author === userId; if (isAuthor) throw new ValidationError(...)`.
 **Warning signs:** All comments are blocked, or self-comments are allowed.
 
 ### Pitfall 7: truncateAll Must Include New Tables
+
 **What goes wrong:** Tests pass individually but fail when run together because the comments table or session_tracking table retains data from previous tests.
 **Why it happens:** `truncateAll()` in `tests/helpers.ts` only deletes from `memories` and `projects`. New tables must be added in correct FK order.
 **How to avoid:** Update `truncateAll()` to delete comments first (references memories), then session_tracking, then memories, then projects.
 **Warning signs:** Tests pass individually but fail in suite.
 
 ### Pitfall 8: team_activity Query Must Be Scope-Aware
+
 **What goes wrong:** The team_activity counts in `memory_session_start` response include user-scoped memories owned by other users, leaking private information.
 **Why it happens:** Using a simple `WHERE created_at > since` without scope filtering.
 **How to avoid:** Apply the same scope filtering as search: count project memories for the project + user-scoped memories only for the requesting user.
@@ -478,21 +513,28 @@ import { sql, eq } from "drizzle-orm";
 import { sessionTracking } from "../db/schema.js";
 
 // Returns the previous session timestamp (null if first session)
-async function upsertSession(userId: string, projectId: string): Promise<Date | null> {
+async function upsertSession(
+  userId: string,
+  projectId: string,
+): Promise<Date | null> {
   // First, get existing session
   const existing = await db
     .select({ last_session_at: sessionTracking.last_session_at })
     .from(sessionTracking)
-    .where(and(
-      eq(sessionTracking.user_id, userId),
-      eq(sessionTracking.project_id, projectId),
-    ))
+    .where(
+      and(
+        eq(sessionTracking.user_id, userId),
+        eq(sessionTracking.project_id, projectId),
+      ),
+    )
     .limit(1);
 
-  const previousSession = existing.length > 0 ? existing[0].last_session_at : null;
+  const previousSession =
+    existing.length > 0 ? existing[0].last_session_at : null;
 
   // Then upsert (update last_session_at to now)
-  await db.insert(sessionTracking)
+  await db
+    .insert(sessionTracking)
     .values({
       user_id: userId,
       project_id: projectId,
@@ -529,7 +571,8 @@ async function createComment(
       .limit(1);
 
     if (!parent) throw new NotFoundError("Memory", memoryId);
-    if (parent.archived_at) throw new ValidationError("Cannot comment on an archived memory.");
+    if (parent.archived_at)
+      throw new ValidationError("Cannot comment on an archived memory.");
 
     // Insert comment
     const commentId = generateId();
@@ -585,7 +628,9 @@ export class AuthorizationError extends DomainError {
 
 // Usage in service layer:
 if (memory.scope === "user" && memory.author !== userId) {
-  throw new AuthorizationError("Cannot modify user-scoped memory owned by another user.");
+  throw new AuthorizationError(
+    "Cannot modify user-scoped memory owned by another user.",
+  );
 }
 ```
 
@@ -600,32 +645,33 @@ export interface Envelope<T> {
     timing?: number;
     cursor?: string;
     has_more?: boolean;
-    team_activity?: {           // D-29: session_start only
+    team_activity?: {
+      // D-29: session_start only
       new_memories: number;
       updated_memories: number;
       commented_memories: number;
-      since: string;            // ISO timestamp
+      since: string; // ISO timestamp
     };
-    comment_count?: number;     // D-67: memory_comment response
+    comment_count?: number; // D-67: memory_comment response
   };
 }
 ```
 
 ## State of the Art
 
-| Old Approach | Current Approach | When Changed | Impact |
-|--------------|------------------|--------------|--------|
-| user_id optional on reads | user_id required on ALL tools (D-13) | Phase 3 | Breaking change for all 9 existing tools. No external consumers so acceptable. |
-| No input validation on IDs | Slug validation on user_id and project_id (D-05/D-09) | Phase 3 | Prevents garbage values, enforces consistency. |
-| Memory type has no comment_count | comment_count computed on every memory response (D-61) | Phase 3 | All downstream consumers see comment info. |
-| verify sets verified_at only | verify also sets verified_by (D-19) | Phase 3 | Provenance for verification actions. |
+| Old Approach                     | Current Approach                                       | When Changed | Impact                                                                         |
+| -------------------------------- | ------------------------------------------------------ | ------------ | ------------------------------------------------------------------------------ |
+| user_id optional on reads        | user_id required on ALL tools (D-13)                   | Phase 3      | Breaking change for all 9 existing tools. No external consumers so acceptable. |
+| No input validation on IDs       | Slug validation on user_id and project_id (D-05/D-09)  | Phase 3      | Prevents garbage values, enforces consistency.                                 |
+| Memory type has no comment_count | comment_count computed on every memory response (D-61) | Phase 3      | All downstream consumers see comment info.                                     |
+| verify sets verified_at only     | verify also sets verified_by (D-19)                    | Phase 3      | Provenance for verification actions.                                           |
 
 ## Open Questions
 
 1. **db.$count() return type with postgres.js**
    - What we know: PostgreSQL COUNT returns bigint, postgres.js returns string for bigint. Drizzle's `$count` utility should handle conversion but this is unverified for our specific driver pairing.
    - What's unclear: Whether `db.$count()` used as a correlated subquery in `.select()` automatically handles the bigint-to-number conversion.
-   - Recommendation: Test in first integration test. If it returns string, fall back to raw `sql<number>\`(SELECT COUNT(*)::int ...)\`` pattern.
+   - Recommendation: Test in first integration test. If it returns string, fall back to raw `sql<number>\`(SELECT COUNT(\*)::int ...)\`` pattern.
 
 2. **session_tracking composite primary key in Drizzle**
    - What we know: Drizzle supports composite primary keys via `primaryKey()` helper in table definition.
@@ -640,42 +686,47 @@ export interface Envelope<T> {
 ## Validation Architecture
 
 ### Test Framework
-| Property | Value |
-|----------|-------|
-| Framework | Vitest 4.1.0 |
-| Config file | `vitest.config.ts` |
-| Quick run command | `npx vitest run --reporter=verbose` |
-| Full suite command | `npx vitest run` |
+
+| Property           | Value                               |
+| ------------------ | ----------------------------------- |
+| Framework          | Vitest 4.1.0                        |
+| Config file        | `vitest.config.ts`                  |
+| Quick run command  | `npx vitest run --reporter=verbose` |
+| Full suite command | `npx vitest run`                    |
 
 ### Phase Requirements -> Test Map
-| Req ID | Behavior | Test Type | Automated Command | File Exists? |
-|--------|----------|-----------|-------------------|-------------|
-| TEAM-01 | Two users read/write shared project memories | integration | `npx vitest run tests/integration/access-control.test.ts -t "shared project" -x` | Wave 0 |
-| TEAM-02 | user_id identifies each writer | integration | `npx vitest run tests/integration/access-control.test.ts -t "author tracking" -x` | Wave 0 |
-| TEAM-03 | Memory records author + verified_by | integration | `npx vitest run tests/integration/access-control.test.ts -t "provenance" -x` | Wave 0 |
-| TEAM-04 | Comment appended to memory | integration | `npx vitest run tests/integration/comment.test.ts -t "create comment" -x` | Wave 0 |
-| TEAM-05 | Comments preserve original, add context | integration | `npx vitest run tests/integration/comment.test.ts -t "preserves original" -x` | Wave 0 |
-| TEAM-06 | User verifies memory with verified_by | integration | `npx vitest run tests/integration/access-control.test.ts -t "verify" -x` | Wave 0 |
-| TEAM-07 | Agent lists stale memories with scope enforcement | integration | `npx vitest run tests/integration/access-control.test.ts -t "stale" -x` | Wave 0 |
+
+| Req ID  | Behavior                                          | Test Type   | Automated Command                                                                 | File Exists? |
+| ------- | ------------------------------------------------- | ----------- | --------------------------------------------------------------------------------- | ------------ |
+| TEAM-01 | Two users read/write shared project memories      | integration | `npx vitest run tests/integration/access-control.test.ts -t "shared project" -x`  | Wave 0       |
+| TEAM-02 | user_id identifies each writer                    | integration | `npx vitest run tests/integration/access-control.test.ts -t "author tracking" -x` | Wave 0       |
+| TEAM-03 | Memory records author + verified_by               | integration | `npx vitest run tests/integration/access-control.test.ts -t "provenance" -x`      | Wave 0       |
+| TEAM-04 | Comment appended to memory                        | integration | `npx vitest run tests/integration/comment.test.ts -t "create comment" -x`         | Wave 0       |
+| TEAM-05 | Comments preserve original, add context           | integration | `npx vitest run tests/integration/comment.test.ts -t "preserves original" -x`     | Wave 0       |
+| TEAM-06 | User verifies memory with verified_by             | integration | `npx vitest run tests/integration/access-control.test.ts -t "verify" -x`          | Wave 0       |
+| TEAM-07 | Agent lists stale memories with scope enforcement | integration | `npx vitest run tests/integration/access-control.test.ts -t "stale" -x`           | Wave 0       |
 
 ### Additional Test Coverage (beyond requirements)
-| Behavior | Test Type | Automated Command | File Exists? |
-|----------|-----------|-------------------|-------------|
-| Slug validation rejects invalid user_id/project_id | unit | `npx vitest run tests/unit/validation.test.ts -x` | Wave 0 |
-| Content validation rejects empty/whitespace | unit | `npx vitest run tests/unit/validation.test.ts -x` | Wave 0 |
-| Self-comment blocked | integration | `npx vitest run tests/integration/comment.test.ts -t "self-comment" -x` | Wave 0 |
-| User-scoped memory hidden from non-owner | integration | `npx vitest run tests/integration/access-control.test.ts -t "user scope" -x` | Wave 0 |
-| Session tracking + team_activity | integration | `npx vitest run tests/integration/team-activity.test.ts -x` | Wave 0 |
-| memory_list_recent with exclude_self | integration | `npx vitest run tests/integration/team-activity.test.ts -t "list_recent" -x` | Wave 0 |
-| Capability booleans on memory_get | integration | `npx vitest run tests/integration/comment.test.ts -t "capabilities" -x` | Wave 0 |
-| Comment on archived memory blocked | integration | `npx vitest run tests/integration/comment.test.ts -t "archived" -x` | Wave 0 |
+
+| Behavior                                           | Test Type   | Automated Command                                                            | File Exists? |
+| -------------------------------------------------- | ----------- | ---------------------------------------------------------------------------- | ------------ |
+| Slug validation rejects invalid user_id/project_id | unit        | `npx vitest run tests/unit/validation.test.ts -x`                            | Wave 0       |
+| Content validation rejects empty/whitespace        | unit        | `npx vitest run tests/unit/validation.test.ts -x`                            | Wave 0       |
+| Self-comment blocked                               | integration | `npx vitest run tests/integration/comment.test.ts -t "self-comment" -x`      | Wave 0       |
+| User-scoped memory hidden from non-owner           | integration | `npx vitest run tests/integration/access-control.test.ts -t "user scope" -x` | Wave 0       |
+| Session tracking + team_activity                   | integration | `npx vitest run tests/integration/team-activity.test.ts -x`                  | Wave 0       |
+| memory_list_recent with exclude_self               | integration | `npx vitest run tests/integration/team-activity.test.ts -t "list_recent" -x` | Wave 0       |
+| Capability booleans on memory_get                  | integration | `npx vitest run tests/integration/comment.test.ts -t "capabilities" -x`      | Wave 0       |
+| Comment on archived memory blocked                 | integration | `npx vitest run tests/integration/comment.test.ts -t "archived" -x`          | Wave 0       |
 
 ### Sampling Rate
+
 - **Per task commit:** `npx vitest run --reporter=verbose`
 - **Per wave merge:** `npx vitest run`
 - **Phase gate:** Full suite green before `/gsd:verify-work`
 
 ### Wave 0 Gaps
+
 - [ ] `tests/integration/access-control.test.ts` -- covers TEAM-01, TEAM-02, TEAM-03, TEAM-06, TEAM-07
 - [ ] `tests/integration/comment.test.ts` -- covers TEAM-04, TEAM-05, self-comment block, archived block, capabilities
 - [ ] `tests/integration/team-activity.test.ts` -- covers session tracking, team_activity, memory_list_recent
@@ -696,6 +747,7 @@ export interface Envelope<T> {
 ## Sources
 
 ### Primary (HIGH confidence)
+
 - Existing codebase: `src/db/schema.ts`, `src/repositories/memory-repository.ts`, `src/services/memory-service.ts`, `src/tools/*.ts` -- current implementation patterns
 - [Drizzle ORM Select docs](https://orm.drizzle.team/docs/select) -- subquery patterns, `$count()` correlated subquery
 - [Drizzle ORM Query Utils](https://orm.drizzle.team/docs/query-utils) -- `$count()` utility function API
@@ -707,12 +759,14 @@ export interface Envelope<T> {
 - [Zod API docs](https://zod.dev/api) -- `.regex()`, `.trim()`, `.min()` string validators
 
 ### Secondary (MEDIUM confidence)
+
 - [Drizzle ORM PostgreSQL Best Practices 2025](https://gist.github.com/productdevbook/7c9ce3bbeb96b3fabc3c7c2aa2abc717) -- general patterns
 - Phase 3 CONTEXT.md decisions (D-01 through D-76) -- user-locked design decisions
 
 ## Metadata
 
 **Confidence breakdown:**
+
 - Standard stack: HIGH -- no new dependencies, all tools verified in installed node_modules
 - Architecture: HIGH -- extends established patterns from Phases 1-2, Drizzle APIs verified
 - Pitfalls: HIGH -- based on concrete codebase analysis and known PostgreSQL/Drizzle behaviors

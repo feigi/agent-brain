@@ -2,7 +2,15 @@
 phase: 01-foundation-and-core-memory
 plan: 03
 subsystem: mcp-tools, server
-tags: [mcp-sdk, zod-schemas, stdio-transport, tool-registration, error-handling, graceful-shutdown]
+tags:
+  [
+    mcp-sdk,
+    zod-schemas,
+    stdio-transport,
+    tool-registration,
+    error-handling,
+    graceful-shutdown,
+  ]
 
 # Dependency graph
 requires:
@@ -18,10 +26,30 @@ affects: [01-04, 02-01]
 # Tech tracking
 tech-stack:
   added: []
-  patterns: [registerTool-pattern, tool-response-envelope, withErrorHandling-wrapper, cursor-string-parsing, user_id-to-author-mapping]
+  patterns:
+    [
+      registerTool-pattern,
+      tool-response-envelope,
+      withErrorHandling-wrapper,
+      cursor-string-parsing,
+      user_id-to-author-mapping,
+    ]
 
 key-files:
-  created: [src/tools/tool-utils.ts, src/tools/memory-create.ts, src/tools/memory-get.ts, src/tools/memory-update.ts, src/tools/memory-archive.ts, src/tools/memory-search.ts, src/tools/memory-list.ts, src/tools/memory-verify.ts, src/tools/memory-list-stale.ts, src/tools/index.ts, src/server.ts]
+  created:
+    [
+      src/tools/tool-utils.ts,
+      src/tools/memory-create.ts,
+      src/tools/memory-get.ts,
+      src/tools/memory-update.ts,
+      src/tools/memory-archive.ts,
+      src/tools/memory-search.ts,
+      src/tools/memory-list.ts,
+      src/tools/memory-verify.ts,
+      src/tools/memory-list-stale.ts,
+      src/tools/index.ts,
+      src/server.ts,
+    ]
   modified: []
 
 key-decisions:
@@ -55,6 +83,7 @@ completed: 2026-03-23
 - **Files modified:** 11
 
 ## Accomplishments
+
 - All 8 MCP tools registered with comprehensive Zod input schemas including field descriptions and usage examples in tool descriptions (D-15)
 - Tool utilities providing consistent envelope responses (toolResponse) and DomainError-to-isError mapping (withErrorHandling)
 - Server entry point wiring database, migrations, embedding provider, repositories, service, and tool registration with stdio transport
@@ -69,6 +98,7 @@ Each task was committed atomically:
 2. **Task 2: Tool registration index and MCP server entry point** - `3ff1a8b` (feat)
 
 ## Files Created/Modified
+
 - `src/tools/tool-utils.ts` - Shared utilities: toolResponse, toolError, withErrorHandling
 - `src/tools/memory-create.ts` - memory_create tool with full schema (project_id, content, type, scope, user_id, tags, source, session_id, metadata)
 - `src/tools/memory-get.ts` - memory_get tool (id lookup)
@@ -82,6 +112,7 @@ Each task was committed atomically:
 - `src/server.ts` - MCP server entry point with stdio transport, auto-migration, graceful shutdown
 
 ## Decisions Made
+
 - Tool parameter `user_id` maps to `MemoryCreate.author` -- keeps MCP tool schema ergonomic for agents while maintaining the service layer's `author` field for provenance tracking
 - Cursor parsing (pipe-delimited string to `{ created_at, id }` object) handled in tool layer before passing to service, keeping service interface clean
 - Used `z.record(z.string(), z.unknown())` for metadata field -- zod v4 requires explicit key type as first argument (breaking change from v3)
@@ -91,6 +122,7 @@ Each task was committed atomically:
 ### Auto-fixed Issues
 
 **1. [Rule 3 - Blocking] Fixed z.record() call for zod v4 compatibility**
+
 - **Found during:** Task 1 (Tool handlers)
 - **Issue:** `z.record(z.unknown())` fails TypeScript compilation in zod v4 which requires 2 arguments (key type + value type)
 - **Fix:** Changed to `z.record(z.string(), z.unknown())` in memory-create.ts and memory-update.ts
@@ -104,15 +136,19 @@ Each task was committed atomically:
 **Impact on plan:** Minimal -- zod v4 API change required explicit key type. No scope creep.
 
 ## Issues Encountered
+
 None beyond the zod v4 API change documented above.
 
 ## User Setup Required
+
 None - no external service configuration required.
 
 ## Known Stubs
+
 None - all files are fully implemented with no placeholder data.
 
 ## Next Phase Readiness
+
 - MCP server is fully functional end-to-end: database -> migrations -> embedding -> service -> tools -> stdio transport
 - Ready for Plan 04 (developer experience: seed script, npm scripts, MCP Inspector integration)
 - Server can be started with `npx tsx src/server.ts` after Docker Postgres is running
@@ -123,5 +159,6 @@ None - all files are fully implemented with no placeholder data.
 All 11 key files verified present. Both task commits (3b4c60d, 3ff1a8b) verified in git history.
 
 ---
-*Phase: 01-foundation-and-core-memory*
-*Completed: 2026-03-23*
+
+_Phase: 01-foundation-and-core-memory_
+_Completed: 2026-03-23_

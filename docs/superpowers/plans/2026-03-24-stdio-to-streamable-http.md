@@ -14,31 +14,33 @@
 
 ## File Map
 
-| Action | File | Responsibility |
-|--------|------|---------------|
-| Modify | `src/server.ts` | Replace stdio transport with Express + StreamableHTTPServerTransport. Add REST routes. |
-| Modify | `src/config.ts` | Add `port` config field |
-| Modify | `package.json` | Add `express` dep, add `@types/express` devDep, remove `"bin"` field, update scripts |
-| Create | `Dockerfile` | Multi-stage build for containerized server |
-| Create | `docker-compose.prod.yml` | Adds agentic-brain service alongside existing infra |
-| Modify | `hooks/memory-session-start.sh` | Rewrite: curl-based instead of stdio pipeline |
-| Modify | `hooks/settings-snippet.json` | Update MCP server config from command/args to url |
-| Delete | `bin/agentic-brain.mjs` | No longer needed — server isn't spawned by clients |
-| Create | `src/routes/health.ts` | GET /health endpoint |
-| Create | `src/routes/api-tools.ts` | POST /api/tools/:toolName endpoint |
-| Create | `src/routes/index.ts` | Express route registration |
+| Action | File                            | Responsibility                                                                         |
+| ------ | ------------------------------- | -------------------------------------------------------------------------------------- |
+| Modify | `src/server.ts`                 | Replace stdio transport with Express + StreamableHTTPServerTransport. Add REST routes. |
+| Modify | `src/config.ts`                 | Add `port` config field                                                                |
+| Modify | `package.json`                  | Add `express` dep, add `@types/express` devDep, remove `"bin"` field, update scripts   |
+| Create | `Dockerfile`                    | Multi-stage build for containerized server                                             |
+| Create | `docker-compose.prod.yml`       | Adds agentic-brain service alongside existing infra                                    |
+| Modify | `hooks/memory-session-start.sh` | Rewrite: curl-based instead of stdio pipeline                                          |
+| Modify | `hooks/settings-snippet.json`   | Update MCP server config from command/args to url                                      |
+| Delete | `bin/agentic-brain.mjs`         | No longer needed — server isn't spawned by clients                                     |
+| Create | `src/routes/health.ts`          | GET /health endpoint                                                                   |
+| Create | `src/routes/api-tools.ts`       | POST /api/tools/:toolName endpoint                                                     |
+| Create | `src/routes/index.ts`           | Express route registration                                                             |
 
 ---
 
 ### Task 1: Add Express Dependency and Port Config
 
 **Files:**
+
 - Modify: `package.json`
 - Modify: `src/config.ts`
 
 - [ ] **Step 1: Install express and its types**
 
 Run:
+
 ```bash
 npm install express && npm install -D @types/express
 ```
@@ -63,6 +65,7 @@ git commit -m "feat: add express dependency and port config"
 ### Task 2: Create REST Route Handlers
 
 **Files:**
+
 - Create: `src/routes/health.ts`
 - Create: `src/routes/api-tools.ts`
 - Create: `src/routes/index.ts`
@@ -120,7 +123,8 @@ export function createApiToolsRouter(memoryService: MemoryService): Router {
           res.status(404).json({ error: `Unknown tool: ${toolName}` });
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Internal server error";
+      const message =
+        err instanceof Error ? err.message : "Internal server error";
       res.status(500).json({ error: message });
     }
   });
@@ -137,7 +141,10 @@ import type { MemoryService } from "../services/memory-service.js";
 import { healthRouter } from "./health.js";
 import { createApiToolsRouter } from "./api-tools.js";
 
-export function registerRoutes(app: Express, memoryService: MemoryService): void {
+export function registerRoutes(
+  app: Express,
+  memoryService: MemoryService,
+): void {
   app.use(healthRouter);
   app.use(createApiToolsRouter(memoryService));
 }
@@ -155,6 +162,7 @@ git commit -m "feat: add REST route handlers for health and hook API"
 ### Task 3: Rewrite server.ts for Streamable HTTP
 
 **Files:**
+
 - Modify: `src/server.ts`
 
 This is the core change. Replace the stdio transport with Express + StreamableHTTPServerTransport.
@@ -177,7 +185,10 @@ import { createEmbeddingProvider } from "./providers/embedding/index.js";
 import { DrizzleMemoryRepository } from "./repositories/memory-repository.js";
 import { DrizzleProjectRepository } from "./repositories/project-repository.js";
 import { DrizzleCommentRepository } from "./repositories/comment-repository.js";
-import { DrizzleSessionTrackingRepository, DrizzleSessionRepository } from "./repositories/session-repository.js";
+import {
+  DrizzleSessionTrackingRepository,
+  DrizzleSessionRepository,
+} from "./repositories/session-repository.js";
 import { MemoryService } from "./services/memory-service.js";
 import { registerAllTools } from "./tools/index.js";
 import { registerMemoryGuidance } from "./prompts/memory-guidance.js";
@@ -194,7 +205,9 @@ async function main() {
 
   // Initialize embedding provider
   const embedder = createEmbeddingProvider();
-  logger.info(`Embedding provider: ${embedder.modelName} (${embedder.dimensions}d)`);
+  logger.info(
+    `Embedding provider: ${embedder.modelName} (${embedder.dimensions}d)`,
+  );
 
   // Initialize repositories and service
   const memoryRepo = new DrizzleMemoryRepository(db);
@@ -203,7 +216,12 @@ async function main() {
   const sessionRepo = new DrizzleSessionTrackingRepository(db);
   const sessionLifecycleRepo = new DrizzleSessionRepository(db);
   const memoryService = new MemoryService(
-    memoryRepo, projectRepo, embedder, commentRepo, sessionRepo, sessionLifecycleRepo,
+    memoryRepo,
+    projectRepo,
+    embedder,
+    commentRepo,
+    sessionRepo,
+    sessionLifecycleRepo,
   );
 
   // Factory: creates a fresh MCP server per session (tools + prompts registered)
@@ -314,6 +332,7 @@ main().catch((err) => {
 - [ ] **Step 2: Verify server starts**
 
 Run:
+
 ```bash
 docker compose up -d --wait && npm start
 ```
@@ -323,6 +342,7 @@ Expected: Server logs `Server ready on http://0.0.0.0:19898/mcp` to stderr.
 - [ ] **Step 3: Test health endpoint**
 
 Run:
+
 ```bash
 curl -s http://localhost:19898/health
 ```
@@ -332,6 +352,7 @@ Expected: `{"status":"ok"}`
 - [ ] **Step 4: Test REST API for session start**
 
 Run:
+
 ```bash
 curl -s -X POST http://localhost:19898/api/tools/memory_session_start \
   -H 'Content-Type: application/json' \
@@ -352,17 +373,20 @@ git commit -m "feat: replace stdio transport with Streamable HTTP"
 ### Task 4: Update package.json Scripts and Remove bin
 
 **Files:**
+
 - Modify: `package.json`
 - Delete: `bin/agentic-brain.mjs`
 
 - [ ] **Step 1: Update npm scripts in `package.json`**
 
 Change:
+
 ```json
 "dev": "docker compose up -d --wait && npx drizzle-kit migrate && EMBEDDING_PROVIDER=ollama EMBEDDING_DIMENSIONS=768 tsx watch src/server.ts",
 ```
 
 To:
+
 ```json
 "dev": "docker compose up -d --wait && npx drizzle-kit migrate && EMBEDDING_PROVIDER=ollama EMBEDDING_DIMENSIONS=768 OLLAMA_BASE_URL=http://localhost:11434 tsx watch src/server.ts",
 ```
@@ -370,6 +394,7 @@ To:
 (The `dev` script already starts `tsx watch src/server.ts` — it now starts the HTTP server since `server.ts` was rewritten. Add `OLLAMA_BASE_URL` explicitly since when running outside Docker the default `localhost` is correct but being explicit is clearer.)
 
 Update the `inspect` script:
+
 ```json
 "inspect": "npx @modelcontextprotocol/inspector --cli --transport http --server-url http://localhost:19898/mcp"
 ```
@@ -377,6 +402,7 @@ Update the `inspect` script:
 - [ ] **Step 2: Remove `"bin"` field from `package.json`**
 
 Delete the `"bin"` block:
+
 ```json
 "bin": {
   "agentic-brain": "bin/agentic-brain.mjs"
@@ -401,6 +427,7 @@ git commit -m "chore: remove bin entry point, update npm scripts for HTTP server
 ### Task 5: Create Dockerfile
 
 **Files:**
+
 - Create: `Dockerfile`
 
 - [ ] **Step 1: Create `Dockerfile`**
@@ -459,6 +486,7 @@ git commit -m "feat: add Dockerfile for containerized HTTP server"
 ### Task 6: Create docker-compose.prod.yml
 
 **Files:**
+
 - Create: `docker-compose.prod.yml`
 
 - [ ] **Step 1: Create `docker-compose.prod.yml`**
@@ -515,6 +543,7 @@ git commit -m "feat: add docker-compose.prod.yml for full-stack deployment"
 ### Task 7: Rewrite Session-Start Hook
 
 **Files:**
+
 - Modify: `hooks/memory-session-start.sh`
 
 - [ ] **Step 1: Rewrite `hooks/memory-session-start.sh`**
@@ -572,6 +601,7 @@ git commit -m "feat: rewrite session-start hook to use HTTP REST API"
 ### Task 8: Update Settings Snippet and Claude Code Config
 
 **Files:**
+
 - Modify: `hooks/settings-snippet.json`
 
 - [ ] **Step 1: Update `hooks/settings-snippet.json`**
@@ -630,6 +660,7 @@ Replace the file with:
 Replace the `mcpServers.agentic-brain` entry:
 
 From:
+
 ```json
 "agentic-brain": {
   "command": "npx",
@@ -638,6 +669,7 @@ From:
 ```
 
 To:
+
 ```json
 "agentic-brain": {
   "url": "http://localhost:19898/mcp"
@@ -665,6 +697,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
 ```
 
 Wait for all services to be healthy:
+
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
 ```
@@ -700,6 +733,7 @@ Expected: JSON with `hookSpecificOutput`.
 - [ ] **Step 5: Test MCP endpoint with Claude Code**
 
 Start a new Claude Code session in any project directory. Verify:
+
 1. Claude Code connects to the MCP server (no spawn, just HTTP)
 2. Memory tools are available (`memory_search`, `memory_create`, etc.)
 3. Session-start hook loads memories via the REST API

@@ -50,16 +50,16 @@ Long-term memory for AI agents. Agents read relevant memories at session start, 
 
 Every memory has:
 
-| Field | Description |
-|-------|-------------|
-| `title` | Short label for display |
-| `content` | The actual knowledge |
-| `type` | `fact` · `decision` · `learning` · `pattern` · `preference` · `architecture` |
-| `scope` | `project` (shared) or `user` (private to you) |
-| `tags` | Free-form labels |
-| `author` | Who created it |
-| `source` | `manual` · `agent-auto` · etc. |
-| `embedding` | 512-dim vector for semantic search |
+| Field       | Description                                                                  |
+| ----------- | ---------------------------------------------------------------------------- |
+| `title`     | Short label for display                                                      |
+| `content`   | The actual knowledge                                                         |
+| `type`      | `fact` · `decision` · `learning` · `pattern` · `preference` · `architecture` |
+| `scope`     | `project` (shared) or `user` (private to you)                                |
+| `tags`      | Free-form labels                                                             |
+| `author`    | Who created it                                                               |
+| `source`    | `manual` · `agent-auto` · etc.                                               |
+| `embedding` | 512-dim vector for semantic search                                           |
 
 ---
 
@@ -180,17 +180,17 @@ chmod +x ~/.claude/hooks/memory-session-start.sh ~/.claude/hooks/memory-guard.sh
 
 Merge the entries from `hooks/settings-snippet.json` into your `~/.claude/settings.json`:
 
-| Hook | Purpose |
-|------|---------|
-| **SessionStart** `memory-session-start.sh` | Loads relevant memories into the session via `additionalContext` |
-| **PreToolUse** `memory-guard.sh` | Blocks Write/Edit/MultiEdit to `~/.claude/projects/*/memory/*`, redirecting to agent-brain MCP tools |
-| **Stop** `memory-session-review.sh` | Prompts Claude to reflect and save learnings before ending a session |
+| Hook                                       | Purpose                                                                                              |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| **SessionStart** `memory-session-start.sh` | Loads relevant memories into the session via `additionalContext`                                     |
+| **PreToolUse** `memory-guard.sh`           | Blocks Write/Edit/MultiEdit to `~/.claude/projects/*/memory/*`, redirecting to agent-brain MCP tools |
+| **Stop** `memory-session-review.sh`        | Prompts Claude to reflect and save learnings before ending a session                                 |
 
 #### Step 3: Add instructions to your CLAUDE.md
 
 Create or edit `~/.claude/CLAUDE.md` (global) and paste this snippet. It tells Claude Code to use agent-brain instead of the built-in file-based memory:
 
-````markdown
+```markdown
 ## Memory System
 
 This user uses **agent-brain** (MCP server) as their sole memory system across all projects. Do NOT use Claude Code's built-in file-based auto-memory system (`~/.claude/projects/**/memory/`). All memory operations go through agent-brain MCP tools.
@@ -218,6 +218,7 @@ This user uses **agent-brain** (MCP server) as their sole memory system across a
 ### When to Call `memory_search`
 
 **Call `memory_search` before actions that affect shared systems.** This includes:
+
 1. **The user asks about notes, context, or team knowledge** -- e.g. "any notes?", "what should I know?"
 2. **Before actions that affect shared infrastructure** -- deploys, database migrations, credential rotation, etc.
 3. **Before running shared/integration tests** (e.g. E2E, load tests) -- but NOT local unit tests or builds
@@ -231,7 +232,7 @@ If the user mentions decisions, temporary changes, or gotchas that the team shou
 ### Presenting Memories
 
 Always **number** memories and include **author**, **date**, **title**, **type**, and **scope**. The user may refer to memories by number (e.g. "archive memory 2", "comment on 1").
-````
+```
 
 ### 5b. Integrate with GitHub Copilot (optional)
 
@@ -306,19 +307,19 @@ AWS_REGION=us-east-1
 
 ## MCP Tools reference
 
-| Tool | Purpose |
-|------|---------|
+| Tool                   | Purpose                                                   |
+| ---------------------- | --------------------------------------------------------- |
 | `memory_session_start` | Load relevant memories at session start (call this first) |
-| `memory_search` | Semantic search within a project |
-| `memory_create` | Save a new memory |
-| `memory_get` | Fetch a specific memory by ID |
-| `memory_update` | Edit an existing memory |
-| `memory_verify` | Mark a memory as still accurate |
-| `memory_comment` | Add a threaded comment to a memory |
-| `memory_archive` | Retire a memory that's no longer relevant |
-| `memory_list` | List memories with filters |
-| `memory_list_stale` | Find memories that need review |
-| `memory_list_recent` | Most recently created/updated memories |
+| `memory_search`        | Semantic search within a project                          |
+| `memory_create`        | Save a new memory                                         |
+| `memory_get`           | Fetch a specific memory by ID                             |
+| `memory_update`        | Edit an existing memory                                   |
+| `memory_verify`        | Mark a memory as still accurate                           |
+| `memory_comment`       | Add a threaded comment to a memory                        |
+| `memory_archive`       | Retire a memory that's no longer relevant                 |
+| `memory_list`          | List memories with filters                                |
+| `memory_list_stale`    | Find memories that need review                            |
+| `memory_list_recent`   | Most recently created/updated memories                    |
 
 All tools require `project_id` and `user_id`. Projects are created automatically on first use.
 
@@ -370,29 +371,29 @@ src/
 
 ## Stack
 
-| Layer | Technology |
-|-------|-----------|
+| Layer      | Technology                                    |
+| ---------- | --------------------------------------------- |
 | MCP server | `@modelcontextprotocol/sdk` (stdio transport) |
-| Language | TypeScript 5.9 + Node.js 22 LTS |
-| Database | PostgreSQL 17 + pgvector 0.8 (HNSW) |
-| ORM | Drizzle ORM 0.45 |
-| Embeddings | Amazon Titan Text V2 (512d, $0.02/1M tokens) |
-| Validation | Zod 4 |
-| Tests | Vitest 4 |
+| Language   | TypeScript 5.9 + Node.js 22 LTS               |
+| Database   | PostgreSQL 17 + pgvector 0.8 (HNSW)           |
+| ORM        | Drizzle ORM 0.45                              |
+| Embeddings | Amazon Titan Text V2 (512d, $0.02/1M tokens)  |
+| Validation | Zod 4                                         |
+| Tests      | Vitest 4                                      |
 
 ---
 
 ## Configuration reference
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DATABASE_URL` | `postgresql://agentic:agentic@localhost:5432/agentic_brain` | Postgres connection string |
-| `EMBEDDING_PROVIDER` | `mock` | `mock`, `ollama`, or `titan` |
-| `AWS_REGION` | `us-east-1` | AWS region for Bedrock |
-| `WRITE_BUDGET_PER_SESSION` | `10` | Max memories an agent can create per session |
-| `DUPLICATE_THRESHOLD` | `0.90` | Cosine similarity above which a new memory is rejected as duplicate |
-| `RECENCY_HALF_LIFE_DAYS` | `14` | Half-life for recency score decay in search ranking |
-| `EMBEDDING_DIMENSIONS` | `512` | Vector dimensions (512 for Titan, 768 for nomic-embed-text) |
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama API endpoint |
-| `OLLAMA_MODEL` | `nomic-embed-text` | Ollama model for embeddings |
-| `EMBEDDING_TIMEOUT_MS` | `10000` | Timeout for embedding API calls |
+| Variable                   | Default                                                     | Description                                                         |
+| -------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------- |
+| `DATABASE_URL`             | `postgresql://agentic:agentic@localhost:5432/agentic_brain` | Postgres connection string                                          |
+| `EMBEDDING_PROVIDER`       | `mock`                                                      | `mock`, `ollama`, or `titan`                                        |
+| `AWS_REGION`               | `us-east-1`                                                 | AWS region for Bedrock                                              |
+| `WRITE_BUDGET_PER_SESSION` | `10`                                                        | Max memories an agent can create per session                        |
+| `DUPLICATE_THRESHOLD`      | `0.90`                                                      | Cosine similarity above which a new memory is rejected as duplicate |
+| `RECENCY_HALF_LIFE_DAYS`   | `14`                                                        | Half-life for recency score decay in search ranking                 |
+| `EMBEDDING_DIMENSIONS`     | `512`                                                       | Vector dimensions (512 for Titan, 768 for nomic-embed-text)         |
+| `OLLAMA_BASE_URL`          | `http://localhost:11434`                                    | Ollama API endpoint                                                 |
+| `OLLAMA_MODEL`             | `nomic-embed-text`                                          | Ollama model for embeddings                                         |
+| `EMBEDDING_TIMEOUT_MS`     | `10000`                                                     | Timeout for embedding API calls                                     |

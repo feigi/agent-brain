@@ -15,13 +15,13 @@ created: 2026-03-23
 
 ## Test Infrastructure
 
-| Property | Value |
-|----------|-------|
-| **Framework** | Vitest 4.1.0 |
-| **Config file** | `vitest.config.ts` |
-| **Quick run command** | `npx vitest run --reporter=verbose` |
-| **Full suite command** | `npx vitest run` |
-| **Estimated runtime** | ~30 seconds |
+| Property               | Value                               |
+| ---------------------- | ----------------------------------- |
+| **Framework**          | Vitest 4.1.0                        |
+| **Config file**        | `vitest.config.ts`                  |
+| **Quick run command**  | `npx vitest run --reporter=verbose` |
+| **Full suite command** | `npx vitest run`                    |
+| **Estimated runtime**  | ~30 seconds                         |
 
 ---
 
@@ -36,17 +36,17 @@ created: 2026-03-23
 
 ## Per-Task Verification Map
 
-| Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
-|---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 03-01-01 | 01 | 1 | TEAM-01 | integration | `npx vitest run tests/integration/access-control.test.ts -t "shared project" -x` | ❌ W0 | ⬜ pending |
-| 03-01-02 | 01 | 1 | TEAM-02 | integration | `npx vitest run tests/integration/access-control.test.ts -t "author tracking" -x` | ❌ W0 | ⬜ pending |
-| 03-01-03 | 01 | 1 | TEAM-03 | integration | `npx vitest run tests/integration/access-control.test.ts -t "provenance" -x` | ❌ W0 | ⬜ pending |
-| 03-01-04 | 01 | 1 | TEAM-04 | integration | `npx vitest run tests/integration/comment.test.ts -t "create comment" -x` | ❌ W0 | ⬜ pending |
-| 03-01-05 | 01 | 1 | TEAM-05 | integration | `npx vitest run tests/integration/comment.test.ts -t "preserves original" -x` | ❌ W0 | ⬜ pending |
-| 03-01-06 | 01 | 1 | TEAM-06 | integration | `npx vitest run tests/integration/access-control.test.ts -t "verify" -x` | ❌ W0 | ⬜ pending |
-| 03-01-07 | 01 | 1 | TEAM-07 | integration | `npx vitest run tests/integration/access-control.test.ts -t "stale" -x` | ❌ W0 | ⬜ pending |
+| Task ID  | Plan | Wave | Requirement | Test Type   | Automated Command                                                                 | File Exists | Status     |
+| -------- | ---- | ---- | ----------- | ----------- | --------------------------------------------------------------------------------- | ----------- | ---------- |
+| 03-01-01 | 01   | 1    | TEAM-01     | integration | `npx vitest run tests/integration/access-control.test.ts -t "shared project" -x`  | ❌ W0       | ⬜ pending |
+| 03-01-02 | 01   | 1    | TEAM-02     | integration | `npx vitest run tests/integration/access-control.test.ts -t "author tracking" -x` | ❌ W0       | ⬜ pending |
+| 03-01-03 | 01   | 1    | TEAM-03     | integration | `npx vitest run tests/integration/access-control.test.ts -t "provenance" -x`      | ❌ W0       | ⬜ pending |
+| 03-01-04 | 01   | 1    | TEAM-04     | integration | `npx vitest run tests/integration/comment.test.ts -t "create comment" -x`         | ❌ W0       | ⬜ pending |
+| 03-01-05 | 01   | 1    | TEAM-05     | integration | `npx vitest run tests/integration/comment.test.ts -t "preserves original" -x`     | ❌ W0       | ⬜ pending |
+| 03-01-06 | 01   | 1    | TEAM-06     | integration | `npx vitest run tests/integration/access-control.test.ts -t "verify" -x`          | ❌ W0       | ⬜ pending |
+| 03-01-07 | 01   | 1    | TEAM-07     | integration | `npx vitest run tests/integration/access-control.test.ts -t "stale" -x`           | ❌ W0       | ⬜ pending |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+_Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky_
 
 ---
 
@@ -62,7 +62,7 @@ created: 2026-03-23
 
 ## Manual-Only Verifications
 
-*All phase behaviors have automated verification.*
+_All phase behaviors have automated verification._
 
 ---
 

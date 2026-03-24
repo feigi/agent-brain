@@ -27,6 +27,7 @@ Run agent-brain as a persistent HTTP server in Docker alongside Postgres and Oll
 Replace `StdioServerTransport` with `StreamableHTTPServerTransport` from the MCP SDK, served behind Express via `createMcpExpressApp()`.
 
 Key decisions:
+
 - **Stateful mode:** Each Claude Code session gets its own MCP session ID via `sessionIdGenerator: () => randomUUID()`.
 - **Shared application state:** The MCP server instance, database connection, embedding provider, and `MemoryService` are created once at startup. Only the transport is per-session.
 - **Express routes:** POST/GET/DELETE on `/mcp` per the Streamable HTTP spec. The SDK's `StreamableHTTPServerTransport.handleRequest()` handles all protocol details.
@@ -43,10 +44,10 @@ Alongside the MCP endpoint, add lightweight REST routes that call `MemoryService
 
 **Routes:**
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/health` | Returns `200 OK` if server is running. Used by Docker healthcheck and hooks. |
-| POST | `/api/tools/:toolName` | Invokes a tool by name. Body is the tool's input arguments as JSON. Returns the tool's response envelope directly. |
+| Method | Path                   | Purpose                                                                                                            |
+| ------ | ---------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| GET    | `/health`              | Returns `200 OK` if server is running. Used by Docker healthcheck and hooks.                                       |
+| POST   | `/api/tools/:toolName` | Invokes a tool by name. Body is the tool's input arguments as JSON. Returns the tool's response envelope directly. |
 
 The `/api/tools/:toolName` route maps tool names to service methods. This avoids hooks needing to perform the MCP initialize → tool call handshake. A hook call becomes:
 
@@ -114,6 +115,7 @@ services:
 ```
 
 **Usage:**
+
 - Dev: `docker compose up` (just infra, run server with `npm run dev`)
 - Full: `docker compose -f docker-compose.yml -f docker-compose.prod.yml up`
 
@@ -160,6 +162,7 @@ From 52 lines of JSON-RPC plumbing to ~15 lines with a single `curl`.
 ### 6. Claude Code MCP Client Configuration
 
 **Current** (stdio, in `~/.claude/settings.json`):
+
 ```json
 {
   "mcpServers": {
@@ -172,6 +175,7 @@ From 52 lines of JSON-RPC plumbing to ~15 lines with a single `curl`.
 ```
 
 **New** (Streamable HTTP):
+
 ```json
 {
   "mcpServers": {
@@ -188,12 +192,12 @@ The `hooks/settings-snippet.json` in the repo is updated to reflect this.
 
 ### 7. Removals
 
-| Item | Reason |
-|------|--------|
-| `StdioServerTransport` import in `server.ts` | Replaced by `StreamableHTTPServerTransport` |
-| `bin/agentic-brain.mjs` | No longer needed — server isn't spawned by clients |
-| `"bin"` field in `package.json` | Same |
-| `npm run inspect` script (current form) | Update to point MCP Inspector at the HTTP URL |
+| Item                                         | Reason                                             |
+| -------------------------------------------- | -------------------------------------------------- |
+| `StdioServerTransport` import in `server.ts` | Replaced by `StreamableHTTPServerTransport`        |
+| `bin/agentic-brain.mjs`                      | No longer needed — server isn't spawned by clients |
+| `"bin"` field in `package.json`              | Same                                               |
+| `npm run inspect` script (current form)      | Update to point MCP Inspector at the HTTP URL      |
 
 ### 8. What Stays Unchanged
 

@@ -25,6 +25,7 @@ Add automated code quality enforcement to agent-brain: linting, formatting, type
 **Ignores:** `node_modules/`, `dist/`, `.worktrees/`
 
 **New devDependencies:**
+
 - `eslint`
 - `@eslint/js`
 - `typescript-eslint` (unified package — replaces the older separate `@typescript-eslint/eslint-plugin` + `@typescript-eslint/parser`)
@@ -56,6 +57,7 @@ export default tseslint.config(
 **New devDependency:** `prettier`
 
 **New scripts:**
+
 - `"format": "prettier --write ."`
 - `"format:check": "prettier --check ."`
 
@@ -66,6 +68,7 @@ export default tseslint.config(
 **Hook file:** `.husky/pre-commit`
 
 **Hook behavior:**
+
 1. `set -e` at top (fail-fast — if any step fails, the commit is blocked)
 2. Run `npm run format` (Prettier formats everything)
 3. Run `npm run lint -- --fix` (ESLint fixes what it can; exits non-zero on unfixable errors, blocking the commit)
@@ -86,6 +89,7 @@ export default tseslint.config(
 **Environment:** Node 22 (matches LTS target)
 
 **Steps:**
+
 1. Checkout
 2. `npm ci`
 3. Typecheck: `npm run typecheck`
@@ -100,6 +104,7 @@ No integration tests. No Docker services.
 ## 5. Package.json Scripts
 
 **New scripts:**
+
 - `"lint": "eslint ."`
 - `"format": "prettier --write ."`
 - `"format:check": "prettier --check ."`
@@ -111,13 +116,13 @@ No integration tests. No Docker services.
 
 ## Files Created/Modified
 
-| File | Action |
-|------|--------|
-| `eslint.config.mjs` | Create |
-| `.prettierrc` | Create |
-| `.prettierignore` | Create |
-| `.husky/pre-commit` | Create |
-| `.github/workflows/ci.yml` | Create |
-| `vitest.ci.config.ts` | Create (unit-tests-only config for CI) |
-| `tsconfig.json` | Modify (add `vitest.ci.config.ts` to `include`) |
-| `package.json` | Modify (scripts + devDependencies) |
+| File                       | Action                                          |
+| -------------------------- | ----------------------------------------------- |
+| `eslint.config.mjs`        | Create                                          |
+| `.prettierrc`              | Create                                          |
+| `.prettierignore`          | Create                                          |
+| `.husky/pre-commit`        | Create                                          |
+| `.github/workflows/ci.yml` | Create                                          |
+| `vitest.ci.config.ts`      | Create (unit-tests-only config for CI)          |
+| `tsconfig.json`            | Modify (add `vitest.ci.config.ts` to `include`) |
+| `package.json`             | Modify (scripts + devDependencies)              |
