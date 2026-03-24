@@ -53,5 +53,5 @@ fi
 MEMORIES_ESCAPED=$(echo "$MEMORIES" | jq -Rs '.')
 
 cat <<EOF
-{"additionalContext": ${MEMORIES_ESCAPED}}
+{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": ${MEMORIES_ESCAPED}}}
 EOF

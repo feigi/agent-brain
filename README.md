@@ -204,7 +204,7 @@ If the user mentions decisions, temporary changes, or gotchas that the team shou
 
 ### Presenting Memories
 
-Always **number** memories and include **author**, **date**, and **title**. The user may refer to memories by number (e.g. "archive memory 2", "comment on 1").
+Always **number** memories and include **author**, **date**, **title**, **type**, and **scope**. The user may refer to memories by number (e.g. "archive memory 2", "comment on 1").
 ````
 
 #### Add a session-review hook (optional)
