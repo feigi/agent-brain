@@ -122,25 +122,7 @@ Mock mode uses random vectors — search results won't be semantically meaningfu
 
 ### 4. Connect to Claude Code
 
-**Option A: npx from npm (no clone required)**
-
-```json
-{
-  "mcpServers": {
-    "agentic-brain": {
-      "command": "npx",
-      "args": ["-y", "agentic-brain"],
-      "env": {
-        "DATABASE_URL": "postgresql://agentic:agentic@localhost:5432/agentic_brain",
-        "EMBEDDING_PROVIDER": "ollama",
-        "EMBEDDING_DIMENSIONS": "768"
-      }
-    }
-  }
-}
-```
-
-**Option B: npx from GitHub (no npm publish required)**
+**Option A: npx from GitHub (no clone required)**
 
 ```json
 {
@@ -158,7 +140,7 @@ Mock mode uses random vectors — search results won't be semantically meaningfu
 }
 ```
 
-**Option C: from a local clone**
+**Option B: from a local clone**
 
 ```json
 {
