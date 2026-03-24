@@ -120,8 +120,16 @@ None yet.
 
 None — v1.0 milestone complete. Starting fresh for v1.1.
 
+### Quick Tasks Completed
+
+| # | Description | Date | Directory |
+|---|-------------|------|-----------|
+| 260324-0vu | Add configurable embedding dimensions and Ollama provider support for local deployment | 2026-03-23 | [260324-0vu-add-configurable-embedding-dimensions-an](./quick/260324-0vu-add-configurable-embedding-dimensions-an/) |
+| 260324-1iq | Add docker-compose.ollama.yml with Ollama service, update .env.example and README with embedding provider docs | 2026-03-24 | [260324-1iq-add-docker-compose-ollama-yml-with-ollam](./quick/260324-1iq-add-docker-compose-ollama-yml-with-ollam/) |
+
 ## Session Continuity
 
-Last session: 2026-03-23T22:45:14.725Z
-Stopped at: Completed 04-04-PLAN.md
+Last session: 2026-03-24T00:10:25.000Z
+Last activity: 2026-03-24 - Completed quick task 260324-1iq: Add docker-compose.ollama.yml with Ollama service and README embedding docs
+Stopped at: Completed quick task 260324-1iq
 Resume file: None

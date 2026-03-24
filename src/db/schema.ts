@@ -1,6 +1,7 @@
 import { pgTable, text, timestamp, integer, jsonb, index, vector, unique } from "drizzle-orm/pg-core";
 import { pgEnum } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import { config } from "../config.js";
 
 // D-17: Predefined memory types as PostgreSQL enum
 export const memoryTypeEnum = pgEnum("memory_type", [
@@ -31,7 +32,7 @@ export const memories = pgTable(
     source: text("source"),                                          // D-23: manual, agent-auto, etc.
     session_id: text("session_id"),                                  // D-24
     metadata: jsonb("metadata").$type<Record<string, unknown>>(),    // D-26: extensible JSONB
-    embedding: vector("embedding", { dimensions: 512 }),              // INFR-04: 512d per strategy
+    embedding: vector("embedding", { dimensions: config.embeddingDimensions }),  // INFR-04: configurable dimensions
     embedding_model: text("embedding_model"),                         // D-22, CORE-09
     embedding_dimensions: integer("embedding_dimensions"),            // D-22, CORE-09
     version: integer("version").notNull().default(1),                // D-30: optimistic locking

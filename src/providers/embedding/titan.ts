@@ -9,14 +9,17 @@ const MAX_INPUT_CHARS = 32_000; // Safety margin for ~8192 token limit
 
 export class TitanEmbeddingProvider implements EmbeddingProvider {
   readonly modelName = "amazon.titan-embed-text-v2:0";
-  readonly dimensions = 512;
   private readonly client: BedrockRuntimeClient;
 
-  constructor(region = "us-east-1", timeoutMs = 10_000) {
+  constructor(region = "us-east-1", timeoutMs = 10_000, private readonly dims = 512) {
     this.client = new BedrockRuntimeClient({
       region,
       requestHandler: { requestTimeout: timeoutMs },
     });
+  }
+
+  get dimensions(): number {
+    return this.dims;
   }
 
   async embed(text: string): Promise<number[]> {
@@ -32,7 +35,7 @@ export class TitanEmbeddingProvider implements EmbeddingProvider {
           accept: "application/json",
           body: JSON.stringify({
             inputText,
-            dimensions: this.dimensions,
+            dimensions: this.dims,
             normalize: true,
           }),
         })
