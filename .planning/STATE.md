@@ -126,10 +126,11 @@ None — v1.0 milestone complete. Starting fresh for v1.1.
 |---|-------------|------|-----------|
 | 260324-0vu | Add configurable embedding dimensions and Ollama provider support for local deployment | 2026-03-23 | [260324-0vu-add-configurable-embedding-dimensions-an](./quick/260324-0vu-add-configurable-embedding-dimensions-an/) |
 | 260324-1iq | Add docker-compose.ollama.yml with Ollama service, update .env.example and README with embedding provider docs | 2026-03-24 | [260324-1iq-add-docker-compose-ollama-yml-with-ollam](./quick/260324-1iq-add-docker-compose-ollama-yml-with-ollam/) |
+| 260324-2zs | Add Claude Code integration section to README with CLAUDE.md snippet and session-review hook | 2026-03-24 | [260324-2zs-add-claude-code-integration-section-to-r](./quick/260324-2zs-add-claude-code-integration-section-to-r/) |
 
 ## Session Continuity
 
-Last session: 2026-03-24T00:10:25.000Z
-Last activity: 2026-03-24 - Completed quick task 260324-1iq: Add docker-compose.ollama.yml with Ollama service and README embedding docs
-Stopped at: Completed quick task 260324-1iq
+Last session: 2026-03-24T01:12:10.000Z
+Last activity: 2026-03-24 - Completed quick task 260324-2zs: Add Claude Code integration section to README
+Stopped at: Completed quick task 260324-2zs
 Resume file: None
