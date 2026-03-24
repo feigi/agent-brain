@@ -5,11 +5,6 @@
 INPUT=$(cat)
 CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
 
-# Only trigger for the agent-brain project
-if [[ "$CWD" != */agent-brain* ]]; then
-  exit 0
-fi
-
 USER_ID=$(whoami)
 PROJECT_ID=$(basename "$CWD")
 SERVER_DIR="$HOME/dev/agent-brain"
