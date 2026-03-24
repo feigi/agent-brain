@@ -74,7 +74,7 @@ Every memory has:
 ### 1. Install
 
 ```bash
-git clone <repo>
+git clone https://github.com/feigi/agent-brain.git
 cd agent-brain
 npm install
 ```
@@ -102,11 +102,23 @@ AWS_REGION=us-east-1
 
 ### 3. Start
 
+**Local development (everything runs locally via Docker — no AWS needed):**
+
 ```bash
 npm run dev
 ```
 
-This starts Postgres + Ollama via Docker (downloading `nomic-embed-text` on first run — ~274MB), runs migrations, and starts the MCP server on stdio.
+This starts Postgres + Ollama via Docker Compose (downloading `nomic-embed-text` on first run — ~274MB), runs database migrations, and starts the MCP server on stdio. No cloud credentials required.
+
+**Minimal local setup (mock embeddings — fastest, no Ollama download):**
+
+```bash
+docker compose up -d --wait        # Start Postgres only
+npx drizzle-kit migrate             # Run migrations
+EMBEDDING_PROVIDER=mock npm start   # Start with mock embeddings
+```
+
+Mock mode uses random vectors — search results won't be semantically meaningful, but all tools work. Good for testing the MCP integration.
 
 ### 4. Connect to Claude Code
 
@@ -141,7 +153,7 @@ Create or edit `CLAUDE.md` in your project root (or `~/.claude/CLAUDE.md` for gl
 ````markdown
 ## Agent Memory
 
-This project uses [Agentic Brain](https://github.com/TODO/agent-brain) for shared team knowledge.
+This project uses [Agentic Brain](https://github.com/feigi/agent-brain) for shared team knowledge.
 
 ### Available Tools
 
@@ -304,7 +316,9 @@ src/
 │   └── memory-service.ts  # Core business logic
 ├── repositories/       # Data access layer (Drizzle)
 ├── providers/
-│   └── embedding/      # Titan V2 + mock implementations
+│   └── embedding/      # Titan V2, Ollama + mock implementations
+├── prompts/            # System prompts (memory guidance)
+├── types/              # Shared type definitions
 └── utils/              # Scoring, validation, logging, IDs
 ```
 
