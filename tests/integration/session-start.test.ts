@@ -25,7 +25,8 @@ describe("memory_session_start integration tests", () => {
     });
     await service.create({
       project_id: "test-project",
-      content: "Alice prefers explicit migration files over auto-generated ones",
+      content:
+        "Alice prefers explicit migration files over auto-generated ones",
       type: "preference",
       scope: "user",
       author: "alice",
@@ -88,7 +89,12 @@ describe("memory_session_start integration tests", () => {
       });
     }
 
-    const result = await service.sessionStart("test-project", "alice", undefined, 2);
+    const result = await service.sessionStart(
+      "test-project",
+      "alice",
+      undefined,
+      2,
+    );
 
     expect(result.data.length).toBe(2);
   });
@@ -110,7 +116,11 @@ describe("memory_session_start integration tests", () => {
   });
 
   it("returns empty array when no memories exist", async () => {
-    const result = await service.sessionStart("test-project", "alice", "anything");
+    const result = await service.sessionStart(
+      "test-project",
+      "alice",
+      "anything",
+    );
 
     expect(result.data).toEqual([]);
     expect(result.meta.count).toBe(0);

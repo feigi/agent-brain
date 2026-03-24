@@ -96,9 +96,14 @@ describe("Memory CRUD integration tests", () => {
       author: "alice",
     });
 
-    const updated = await service.update(created.data.id, 1, {
-      content: "Updated content",
-    }, "alice");
+    const updated = await service.update(
+      created.data.id,
+      1,
+      {
+        content: "Updated content",
+      },
+      "alice",
+    );
 
     expect(updated.data.version).toBe(2);
     expect(updated.data.content).toBe("Updated content");
@@ -115,9 +120,14 @@ describe("Memory CRUD integration tests", () => {
       author: "alice",
     });
 
-    const updated = await service.update(created.data.id, 1, {
-      content: "Completely different content for re-embedding",
-    }, "alice");
+    const updated = await service.update(
+      created.data.id,
+      1,
+      {
+        content: "Completely different content for re-embedding",
+      },
+      "alice",
+    );
 
     // The embedding model should still be set (re-embedding happened)
     expect(updated.data.embedding_model).toBe("mock-deterministic");
@@ -134,9 +144,14 @@ describe("Memory CRUD integration tests", () => {
     });
 
     // First update succeeds (version 1 -> 2)
-    await service.update(created.data.id, 1, {
-      content: "First update",
-    }, "alice");
+    await service.update(
+      created.data.id,
+      1,
+      {
+        content: "First update",
+      },
+      "alice",
+    );
 
     // Second update with stale version 1 fails
     await expect(
@@ -156,7 +171,9 @@ describe("Memory CRUD integration tests", () => {
     expect(result.data.archived_count).toBe(1);
 
     // Archived memory not returned by get
-    await expect(service.get(created.data.id, "alice")).rejects.toThrow(NotFoundError);
+    await expect(service.get(created.data.id, "alice")).rejects.toThrow(
+      NotFoundError,
+    );
   });
 
   it("archives multiple memories in bulk", async () => {
@@ -207,9 +224,9 @@ describe("Memory CRUD integration tests", () => {
   });
 
   it("verify on non-existent throws NotFoundError", async () => {
-    await expect(service.verify("nonexistent-id-12345", "alice")).rejects.toThrow(
-      NotFoundError,
-    );
+    await expect(
+      service.verify("nonexistent-id-12345", "alice"),
+    ).rejects.toThrow(NotFoundError);
   });
 
   it("lists memories sorted by created_at desc", async () => {

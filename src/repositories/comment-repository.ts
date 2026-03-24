@@ -9,7 +9,12 @@ export class DrizzleCommentRepository implements CommentRepository {
 
   // D-53 + D-62: Comment creation + parent timestamp update in single transaction
   // D-54: Do NOT bump parent version
-  async create(comment: { id: string; memory_id: string; author: string; content: string }): Promise<Comment> {
+  async create(comment: {
+    id: string;
+    memory_id: string;
+    author: string;
+    content: string;
+  }): Promise<Comment> {
     return await this.db.transaction(async (tx) => {
       // Insert the comment
       const [inserted] = await tx

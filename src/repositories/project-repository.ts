@@ -39,7 +39,9 @@ export class DrizzleProjectRepository implements ProjectRepository {
     return inserted[0];
   }
 
-  async findById(slug: string): Promise<{ id: string; created_at: Date } | null> {
+  async findById(
+    slug: string,
+  ): Promise<{ id: string; created_at: Date } | null> {
     const result = await this.db
       .select({ id: projects.id, created_at: projects.created_at })
       .from(projects)

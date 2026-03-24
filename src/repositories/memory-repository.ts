@@ -1,5 +1,16 @@
 import {
-  eq, and, isNull, gt, lt, sql, desc, asc, inArray, arrayOverlaps, or, gte,
+  eq,
+  and,
+  isNull,
+  gt,
+  lt,
+  sql,
+  desc,
+  asc,
+  inArray,
+  arrayOverlaps,
+  or,
+  gte,
   cosineDistance,
 } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
@@ -7,7 +18,15 @@ import type { Database } from "../db/index.js";
 import { memories, comments } from "../db/schema.js";
 import type { Memory, MemoryWithRelevance } from "../types/memory.js";
 import { ConflictError } from "../utils/errors.js";
-import type { MemoryRepository, ListOptions, SearchOptions, StaleOptions, RecentBothScopesOptions, RecentActivityOptions, TeamActivityCounts } from "./types.js";
+import type {
+  MemoryRepository,
+  ListOptions,
+  SearchOptions,
+  StaleOptions,
+  RecentBothScopesOptions,
+  RecentActivityOptions,
+  TeamActivityCounts,
+} from "./types.js";
 
 // D-44: Explicit column selection -- never return embedding vector
 // Base columns without computed comment_count (used in INSERT/UPDATE RETURNING)
@@ -30,17 +49,16 @@ const baseMemoryColumns = {
   updated_at: memories.updated_at,
   verified_at: memories.verified_at,
   archived_at: memories.archived_at,
-  verified_by: memories.verified_by,              // D-19
-  last_comment_at: memories.last_comment_at,      // D-62
+  verified_by: memories.verified_by, // D-19
+  last_comment_at: memories.last_comment_at, // D-62
 } as const;
 
 function rowToMemory(row: Record<string, unknown>): Memory {
   const result = { ...row } as unknown as Memory;
   // Ensure comment_count is a number (PostgreSQL COUNT can return string via bigint)
   const rawCount = (row as Record<string, unknown>).comment_count;
-  result.comment_count = rawCount !== undefined && rawCount !== null
-    ? Number(rawCount)
-    : 0;
+  result.comment_count =
+    rawCount !== undefined && rawCount !== null ? Number(rawCount) : 0;
   return result;
 }
 
@@ -52,7 +70,10 @@ export class DrizzleMemoryRepository implements MemoryRepository {
   private memoryColumns() {
     return {
       ...baseMemoryColumns,
-      comment_count: sql<number>`(SELECT COUNT(*)::int FROM comments WHERE comments.memory_id = memories.id)`.as('comment_count'),
+      comment_count:
+        sql<number>`(SELECT COUNT(*)::int FROM comments WHERE comments.memory_id = memories.id)`.as(
+          "comment_count",
+        ),
     };
   }
 
@@ -124,13 +145,13 @@ export class DrizzleMemoryRepository implements MemoryRepository {
           eq(memories.id, id),
           eq(memories.version, expectedVersion),
           isNull(memories.archived_at),
-        )
+        ),
       )
       .returning({ id: memories.id });
 
     if (result.length === 0) {
       throw new ConflictError(
-        `Memory ${id} update failed: version mismatch (expected ${expectedVersion}) or memory not found/archived`
+        `Memory ${id} update failed: version mismatch (expected ${expectedVersion}) or memory not found/archived`,
       );
     }
 
@@ -154,12 +175,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
         embedding: null,
         updated_at: sql`now()`,
       })
-      .where(
-        and(
-          inArray(memories.id, ids),
-          isNull(memories.archived_at),
-        )
-      )
+      .where(and(inArray(memories.id, ids), isNull(memories.archived_at)))
       .returning({ id: memories.id });
 
     return result.length;
@@ -167,7 +183,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
 
   // RESEARCH Pattern 5: Cosine similarity search
   async search(options: SearchOptions): Promise<MemoryWithRelevance[]> {
-    const limit = options.limit ?? 10;          // D-41
+    const limit = options.limit ?? 10; // D-41
     const minSimilarity = options.min_similarity ?? 0.3; // D-42
 
     const distance = cosineDistance(memories.embedding, options.embedding);
@@ -249,7 +265,12 @@ export class DrizzleMemoryRepository implements MemoryRepository {
 
     // D-48: Optional type filter
     if (options.type) {
-      conditions.push(eq(memories.type, options.type as typeof memories.type.enumValues[number]));
+      conditions.push(
+        eq(
+          memories.type,
+          options.type as (typeof memories.type.enumValues)[number],
+        ),
+      );
     }
 
     // D-48: Optional tags filter (array overlap)
@@ -260,7 +281,8 @@ export class DrizzleMemoryRepository implements MemoryRepository {
     // Cursor-based pagination: fetch items after the cursor position
     if (options.cursor) {
       const cursorDate = new Date(options.cursor.created_at);
-      const sortColumn = sortBy === "updated_at" ? memories.updated_at : memories.created_at;
+      const sortColumn =
+        sortBy === "updated_at" ? memories.updated_at : memories.created_at;
 
       if (order === "desc") {
         // For descending: get items before the cursor (older)
@@ -281,7 +303,8 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       }
     }
 
-    const sortColumn = sortBy === "updated_at" ? memories.updated_at : memories.created_at;
+    const sortColumn =
+      sortBy === "updated_at" ? memories.updated_at : memories.created_at;
     const orderFn = order === "desc" ? desc : asc;
 
     // D-46: Fetch limit+1 to determine has_more
@@ -299,7 +322,10 @@ export class DrizzleMemoryRepository implements MemoryRepository {
     const lastRow = memoryRows[memoryRows.length - 1];
     const cursor = lastRow
       ? {
-          created_at: (sortBy === "updated_at" ? lastRow.updated_at : lastRow.created_at).toISOString(),
+          created_at: (sortBy === "updated_at"
+            ? lastRow.updated_at
+            : lastRow.created_at
+          ).toISOString(),
           id: lastRow.id,
         }
       : undefined;
@@ -336,7 +362,10 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       conditions.push(
         or(
           lt(memories.created_at, cursorDate),
-          and(eq(memories.created_at, cursorDate), lt(memories.id, options.cursor.id)),
+          and(
+            eq(memories.created_at, cursorDate),
+            lt(memories.id, options.cursor.id),
+          ),
         )!,
       );
     }
@@ -364,7 +393,9 @@ export class DrizzleMemoryRepository implements MemoryRepository {
     };
   }
 
-  async listRecentBothScopes(options: RecentBothScopesOptions): Promise<Memory[]> {
+  async listRecentBothScopes(
+    options: RecentBothScopesOptions,
+  ): Promise<Memory[]> {
     const result = await this.db
       .select(this.memoryColumns())
       .from(memories)
@@ -373,7 +404,10 @@ export class DrizzleMemoryRepository implements MemoryRepository {
           isNull(memories.archived_at),
           or(
             eq(memories.project_id, options.project_id),
-            and(eq(memories.author, options.user_id), eq(memories.scope, "user")),
+            and(
+              eq(memories.author, options.user_id),
+              eq(memories.scope, "user"),
+            ),
           )!,
         ),
       )
@@ -391,9 +425,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
         updated_at: sql`now()`,
         verified_by: verifiedBy,
       })
-      .where(
-        and(eq(memories.id, id), isNull(memories.archived_at))
-      )
+      .where(and(eq(memories.id, id), isNull(memories.archived_at)))
       .returning({ id: memories.id });
 
     if (result.length === 0) return null;
@@ -419,8 +451,8 @@ export class DrizzleMemoryRepository implements MemoryRepository {
     // Scope enforcement: only project memories + requesting user's own user-scoped memories
     conditions.push(
       or(
-        eq(memories.scope, 'project'),
-        and(eq(memories.scope, 'user'), eq(memories.author, options.user_id)),
+        eq(memories.scope, "project"),
+        and(eq(memories.scope, "user"), eq(memories.author, options.user_id)),
       )!,
     );
 
@@ -438,23 +470,25 @@ export class DrizzleMemoryRepository implements MemoryRepository {
   async findDuplicates(options: {
     embedding: number[];
     projectId: string;
-    scope: 'project' | 'user';
+    scope: "project" | "user";
     userId: string;
     threshold: number;
-  }): Promise<Array<{ id: string; title: string; relevance: number; scope: string }>> {
+  }): Promise<
+    Array<{ id: string; title: string; relevance: number; scope: string }>
+  > {
     const distance = cosineDistance(memories.embedding, options.embedding);
     const similarity = sql<number>`(1 - (${distance}))`;
 
     const conditions: SQL[] = [isNull(memories.archived_at)];
 
-    if (options.scope === 'project') {
+    if (options.scope === "project") {
       conditions.push(eq(memories.project_id, options.projectId));
     } else {
       // D-16: User memories check against BOTH user AND project scope
       conditions.push(
         or(
           eq(memories.project_id, options.projectId),
-          and(eq(memories.author, options.userId), eq(memories.scope, 'user')),
+          and(eq(memories.author, options.userId), eq(memories.scope, "user")),
         )!,
       );
     }
@@ -472,8 +506,8 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       .limit(1);
 
     return result
-      .filter(row => Number(row.similarity) >= options.threshold)
-      .map(row => ({
+      .filter((row) => Number(row.similarity) >= options.threshold)
+      .map((row) => ({
         id: row.id,
         title: row.title,
         relevance: Number(row.similarity),
@@ -481,7 +515,11 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       }));
   }
 
-  async countTeamActivity(projectId: string, userId: string, since: Date): Promise<TeamActivityCounts> {
+  async countTeamActivity(
+    projectId: string,
+    userId: string,
+    since: Date,
+  ): Promise<TeamActivityCounts> {
     // D-30: team_activity includes the user's own changes -- do NOT filter by author
     const [newCount, updatedCount, commentedCount] = await Promise.all([
       this.db
@@ -492,7 +530,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
             eq(memories.project_id, projectId),
             isNull(memories.archived_at),
             gt(memories.created_at, since),
-          )
+          ),
         ),
       this.db
         .select({ count: sql<number>`count(*)::int` })
@@ -503,10 +541,12 @@ export class DrizzleMemoryRepository implements MemoryRepository {
             isNull(memories.archived_at),
             gt(memories.updated_at, since),
             lt(memories.created_at, since),
-          )
+          ),
         ),
       this.db
-        .select({ count: sql<number>`count(distinct ${comments.memory_id})::int` })
+        .select({
+          count: sql<number>`count(distinct ${comments.memory_id})::int`,
+        })
         .from(comments)
         .innerJoin(memories, eq(comments.memory_id, memories.id))
         .where(
@@ -514,7 +554,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
             eq(memories.project_id, projectId),
             isNull(memories.archived_at),
             gt(comments.created_at, since),
-          )
+          ),
         ),
     ]);
 

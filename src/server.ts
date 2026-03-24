@@ -8,7 +8,10 @@ import { createEmbeddingProvider } from "./providers/embedding/index.js";
 import { DrizzleMemoryRepository } from "./repositories/memory-repository.js";
 import { DrizzleProjectRepository } from "./repositories/project-repository.js";
 import { DrizzleCommentRepository } from "./repositories/comment-repository.js";
-import { DrizzleSessionTrackingRepository, DrizzleSessionRepository } from "./repositories/session-repository.js";
+import {
+  DrizzleSessionTrackingRepository,
+  DrizzleSessionRepository,
+} from "./repositories/session-repository.js";
 import { MemoryService } from "./services/memory-service.js";
 import { registerAllTools } from "./tools/index.js";
 import { registerMemoryGuidance } from "./prompts/memory-guidance.js";
@@ -26,7 +29,9 @@ async function main() {
 
   // Initialize embedding provider
   const embedder = createEmbeddingProvider();
-  logger.info(`Embedding provider: ${embedder.modelName} (${embedder.dimensions}d)`);
+  logger.info(
+    `Embedding provider: ${embedder.modelName} (${embedder.dimensions}d)`,
+  );
 
   // Initialize repositories and service
   const memoryRepo = new DrizzleMemoryRepository(db);
@@ -34,7 +39,14 @@ async function main() {
   const commentRepo = new DrizzleCommentRepository(db);
   const sessionRepo = new DrizzleSessionTrackingRepository(db);
   const sessionLifecycleRepo = new DrizzleSessionRepository(db);
-  const memoryService = new MemoryService(memoryRepo, projectRepo, embedder, commentRepo, sessionRepo, sessionLifecycleRepo);
+  const memoryService = new MemoryService(
+    memoryRepo,
+    projectRepo,
+    embedder,
+    commentRepo,
+    sessionRepo,
+    sessionLifecycleRepo,
+  );
 
   // Create MCP server
   const server = new McpServer({

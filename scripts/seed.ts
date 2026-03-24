@@ -29,7 +29,9 @@ async function seed() {
     const result = await service.create(input);
     projectsCreated.add(input.project_id);
     totalCreated++;
-    console.error(`  [${totalCreated}] ${result.data.id} - "${result.data.title}"`);
+    console.error(
+      `  [${totalCreated}] ${result.data.id} - "${result.data.title}"`,
+    );
   }
 
   // --- Project 1: agentic-brain (8 memories covering all types) ---

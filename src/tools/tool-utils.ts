@@ -2,16 +2,26 @@ import type { Envelope } from "../types/envelope.js";
 import { DomainError } from "../utils/errors.js";
 
 /** Wrap an Envelope as MCP CallToolResult content */
-export function toolResponse<T>(envelope: Envelope<T>): { content: { type: "text"; text: string }[] } {
+export function toolResponse<T>(envelope: Envelope<T>): {
+  content: { type: "text"; text: string }[];
+} {
   return {
     content: [{ type: "text", text: JSON.stringify(envelope) }],
   };
 }
 
 /** Wrap a DomainError as MCP error response (isError: true per RESEARCH Pattern 8) */
-export function toolError(error: DomainError): { content: { type: "text"; text: string }[]; isError: true } {
+export function toolError(error: DomainError): {
+  content: { type: "text"; text: string }[];
+  isError: true;
+} {
   return {
-    content: [{ type: "text", text: JSON.stringify({ error: error.message, code: error.code }) }],
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify({ error: error.message, code: error.code }),
+      },
+    ],
     isError: true,
   };
 }

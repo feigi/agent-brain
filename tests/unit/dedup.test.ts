@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryService } from "../../src/services/memory-service.js";
 import type { Memory } from "../../src/types/memory.js";
-import type { MemoryRepository, ProjectRepository } from "../../src/repositories/types.js";
+import type {
+  MemoryRepository,
+  ProjectRepository,
+} from "../../src/repositories/types.js";
 import type { EmbeddingProvider } from "../../src/providers/embedding/types.js";
 
 const MOCK_EMBEDDING = new Array(512).fill(0);
@@ -34,7 +37,9 @@ function makeMemory(overrides: Partial<Memory> = {}): Memory {
   };
 }
 
-function makeMemoryRepo(overrides: Partial<MemoryRepository> = {}): MemoryRepository {
+function makeMemoryRepo(
+  overrides: Partial<MemoryRepository> = {},
+): MemoryRepository {
   return {
     create: vi.fn().mockResolvedValue(makeMemory()),
     findById: vi.fn().mockResolvedValue(null),
@@ -46,7 +51,11 @@ function makeMemoryRepo(overrides: Partial<MemoryRepository> = {}): MemoryReposi
     listRecentBothScopes: vi.fn().mockResolvedValue([]),
     verify: vi.fn(),
     findRecentActivity: vi.fn().mockResolvedValue([]),
-    countTeamActivity: vi.fn().mockResolvedValue({ new_memories: 0, updated_memories: 0, commented_memories: 0 }),
+    countTeamActivity: vi.fn().mockResolvedValue({
+      new_memories: 0,
+      updated_memories: 0,
+      commented_memories: 0,
+    }),
     findDuplicates: vi.fn().mockResolvedValue([]),
     ...overrides,
   } as MemoryRepository;
@@ -54,7 +63,9 @@ function makeMemoryRepo(overrides: Partial<MemoryRepository> = {}): MemoryReposi
 
 function makeProjectRepo(): ProjectRepository {
   return {
-    findOrCreate: vi.fn().mockResolvedValue({ id: "test-project", created_at: new Date() }),
+    findOrCreate: vi
+      .fn()
+      .mockResolvedValue({ id: "test-project", created_at: new Date() }),
     findById: vi.fn().mockResolvedValue(null),
   };
 }
@@ -79,7 +90,12 @@ describe("Duplicate detection in memory_create", () => {
   it("create is soft-rejected when duplicate found", async () => {
     const memoryRepo = makeMemoryRepo({
       findDuplicates: vi.fn().mockResolvedValue([
-        { id: "existing-1", title: "Existing Memory", relevance: 0.95, scope: "project" },
+        {
+          id: "existing-1",
+          title: "Existing Memory",
+          relevance: 0.95,
+          scope: "project",
+        },
       ]),
     });
     const service = new MemoryService(memoryRepo, projectRepo, embedder);
@@ -123,7 +139,12 @@ describe("Duplicate detection in memory_create", () => {
     // D-14: Dedup applies to ALL writes, including manual writes
     const memoryRepo = makeMemoryRepo({
       findDuplicates: vi.fn().mockResolvedValue([
-        { id: "proj-existing", title: "Project Memory", relevance: 0.92, scope: "project" },
+        {
+          id: "proj-existing",
+          title: "Project Memory",
+          relevance: 0.92,
+          scope: "project",
+        },
       ]),
     });
     const service = new MemoryService(memoryRepo, projectRepo, embedder);
@@ -133,7 +154,7 @@ describe("Duplicate detection in memory_create", () => {
       content: "Manual write that matches an existing memory",
       type: "fact",
       author: "alice",
-      source: "manual",  // manual writes are also subject to dedup
+      source: "manual", // manual writes are also subject to dedup
     });
 
     expect("skipped" in result.data && result.data.skipped).toBe(true);
@@ -146,7 +167,12 @@ describe("Duplicate detection in memory_create", () => {
     // A user-scoped memory matching a project-scoped memory should get the 'shared knowledge' message
     const memoryRepo = makeMemoryRepo({
       findDuplicates: vi.fn().mockResolvedValue([
-        { id: "proj-1", title: "Project Memory", relevance: 0.92, scope: "project" },
+        {
+          id: "proj-1",
+          title: "Project Memory",
+          relevance: 0.92,
+          scope: "project",
+        },
       ]),
     });
     const service = new MemoryService(memoryRepo, projectRepo, embedder);
@@ -157,7 +183,7 @@ describe("Duplicate detection in memory_create", () => {
       content: "User memory that duplicates project scope",
       type: "fact",
       author: "alice",
-      scope: "user",  // user scope, but duplicate found in project scope
+      scope: "user", // user scope, but duplicate found in project scope
     });
 
     expect("skipped" in result.data && result.data.skipped).toBe(true);
@@ -170,7 +196,12 @@ describe("Duplicate detection in memory_create", () => {
   it("same-scope duplicate message mentions the existing memory id and similarity", async () => {
     const memoryRepo = makeMemoryRepo({
       findDuplicates: vi.fn().mockResolvedValue([
-        { id: "existing-99", title: "Existing Project Memory", relevance: 0.97, scope: "project" },
+        {
+          id: "existing-99",
+          title: "Existing Project Memory",
+          relevance: 0.97,
+          scope: "project",
+        },
       ]),
     });
     const service = new MemoryService(memoryRepo, projectRepo, embedder);
@@ -195,7 +226,12 @@ describe("Duplicate detection in memory_create", () => {
   it("duplicate response includes existing memory info (id, title, relevance)", async () => {
     const memoryRepo = makeMemoryRepo({
       findDuplicates: vi.fn().mockResolvedValue([
-        { id: "dup-id", title: "Dup Title", relevance: 0.93, scope: "project" },
+        {
+          id: "dup-id",
+          title: "Dup Title",
+          relevance: 0.93,
+          scope: "project",
+        },
       ]),
     });
     const service = new MemoryService(memoryRepo, projectRepo, embedder);

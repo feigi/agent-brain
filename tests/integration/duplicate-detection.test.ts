@@ -24,7 +24,8 @@ describe("Semantic duplicate detection integration tests", () => {
   });
 
   it("identical content is detected as duplicate (AUTO-05)", async () => {
-    const content = "Always use parameterized queries to prevent SQL injection vulnerabilities";
+    const content =
+      "Always use parameterized queries to prevent SQL injection vulnerabilities";
 
     // Create the original memory
     const original = await service.create({
@@ -39,7 +40,7 @@ describe("Semantic duplicate detection integration tests", () => {
     // Try to create a memory with identical content
     const duplicate = await service.create({
       project_id: "test-project",
-      content,  // exactly the same content
+      content, // exactly the same content
       type: "decision",
       author: "alice",
       source: "manual",
@@ -58,7 +59,8 @@ describe("Semantic duplicate detection integration tests", () => {
   it("completely different content passes dedup", async () => {
     await service.create({
       project_id: "test-project",
-      content: "A completely unique insight about PostgreSQL index performance and HNSW tuning",
+      content:
+        "A completely unique insight about PostgreSQL index performance and HNSW tuning",
       type: "fact",
       author: "alice",
       source: "manual",
@@ -66,7 +68,8 @@ describe("Semantic duplicate detection integration tests", () => {
 
     const result = await service.create({
       project_id: "test-project",
-      content: "A totally different observation about unit testing with vitest mocks and dependency injection",
+      content:
+        "A totally different observation about unit testing with vitest mocks and dependency injection",
       type: "learning",
       author: "alice",
       source: "manual",
@@ -83,7 +86,8 @@ describe("Semantic duplicate detection integration tests", () => {
     //
     // To test the cross-project isolation: create a user-scoped memory in project-A,
     // then attempt project-scoped memory in project-B with same content.
-    const content = "Shared infrastructure insight about container networking configuration";
+    const content =
+      "Shared infrastructure insight about container networking configuration";
 
     // Create a user-scoped memory in project-A
     await service.create({
@@ -112,7 +116,8 @@ describe("Semantic duplicate detection integration tests", () => {
   });
 
   it("user-scoped dedup checks both user and project scope (D-16)", async () => {
-    const content = "Architecture decision: use event sourcing for audit trail requirements";
+    const content =
+      "Architecture decision: use event sourcing for audit trail requirements";
 
     // Create a project-scoped memory
     const original = await service.create({
@@ -129,7 +134,7 @@ describe("Semantic duplicate detection integration tests", () => {
     // D-16: User dedup checks BOTH user and project scope
     const result = await service.create({
       project_id: "test-project",
-      content,  // identical content
+      content, // identical content
       type: "architecture",
       scope: "user",
       author: "alice",
@@ -147,7 +152,8 @@ describe("Semantic duplicate detection integration tests", () => {
   it("dedup response includes existing memory info (id, title, relevance)", async () => {
     // Use identical content AND no explicit title so both creates auto-generate the same title,
     // producing identical embeddings (title\n\ncontent).
-    const content = "Critical security insight: always validate and sanitize user input on the server side";
+    const content =
+      "Critical security insight: always validate and sanitize user input on the server side";
 
     const original = await service.create({
       project_id: "test-project",
@@ -186,7 +192,8 @@ describe("Semantic duplicate detection integration tests", () => {
   });
 
   it("archived memories are excluded from dedup check", async () => {
-    const content = "Transient debugging observation: database connection pool exhausted under load";
+    const content =
+      "Transient debugging observation: database connection pool exhausted under load";
 
     // Create original memory
     const original = await service.create({

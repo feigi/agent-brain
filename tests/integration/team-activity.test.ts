@@ -19,8 +19,11 @@ describe("Team Activity", () => {
     it("session_start includes team_activity in meta (D-29)", async () => {
       // Create some memories before session
       await service.create({
-        project_id: "test-project", content: "Recent note", type: "fact",
-        author: "alice", scope: "project",
+        project_id: "test-project",
+        content: "Recent note",
+        type: "fact",
+        author: "alice",
+        scope: "project",
       });
 
       const result = await service.sessionStart("test-project", "bob");
@@ -28,8 +31,12 @@ describe("Team Activity", () => {
       expect(result.meta.team_activity!.since).toBeDefined();
       expect(typeof result.meta.team_activity!.new_memories).toBe("number");
       expect(typeof result.meta.team_activity!.updated_memories).toBe("number");
-      expect(typeof result.meta.team_activity!.commented_memories).toBe("number");
-      expect(result.meta.team_activity!.commented_memories).toBeGreaterThanOrEqual(0);
+      expect(typeof result.meta.team_activity!.commented_memories).toBe(
+        "number",
+      );
+      expect(
+        result.meta.team_activity!.commented_memories,
+      ).toBeGreaterThanOrEqual(0);
     });
 
     it("team_activity.commented_memories counts commented memories since last session", async () => {
@@ -38,17 +45,22 @@ describe("Team Activity", () => {
 
       // Create a memory authored by alice
       const { data: memory } = await service.create({
-        project_id: "test-project", content: "A note for discussion", type: "fact",
-        author: "alice", scope: "project",
+        project_id: "test-project",
+        content: "A note for discussion",
+        type: "fact",
+        author: "alice",
+        scope: "project",
       });
 
       // Bob comments on alice's memory (self-comment is blocked, so use different user)
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
       await service.addComment(memory.id, "bob", "Great insight");
 
       // Second session -- commented_memories should reflect the comment
       const result = await service.sessionStart("test-project", "alice");
-      expect(result.meta.team_activity!.commented_memories).toBeGreaterThanOrEqual(1);
+      expect(
+        result.meta.team_activity!.commented_memories,
+      ).toBeGreaterThanOrEqual(1);
     });
 
     it("team_activity counts new memories since last session", async () => {
@@ -57,8 +69,11 @@ describe("Team Activity", () => {
 
       // Create a memory after first session
       await service.create({
-        project_id: "test-project", content: "New note", type: "fact",
-        author: "bob", scope: "project",
+        project_id: "test-project",
+        content: "New note",
+        type: "fact",
+        author: "bob",
+        scope: "project",
       });
 
       // Second session should show the new memory
@@ -70,8 +85,11 @@ describe("Team Activity", () => {
       await service.sessionStart("test-project", "alice");
 
       await service.create({
-        project_id: "test-project", content: "My own note", type: "fact",
-        author: "alice", scope: "project",
+        project_id: "test-project",
+        content: "My own note",
+        type: "fact",
+        author: "alice",
+        scope: "project",
       });
 
       const result = await service.sessionStart("test-project", "alice");
@@ -86,7 +104,9 @@ describe("Team Activity", () => {
       const since = new Date(result.meta.team_activity!.since);
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       // Allow 10 second tolerance
-      expect(Math.abs(since.getTime() - sevenDaysAgo.getTime())).toBeLessThan(10_000);
+      expect(Math.abs(since.getTime() - sevenDaysAgo.getTime())).toBeLessThan(
+        10_000,
+      );
     });
   });
 
@@ -96,12 +116,19 @@ describe("Team Activity", () => {
       const sinceDate = new Date();
 
       await service.create({
-        project_id: "test-project", content: "New note", type: "fact",
-        author: "alice", scope: "project",
+        project_id: "test-project",
+        content: "New note",
+        type: "fact",
+        author: "alice",
+        scope: "project",
       });
 
       const result = await service.listRecentActivity(
-        "test-project", "bob", sinceDate, 10, false
+        "test-project",
+        "bob",
+        sinceDate,
+        10,
+        false,
       );
       expect(result.data.length).toBeGreaterThanOrEqual(1);
       expect(result.data[0].change_type).toBe("created");
@@ -109,36 +136,55 @@ describe("Team Activity", () => {
 
     it("returns memories with change_type 'updated' for content changes", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project", content: "Original", type: "fact",
-        author: "alice", scope: "project",
+        project_id: "test-project",
+        content: "Original",
+        type: "fact",
+        author: "alice",
+        scope: "project",
       });
 
       const sinceDate = new Date();
-      await new Promise(resolve => setTimeout(resolve, 50));
-      await service.update(memory.id, memory.version, { content: "Updated" }, "bob");
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      await service.update(
+        memory.id,
+        memory.version,
+        { content: "Updated" },
+        "bob",
+      );
 
       const result = await service.listRecentActivity(
-        "test-project", "bob", sinceDate, 10, false
+        "test-project",
+        "bob",
+        sinceDate,
+        10,
+        false,
       );
-      const updatedMemory = result.data.find(m => m.id === memory.id);
+      const updatedMemory = result.data.find((m) => m.id === memory.id);
       expect(updatedMemory).toBeDefined();
       expect(updatedMemory!.change_type).toBe("updated");
     });
 
     it("returns memories with change_type 'commented' (D-37)", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project", content: "Note", type: "fact",
-        author: "alice", scope: "project",
+        project_id: "test-project",
+        content: "Note",
+        type: "fact",
+        author: "alice",
+        scope: "project",
       });
 
       const sinceDate = new Date();
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
       await service.addComment(memory.id, "bob", "A comment");
 
       const result = await service.listRecentActivity(
-        "test-project", "charlie", sinceDate, 10, false
+        "test-project",
+        "charlie",
+        sinceDate,
+        10,
+        false,
       );
-      const commentedMemory = result.data.find(m => m.id === memory.id);
+      const commentedMemory = result.data.find((m) => m.id === memory.id);
       expect(commentedMemory).toBeDefined();
       expect(commentedMemory!.change_type).toBe("commented");
     });
@@ -147,16 +193,26 @@ describe("Team Activity", () => {
       const sinceDate = new Date();
 
       await service.create({
-        project_id: "test-project", content: "Alice's note", type: "fact",
-        author: "alice", scope: "project",
+        project_id: "test-project",
+        content: "Alice's note",
+        type: "fact",
+        author: "alice",
+        scope: "project",
       });
       await service.create({
-        project_id: "test-project", content: "Bob's note", type: "fact",
-        author: "bob", scope: "project",
+        project_id: "test-project",
+        content: "Bob's note",
+        type: "fact",
+        author: "bob",
+        scope: "project",
       });
 
       const result = await service.listRecentActivity(
-        "test-project", "alice", sinceDate, 10, true  // exclude_self
+        "test-project",
+        "alice",
+        sinceDate,
+        10,
+        true, // exclude_self
       );
       // Should only see Bob's note
       for (const m of result.data) {
@@ -168,15 +224,24 @@ describe("Team Activity", () => {
       const sinceDate = new Date();
 
       await service.create({
-        project_id: "test-project", content: "Alice private", type: "fact",
-        author: "alice", scope: "user",
+        project_id: "test-project",
+        content: "Alice private",
+        type: "fact",
+        author: "alice",
+        scope: "user",
       });
 
       const result = await service.listRecentActivity(
-        "test-project", "bob", sinceDate, 10, false
+        "test-project",
+        "bob",
+        sinceDate,
+        10,
+        false,
       );
       // Bob should not see Alice's user-scoped memory
-      const alicePrivate = result.data.find(m => m.content === "Alice private");
+      const alicePrivate = result.data.find(
+        (m) => m.content === "Alice private",
+      );
       expect(alicePrivate).toBeUndefined();
     });
 
@@ -185,13 +250,20 @@ describe("Team Activity", () => {
 
       for (let i = 0; i < 5; i++) {
         await service.create({
-          project_id: "test-project", content: `Note ${i}`, type: "fact",
-          author: "alice", scope: "project",
+          project_id: "test-project",
+          content: `Note ${i}`,
+          type: "fact",
+          author: "alice",
+          scope: "project",
         });
       }
 
       const result = await service.listRecentActivity(
-        "test-project", "bob", sinceDate, 2, false
+        "test-project",
+        "bob",
+        sinceDate,
+        2,
+        false,
       );
       expect(result.data.length).toBeLessThanOrEqual(2);
     });

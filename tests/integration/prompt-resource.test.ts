@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { MEMORY_GUIDANCE_TEXT, registerMemoryGuidance } from "../../src/prompts/memory-guidance.js";
+import {
+  MEMORY_GUIDANCE_TEXT,
+  registerMemoryGuidance,
+} from "../../src/prompts/memory-guidance.js";
 
 /**
  * MCP prompt resource tests (AUTO-02).
@@ -63,7 +66,11 @@ describe("Memory guidance prompt resource (AUTO-02)", () => {
 
     // Should have registered exactly one prompt
     expect(mockServer.registeredPrompts).toHaveLength(1);
-    const registered = mockServer.registeredPrompts[0] as { name: string; config: unknown; handler: unknown };
+    const registered = mockServer.registeredPrompts[0] as {
+      name: string;
+      config: unknown;
+      handler: unknown;
+    };
     expect(registered.name).toBe("memory-guidance");
   });
 });

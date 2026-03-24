@@ -12,7 +12,10 @@ import { registerMemorySessionStart } from "./memory-session-start.js";
 import { registerMemoryComment } from "./memory-comment.js";
 import { registerMemoryListRecent } from "./memory-list-recent.js";
 
-export function registerAllTools(server: McpServer, memoryService: MemoryService): void {
+export function registerAllTools(
+  server: McpServer,
+  memoryService: MemoryService,
+): void {
   registerMemoryCreate(server, memoryService);
   registerMemoryGet(server, memoryService);
   registerMemoryUpdate(server, memoryService);
