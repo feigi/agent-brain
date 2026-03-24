@@ -1,4 +1,9 @@
 {
+  "mcpServers": {
+    "agentic-brain": {
+      "url": "http://localhost:19898/mcp"
+    }
+  },
   "hooks": {
     "SessionStart": [
       {
