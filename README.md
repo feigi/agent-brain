@@ -130,7 +130,86 @@ Add to your Claude Code MCP settings (`~/.claude/settings.json` or project `.cla
 
 For production with Titan embeddings, set `EMBEDDING_PROVIDER=titan` and ensure `AWS_REGION` and credentials are available.
 
-### 5. Use the MCP Inspector (dev/debug)
+### 5. Integrate with Claude Code (optional)
+
+Two optional enhancements that make Claude Code work better with Agentic Brain.
+
+#### Add instructions to your CLAUDE.md
+
+Create or edit `CLAUDE.md` in your project root (or `~/.claude/CLAUDE.md` for global) and paste this snippet. It tells Claude Code when and how to use the memory tools:
+
+````markdown
+## Agent Memory
+
+This project uses [Agentic Brain](https://github.com/TODO/agent-brain) for shared team knowledge.
+
+### Available Tools
+
+- **memory_search** -- Search for relevant memories. Call with a query describing what you need.
+- **memory_create** -- Save a new memory from important context the user shares.
+- **memory_get** -- Read a specific memory by ID.
+- **memory_update** -- Modify an existing memory.
+- **memory_comment** -- Append a comment to an existing memory (turns it into a thread).
+- **memory_verify** -- Confirm a memory is still accurate (updates verified_at).
+- **memory_archive** -- Archive a memory that is no longer relevant.
+- **memory_list_stale** -- List memories that need review (old or unverified).
+
+### When to Call `memory_search`
+
+**Call `memory_search` before actions that affect shared systems.** This includes:
+1. **The user asks about notes, context, or team knowledge** -- e.g. "any notes?", "what should I know?"
+2. **Before actions that affect shared infrastructure** -- deploys, database migrations, credential rotation, etc.
+3. **Before running shared/integration tests** (e.g. E2E, load tests) -- but NOT local unit tests or builds
+
+**Do NOT search for purely local actions** like editing files, installing dependencies, running local builds, linting, or formatting.
+
+### When the User Shares Important Context
+
+If the user mentions decisions, temporary changes, or gotchas that the team should know about, suggest saving a memory with `memory_create`. Always confirm before saving.
+
+### Presenting Memories
+
+Always **number** memories and include **author**, **date**, and **title**. The user may refer to memories by number (e.g. "archive memory 2", "comment on 1").
+````
+
+#### Add a session-review hook (optional)
+
+A Stop hook can remind Claude to review and save learnings before ending a session.
+
+**Prerequisites:** `jq` installed (`brew install jq` on macOS).
+
+**Step 1:** Copy the hook script:
+
+```bash
+mkdir -p .claude/hooks
+cp docs/hooks/memory-session-review.sh .claude/hooks/
+chmod +x .claude/hooks/memory-session-review.sh
+```
+
+**Step 2:** Add to `.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/memory-session-review.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+When Claude is about to stop, the hook blocks the first attempt and asks Claude to reflect on the session and save key learnings. See `docs/hooks/README.md` for details.
+
+### 6. Use the MCP Inspector (dev/debug)
 
 ```bash
 npm run inspect
