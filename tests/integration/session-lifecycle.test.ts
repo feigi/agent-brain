@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
-import { createTestServiceWithSessions, truncateAll, closeDb } from "../helpers.js";
+import {
+  createTestServiceWithSessions,
+  truncateAll,
+  closeDb,
+} from "../helpers.js";
 import { ValidationError } from "../../src/utils/errors.js";
 import { config } from "../../src/config.js";
 import type { MemoryService } from "../../src/services/memory-service.js";
@@ -33,7 +37,8 @@ describe("Session lifecycle and write budget integration tests", () => {
     // Step 2: Write with agent-auto and the session_id
     const createResult = await service.create({
       project_id: "test-project",
-      content: "Important database query optimization insight discovered during testing",
+      content:
+        "Important database query optimization insight discovered during testing",
       type: "learning",
       author: "alice",
       source: "agent-auto",
@@ -93,7 +98,9 @@ describe("Session lifecycle and write budget integration tests", () => {
       session_id: sessionId,
     });
 
-    expect("skipped" in overBudgetResult.data && overBudgetResult.data.skipped).toBe(true);
+    expect(
+      "skipped" in overBudgetResult.data && overBudgetResult.data.skipped,
+    ).toBe(true);
     if ("skipped" in overBudgetResult.data) {
       expect(overBudgetResult.data.reason).toBe("budget_exceeded");
     }
@@ -107,7 +114,8 @@ describe("Session lifecycle and write budget integration tests", () => {
     // Do one autonomous write
     await service.create({
       project_id: "test-project",
-      content: "First autonomous write to establish a budget baseline for this session test",
+      content:
+        "First autonomous write to establish a budget baseline for this session test",
       type: "fact",
       author: "alice",
       source: "agent-auto",
@@ -117,7 +125,8 @@ describe("Session lifecycle and write budget integration tests", () => {
     // Do a manual write (should not increment budget)
     await service.create({
       project_id: "test-project",
-      content: "Manual write that should not consume budget -- explicitly set by user",
+      content:
+        "Manual write that should not consume budget -- explicitly set by user",
       type: "decision",
       author: "alice",
       source: "manual",
@@ -127,7 +136,8 @@ describe("Session lifecycle and write budget integration tests", () => {
     // Do a second autonomous write -- budget should be 2 (not 3)
     const secondAutoResult = await service.create({
       project_id: "test-project",
-      content: "Second autonomous write after manual write to verify budget tracking accuracy",
+      content:
+        "Second autonomous write after manual write to verify budget tracking accuracy",
       type: "learning",
       author: "alice",
       source: "agent-auto",
@@ -174,7 +184,8 @@ describe("Session lifecycle and write budget integration tests", () => {
     // Write to session 1
     await service.create({
       project_id: "test-project",
-      content: "Session one autonomous write with unique content identifier abc123",
+      content:
+        "Session one autonomous write with unique content identifier abc123",
       type: "fact",
       author: "alice",
       source: "agent-auto",
@@ -184,7 +195,8 @@ describe("Session lifecycle and write budget integration tests", () => {
     // Write to session 2 -- should have its own budget counter starting at 0
     const result = await service.create({
       project_id: "test-project",
-      content: "Session two autonomous write with unique content identifier def456",
+      content:
+        "Session two autonomous write with unique content identifier def456",
       type: "fact",
       author: "alice",
       source: "agent-auto",

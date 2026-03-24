@@ -5,7 +5,9 @@ import { slugSchema } from "../utils/validation.js";
 import { toolResponse, withErrorHandling } from "./tool-utils.js";
 
 /** Parse cursor string (format: "created_at|id") into object for the repository layer */
-function parseCursor(cursor: string | undefined): { created_at: string; id: string } | undefined {
+function parseCursor(
+  cursor: string | undefined,
+): { created_at: string; id: string } | undefined {
   if (!cursor) return undefined;
   const sep = cursor.indexOf("|");
   if (sep === -1) return undefined;
@@ -15,7 +17,10 @@ function parseCursor(cursor: string | undefined): { created_at: string; id: stri
   };
 }
 
-export function registerMemoryListStale(server: McpServer, memoryService: MemoryService): void {
+export function registerMemoryListStale(
+  server: McpServer,
+  memoryService: MemoryService,
+): void {
   server.registerTool(
     "memory_list_stale",
     {
@@ -23,10 +28,26 @@ export function registerMemoryListStale(server: McpServer, memoryService: Memory
         'List memories that haven\'t been verified within a threshold. Helps identify knowledge that may be outdated. user_id is required -- only project-scoped memories and your own user-scoped memories are returned. Example: memory_list_stale({ project_id: "my-project", user_id: "alice", threshold_days: 30 })',
       inputSchema: {
         project_id: slugSchema.describe("Project slug (e.g., 'my-project')"),
-        user_id: slugSchema.describe("User identifier (e.g., 'alice'). Required for scope-based access control."),
-        threshold_days: z.number().int().min(1).default(30).describe("Days since last verification (default 30)"),
-        limit: z.number().int().min(1).max(100).default(20).describe("Max results per page (default 20)"),
-        cursor: z.string().optional().describe("Pagination cursor from previous response"),
+        user_id: slugSchema.describe(
+          "User identifier (e.g., 'alice'). Required for scope-based access control.",
+        ),
+        threshold_days: z
+          .number()
+          .int()
+          .min(1)
+          .default(30)
+          .describe("Days since last verification (default 30)"),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(100)
+          .default(20)
+          .describe("Max results per page (default 20)"),
+        cursor: z
+          .string()
+          .optional()
+          .describe("Pagination cursor from previous response"),
       },
     },
     async (params) => {

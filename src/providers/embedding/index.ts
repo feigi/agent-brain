@@ -7,13 +7,23 @@ import { OllamaEmbeddingProvider } from "./ollama.js";
 export function createEmbeddingProvider(): EmbeddingProvider {
   switch (config.embeddingProvider) {
     case "titan":
-      return new TitanEmbeddingProvider(config.awsRegion, config.embeddingTimeoutMs, config.embeddingDimensions);
+      return new TitanEmbeddingProvider(
+        config.awsRegion,
+        config.embeddingTimeoutMs,
+        config.embeddingDimensions,
+      );
     case "mock":
       return new MockEmbeddingProvider(config.embeddingDimensions);
     case "ollama":
-      return new OllamaEmbeddingProvider(config.ollamaBaseUrl, config.ollamaModel, config.embeddingDimensions);
+      return new OllamaEmbeddingProvider(
+        config.ollamaBaseUrl,
+        config.ollamaModel,
+        config.embeddingDimensions,
+      );
     default:
-      throw new Error(`Unknown embedding provider: ${config.embeddingProvider}`);
+      throw new Error(
+        `Unknown embedding provider: ${config.embeddingProvider}`,
+      );
   }
 }
 

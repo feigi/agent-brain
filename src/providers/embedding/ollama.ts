@@ -26,9 +26,10 @@ export class OllamaEmbeddingProvider implements EmbeddingProvider {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const hint = message.includes("ECONNREFUSED") || message.includes("fetch failed")
-        ? ` -- is Ollama running at ${this.baseUrl}?`
-        : "";
+      const hint =
+        message.includes("ECONNREFUSED") || message.includes("fetch failed")
+          ? ` -- is Ollama running at ${this.baseUrl}?`
+          : "";
       throw new EmbeddingError(`Ollama embedding failed: ${message}${hint}`);
     }
 

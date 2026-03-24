@@ -2,7 +2,7 @@
 // Pure functions for computing memory relevance from similarity, recency, and verification.
 
 /** D-01: Similarity dominates scoring (80% weight) */
-export const SIMILARITY_WEIGHT = 0.80;
+export const SIMILARITY_WEIGHT = 0.8;
 
 /** D-02: Recency contributes 15% via exponential decay */
 export const RECENCY_WEIGHT = 0.15;
@@ -21,7 +21,10 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
  * Returns 1.0 for age=0, 0.5 at one half-life, 0.25 at two half-lives, etc.
  * Negative ages are clamped to 0 (treated as brand new).
  */
-export function exponentialDecay(ageDays: number, halfLifeDays: number): number {
+export function exponentialDecay(
+  ageDays: number,
+  halfLifeDays: number,
+): number {
   const clampedAge = Math.max(0, ageDays);
   return Math.pow(0.5, clampedAge / halfLifeDays);
 }

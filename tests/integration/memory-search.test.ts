@@ -93,9 +93,7 @@ describe("Memory search integration tests", () => {
       "alice",
     );
 
-    const archivedInResults = result.data.find(
-      (m) => m.id === created.data.id,
-    );
+    const archivedInResults = result.data.find((m) => m.id === created.data.id);
     expect(archivedInResults).toBeUndefined();
   });
 
@@ -155,14 +153,23 @@ describe("Memory search integration tests", () => {
     // All results have relevance field
     for (const memory of result.data) {
       expect(memory).toHaveProperty("relevance");
-      expect((memory as any).similarity).toBeUndefined();
+      expect(
+        (memory as unknown as Record<string, unknown>).similarity,
+      ).toBeUndefined();
     }
   });
 
   it("cross-scope search with both scopes requires user_id (D-09)", async () => {
     // user_id is now a required parameter -- repository enforces it for scope='both'
     // Passing a valid user_id must work without error
-    const result = await service.search("test", "test-project", "both", "alice", undefined, -1);
+    const result = await service.search(
+      "test",
+      "test-project",
+      "both",
+      "alice",
+      undefined,
+      -1,
+    );
     expect(result.data).toBeInstanceOf(Array);
   });
 

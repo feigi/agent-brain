@@ -9,12 +9,20 @@ afterEach(() => {
 
 describe("OllamaEmbeddingProvider", () => {
   it("reports correct modelName", () => {
-    const provider = new OllamaEmbeddingProvider("http://localhost:11434", "nomic-embed-text", 768);
+    const provider = new OllamaEmbeddingProvider(
+      "http://localhost:11434",
+      "nomic-embed-text",
+      768,
+    );
     expect(provider.modelName).toBe("ollama:nomic-embed-text");
   });
 
   it("reports correct dimensions from constructor", () => {
-    const provider = new OllamaEmbeddingProvider("http://localhost:11434", "nomic-embed-text", 768);
+    const provider = new OllamaEmbeddingProvider(
+      "http://localhost:11434",
+      "nomic-embed-text",
+      768,
+    );
     expect(provider.dimensions).toBe(768);
   });
 
@@ -26,7 +34,11 @@ describe("OllamaEmbeddingProvider", () => {
     });
     vi.stubGlobal("fetch", mockFetch);
 
-    const provider = new OllamaEmbeddingProvider("http://localhost:11434", "nomic-embed-text", 768);
+    const provider = new OllamaEmbeddingProvider(
+      "http://localhost:11434",
+      "nomic-embed-text",
+      768,
+    );
     const result = await provider.embed("test text");
 
     expect(result).toEqual(expectedEmbedding);
@@ -35,19 +47,29 @@ describe("OllamaEmbeddingProvider", () => {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "nomic-embed-text", prompt: "test text" }),
+        body: JSON.stringify({
+          model: "nomic-embed-text",
+          prompt: "test text",
+        }),
       },
     );
   });
 
   it("throws EmbeddingError when dimension mismatch", async () => {
     const wrongSizeEmbedding = Array(512).fill(0.1);
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ embedding: wrongSizeEmbedding }),
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ embedding: wrongSizeEmbedding }),
+      }),
+    );
 
-    const provider = new OllamaEmbeddingProvider("http://localhost:11434", "nomic-embed-text", 768);
+    const provider = new OllamaEmbeddingProvider(
+      "http://localhost:11434",
+      "nomic-embed-text",
+      768,
+    );
     await expect(provider.embed("test")).rejects.toThrow(EmbeddingError);
     await expect(provider.embed("test")).rejects.toThrow(
       "Ollama model nomic-embed-text returned 512d vector, expected 768d. Set EMBEDDING_DIMENSIONS=512 to match.",
@@ -55,11 +77,16 @@ describe("OllamaEmbeddingProvider", () => {
   });
 
   it("throws EmbeddingError with connection hint on fetch failure", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(
-      new TypeError("fetch failed"),
-    ));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new TypeError("fetch failed")),
+    );
 
-    const provider = new OllamaEmbeddingProvider("http://localhost:11434", "nomic-embed-text", 768);
+    const provider = new OllamaEmbeddingProvider(
+      "http://localhost:11434",
+      "nomic-embed-text",
+      768,
+    );
     await expect(provider.embed("test")).rejects.toThrow(EmbeddingError);
     await expect(provider.embed("test")).rejects.toThrow(
       "is Ollama running at http://localhost:11434?",

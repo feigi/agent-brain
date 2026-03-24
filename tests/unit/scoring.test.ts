@@ -62,7 +62,7 @@ describe("computeRelevance", () => {
     // 0.80 * 1.0 + 0.15 * ~0 + 0 = ~0.80 (similarity dominates)
     const createdAt = daysAgo(1000);
     const result = computeRelevance(1.0, createdAt, null, 14, NOW);
-    expect(result).toBeCloseTo(0.80, 2);
+    expect(result).toBeCloseTo(0.8, 2);
   });
 
   it("clamps result to [0, 1] range", () => {
@@ -94,7 +94,7 @@ describe("computeRelevance", () => {
 
 describe("constants", () => {
   it("exports correct weight values", () => {
-    expect(SIMILARITY_WEIGHT).toBe(0.80);
+    expect(SIMILARITY_WEIGHT).toBe(0.8);
     expect(RECENCY_WEIGHT).toBe(0.15);
     expect(VERIFICATION_BOOST).toBe(0.05);
   });

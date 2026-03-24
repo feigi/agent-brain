@@ -59,7 +59,9 @@ describe("Memory scoping integration tests", () => {
     );
 
     expect(result.data.length).toBeGreaterThan(0);
-    const found = result.data.find((m) => m.author === "alice" && m.scope === "user");
+    const found = result.data.find(
+      (m) => m.author === "alice" && m.scope === "user",
+    );
     expect(found).toBeDefined();
   });
 

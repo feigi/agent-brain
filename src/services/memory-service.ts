@@ -1,15 +1,36 @@
-import type { Memory, MemoryCreate, MemoryUpdate, MemoryWithRelevance, Comment, MemoryGetResponse, MemoryWithChangeType, CreateSkipResult } from "../types/memory.js";
+import type {
+  Memory,
+  MemoryCreate,
+  MemoryUpdate,
+  MemoryWithRelevance,
+  Comment,
+  MemoryGetResponse,
+  MemoryWithChangeType,
+  CreateSkipResult,
+} from "../types/memory.js";
 import type { Envelope } from "../types/envelope.js";
 import type { EmbeddingProvider } from "../providers/embedding/types.js";
-import type { MemoryRepository, ProjectRepository, ListOptions, SearchOptions, StaleOptions, CommentRepository, SessionTrackingRepository, SessionRepository } from "../repositories/types.js";
-import { NotFoundError, EmbeddingError, AuthorizationError, ValidationError } from "../utils/errors.js";
+import type {
+  MemoryRepository,
+  ProjectRepository,
+  ListOptions,
+  CommentRepository,
+  SessionTrackingRepository,
+  SessionRepository,
+} from "../repositories/types.js";
+import {
+  NotFoundError,
+  EmbeddingError,
+  AuthorizationError,
+  ValidationError,
+} from "../utils/errors.js";
 import { generateId } from "../utils/id.js";
 import { logger } from "../utils/logger.js";
 import { computeRelevance, OVER_FETCH_FACTOR } from "../utils/scoring.js";
 import { config } from "../config.js";
 
 const MAX_CONTENT_WARNING = 4_000; // D-20: Warn but allow
-const AUTO_TITLE_LENGTH = 80;      // D-03: Auto-generate title length
+const AUTO_TITLE_LENGTH = 80; // D-03: Auto-generate title length
 
 export class MemoryService {
   constructor(
@@ -23,14 +44,16 @@ export class MemoryService {
 
   // D-11: Project=shared, User=owner only
   private canAccess(memory: Memory, userId: string): boolean {
-    if (memory.scope === 'project') return true;
+    if (memory.scope === "project") return true;
     return memory.author === userId;
   }
 
   // D-12: Descriptive error for mutations
   private assertCanModify(memory: Memory, userId: string): void {
     if (!this.canAccess(memory, userId)) {
-      throw new AuthorizationError("Cannot modify user-scoped memory owned by another user.");
+      throw new AuthorizationError(
+        "Cannot modify user-scoped memory owned by another user.",
+      );
     }
   }
 
@@ -39,25 +62,32 @@ export class MemoryService {
   // D-34: Auto-create project on first mention
   // D-54: Fail entirely if embedding fails (no partial state)
   // Phase 4: Three-stage pre-save guard chain (session validation, budget, dedup)
-  async create(input: MemoryCreate): Promise<Envelope<Memory | CreateSkipResult>> {
+  async create(
+    input: MemoryCreate,
+  ): Promise<Envelope<Memory | CreateSkipResult>> {
     const start = Date.now();
 
     // Phase 4: Guard 1 -- Session validation (D-19)
     // Autonomous writes (agent-auto or session-review) require session_id
-    const isAutonomous = input.source === 'agent-auto' || input.source === 'session-review';
+    const isAutonomous =
+      input.source === "agent-auto" || input.source === "session-review";
     if (isAutonomous && !input.session_id) {
-      throw new ValidationError("session_id is required for autonomous writes (source: 'agent-auto' or 'session-review').");
+      throw new ValidationError(
+        "session_id is required for autonomous writes (source: 'agent-auto' or 'session-review').",
+      );
     }
 
     // Phase 4: Guard 2 -- Budget check (D-10, D-12, D-13)
     // Manual writes (source: 'manual') bypass budget checks entirely
     if (isAutonomous && input.session_id && this.sessionLifecycleRepo) {
-      const budget = await this.sessionLifecycleRepo.getBudget(input.session_id);
+      const budget = await this.sessionLifecycleRepo.getBudget(
+        input.session_id,
+      );
       if (budget && budget.used >= budget.limit) {
         return {
           data: {
             skipped: true,
-            reason: 'budget_exceeded' as const,
+            reason: "budget_exceeded" as const,
             message: `Write budget exceeded (${budget.used}/${budget.limit}). Use source 'manual' to force-save.`,
           },
           meta: {
@@ -70,15 +100,17 @@ export class MemoryService {
 
     // D-20: Warn on large content but allow
     if (input.content.length > MAX_CONTENT_WARNING) {
-      logger.warn(`Memory content exceeds ${MAX_CONTENT_WARNING} chars (${input.content.length})`);
+      logger.warn(
+        `Memory content exceeds ${MAX_CONTENT_WARNING} chars (${input.content.length})`,
+      );
     }
 
     // D-03: Auto-generate title from content if not provided
-    const title = input.title ?? (
-      input.content.length > AUTO_TITLE_LENGTH
+    const title =
+      input.title ??
+      (input.content.length > AUTO_TITLE_LENGTH
         ? input.content.slice(0, AUTO_TITLE_LENGTH) + "..."
-        : input.content
-    );
+        : input.content);
 
     // D-34: Ensure project exists (auto-create on first mention)
     await this.projectRepo.findOrCreate(input.project_id);
@@ -99,22 +131,28 @@ export class MemoryService {
     const duplicates = await this.memoryRepo.findDuplicates({
       embedding,
       projectId: input.project_id,
-      scope: input.scope ?? 'project',
+      scope: input.scope ?? "project",
       userId: input.author,
       threshold: config.duplicateThreshold,
     });
 
     if (duplicates.length > 0) {
       const dupInfo = duplicates[0];
-      const message = dupInfo.scope !== (input.scope ?? 'project')
-        ? `This already exists as shared knowledge (memory ${dupInfo.id}).`
-        : `A similar memory already exists (memory ${dupInfo.id}, ${Math.round(dupInfo.relevance * 100)}% similar). Consider updating it instead.`;
+      const message =
+        dupInfo.scope !== (input.scope ?? "project")
+          ? `This already exists as shared knowledge (memory ${dupInfo.id}).`
+          : `A similar memory already exists (memory ${dupInfo.id}, ${Math.round(dupInfo.relevance * 100)}% similar). Consider updating it instead.`;
       return {
         data: {
           skipped: true,
-          reason: 'duplicate' as const,
+          reason: "duplicate" as const,
           message,
-          duplicate: { id: dupInfo.id, title: dupInfo.title, relevance: dupInfo.relevance, scope: dupInfo.scope },
+          duplicate: {
+            id: dupInfo.id,
+            title: dupInfo.title,
+            relevance: dupInfo.relevance,
+            scope: dupInfo.scope,
+          },
         },
         meta: { timing: Date.now() - start },
       };
@@ -153,15 +191,27 @@ export class MemoryService {
 
     // Phase 4: Post-insert budget increment (D-10)
     // Increment budget after successful save for autonomous writes
-    const budgetResult = isAutonomous && input.session_id && this.sessionLifecycleRepo
-      ? await this.sessionLifecycleRepo.incrementBudgetUsed(input.session_id, config.writeBudgetPerSession)
-      : undefined;
+    const budgetResult =
+      isAutonomous && input.session_id && this.sessionLifecycleRepo
+        ? await this.sessionLifecycleRepo.incrementBudgetUsed(
+            input.session_id,
+            config.writeBudgetPerSession,
+          )
+        : undefined;
 
     return {
       data: memory,
       meta: {
         timing,
-        ...(budgetResult ? { budget: { used: budgetResult.used, limit: config.writeBudgetPerSession, exceeded: false } } : {}),
+        ...(budgetResult
+          ? {
+              budget: {
+                used: budgetResult.used,
+                limit: config.writeBudgetPerSession,
+                exceeded: false,
+              },
+            }
+          : {}),
       },
     };
   }
@@ -183,7 +233,10 @@ export class MemoryService {
   }
 
   // D-63: Enhanced get with full comments array and capability booleans
-  async getWithComments(id: string, userId: string): Promise<Envelope<MemoryGetResponse>> {
+  async getWithComments(
+    id: string,
+    userId: string,
+  ): Promise<Envelope<MemoryGetResponse>> {
     const start = Date.now();
 
     const memory = await this.memoryRepo.findById(id);
@@ -201,7 +254,7 @@ export class MemoryService {
 
     // D-72: Capability booleans
     const isOwner = memory.author === userId;
-    const isProject = memory.scope === 'project';
+    const isProject = memory.scope === "project";
     const capabilities = {
       can_edit: this.canAccess(memory, userId),
       can_archive: this.canAccess(memory, userId),
@@ -242,17 +295,21 @@ export class MemoryService {
     // D-48: Comments inherit parent scope access rules
     // User-scoped memories: only owner can access. But D-56 blocks self-comment.
     // So user-scoped memories effectively cannot have comments.
-    if (memory.scope === 'user') {
+    if (memory.scope === "user") {
       if (memory.author !== userId) {
         throw new NotFoundError("Memory", memoryId); // D-17: hide existence
       }
       // Owner trying to comment on their own user-scoped memory = self-comment block
-      throw new ValidationError("Cannot comment on your own memory. Use memory_update to add context.");
+      throw new ValidationError(
+        "Cannot comment on your own memory. Use memory_update to add context.",
+      );
     }
 
     // D-56: No self-commenting on project memories
     if (memory.author === userId) {
-      throw new ValidationError("Cannot comment on your own memory. Use memory_update to add context.");
+      throw new ValidationError(
+        "Cannot comment on your own memory. Use memory_update to add context.",
+      );
     }
 
     // D-49: Soft limit ~1000 chars -- warn but allow
@@ -263,7 +320,9 @@ export class MemoryService {
     // D-50: Soft limit ~50 comments per memory -- warn but allow
     const currentCount = await this.commentRepo.countByMemoryId(memoryId);
     if (currentCount >= 50) {
-      logger.warn(`Memory ${memoryId} has ${currentCount} comments (soft limit 50)`);
+      logger.warn(
+        `Memory ${memoryId} has ${currentCount} comments (soft limit 50)`,
+      );
     }
 
     const commentId = generateId();
@@ -300,10 +359,12 @@ export class MemoryService {
     });
 
     // D-37: Determine change_type for each result
-    const withChangeType: MemoryWithChangeType[] = recentMemories.map((memory) => ({
-      ...memory,
-      change_type: this.getChangeType(memory, since),
-    }));
+    const withChangeType: MemoryWithChangeType[] = recentMemories.map(
+      (memory) => ({
+        ...memory,
+        change_type: this.getChangeType(memory, since),
+      }),
+    );
 
     const timing = Date.now() - start;
     return {
@@ -316,19 +377,24 @@ export class MemoryService {
   private getChangeType(
     memory: Memory,
     since: Date,
-  ): 'created' | 'updated' | 'commented' {
-    if (memory.created_at >= since) return 'created';
+  ): "created" | "updated" | "commented" {
+    if (memory.created_at >= since) return "created";
     if (
       memory.last_comment_at &&
       memory.updated_at.getTime() === memory.last_comment_at.getTime()
     ) {
-      return 'commented';
+      return "commented";
     }
-    return 'updated';
+    return "updated";
   }
 
   // D-27: Re-embed when content or title changes
-  async update(id: string, expectedVersion: number, updates: MemoryUpdate, userId: string): Promise<Envelope<Memory>> {
+  async update(
+    id: string,
+    expectedVersion: number,
+    updates: MemoryUpdate,
+    userId: string,
+  ): Promise<Envelope<Memory>> {
     const start = Date.now();
 
     // Fetch first for access control check (also needed for re-embedding)
@@ -338,9 +404,14 @@ export class MemoryService {
     }
     this.assertCanModify(existing, userId);
 
-    const needsReEmbed = updates.content !== undefined || updates.title !== undefined;
+    const needsReEmbed =
+      updates.content !== undefined || updates.title !== undefined;
 
-    let embeddingUpdates: { embedding?: number[]; embedding_model?: string; embedding_dimensions?: number } = {};
+    let embeddingUpdates: {
+      embedding?: number[];
+      embedding_model?: string;
+      embedding_dimensions?: number;
+    } = {};
 
     if (needsReEmbed) {
       const newTitle = updates.title ?? existing.title;
@@ -374,7 +445,10 @@ export class MemoryService {
 
   // D-06: Accepts single ID or array
   // D-15: Check access on each memory before archiving
-  async archive(ids: string | string[], userId: string): Promise<Envelope<{ archived_count: number }>> {
+  async archive(
+    ids: string | string[],
+    userId: string,
+  ): Promise<Envelope<{ archived_count: number }>> {
     const start = Date.now();
 
     const idArray = Array.isArray(ids) ? ids : [ids];
@@ -412,7 +486,9 @@ export class MemoryService {
     } catch (error) {
       if (error instanceof EmbeddingError) throw error;
       const message = error instanceof Error ? error.message : String(error);
-      throw new EmbeddingError(`Failed to generate query embedding: ${message}`);
+      throw new EmbeddingError(
+        `Failed to generate query embedding: ${message}`,
+      );
     }
 
     // Over-fetch candidates by raw similarity for re-ranking (D-04)
@@ -464,7 +540,11 @@ export class MemoryService {
 
     // Phase 4: Generate session_id and create session record for budget tracking (D-18)
     const sessionId = generateId();
-    await this.sessionLifecycleRepo?.createSession(sessionId, userId, projectId);
+    await this.sessionLifecycleRepo?.createSession(
+      sessionId,
+      userId,
+      projectId,
+    );
 
     // D-28: Track session, get previous session timestamp
     let previousSession: Date | null = null;
@@ -474,8 +554,9 @@ export class MemoryService {
 
     // D-31: First session falls back to 7 days
     const FIRST_SESSION_FALLBACK_DAYS = 7;
-    const since = previousSession
-      ?? new Date(Date.now() - FIRST_SESSION_FALLBACK_DAYS * 24 * 60 * 60 * 1000);
+    const since =
+      previousSession ??
+      new Date(Date.now() - FIRST_SESSION_FALLBACK_DAYS * 24 * 60 * 60 * 1000);
 
     let result: Envelope<MemoryWithRelevance[]>;
     if (context) {
@@ -507,9 +588,20 @@ export class MemoryService {
     }
 
     // D-29: Add team_activity counts to meta
-    let teamActivity: { new_memories: number; updated_memories: number; commented_memories: number; since: string } | undefined;
+    let teamActivity:
+      | {
+          new_memories: number;
+          updated_memories: number;
+          commented_memories: number;
+          since: string;
+        }
+      | undefined;
     if (this.memoryRepo.countTeamActivity) {
-      const counts = await this.memoryRepo.countTeamActivity(projectId, userId, since);
+      const counts = await this.memoryRepo.countTeamActivity(
+        projectId,
+        userId,
+        since,
+      );
       teamActivity = {
         ...counts,
         since: since.toISOString(),
@@ -539,7 +631,9 @@ export class MemoryService {
       meta: {
         count: result.memories.length,
         has_more: result.has_more,
-        cursor: result.cursor ? `${result.cursor.created_at}|${result.cursor.id}` : undefined,
+        cursor: result.cursor
+          ? `${result.cursor.created_at}|${result.cursor.id}`
+          : undefined,
         timing,
       },
     };
@@ -554,7 +648,9 @@ export class MemoryService {
     }
     // D-20: project=anyone can verify, user=owner only
     if (!this.canAccess(existing, userId)) {
-      throw new AuthorizationError("Cannot verify user-scoped memory owned by another user.");
+      throw new AuthorizationError(
+        "Cannot verify user-scoped memory owned by another user.",
+      );
     }
 
     const memory = await this.memoryRepo.verify(id, userId);
@@ -583,7 +679,7 @@ export class MemoryService {
     });
 
     // D-16: Filter out user-scoped memories not owned by requesting user
-    const filtered = result.memories.filter(m => this.canAccess(m, userId));
+    const filtered = result.memories.filter((m) => this.canAccess(m, userId));
 
     const timing = Date.now() - start;
     return {
@@ -591,7 +687,9 @@ export class MemoryService {
       meta: {
         count: filtered.length,
         has_more: result.has_more,
-        cursor: result.cursor ? `${result.cursor.created_at}|${result.cursor.id}` : undefined,
+        cursor: result.cursor
+          ? `${result.cursor.created_at}|${result.cursor.id}`
+          : undefined,
         timing,
       },
     };

@@ -4,7 +4,8 @@ export function registerMemoryGuidance(server: McpServer): void {
   server.registerPrompt(
     "memory-guidance",
     {
-      description: "Guidelines for autonomous memory capture -- what to remember and when",
+      description:
+        "Guidelines for autonomous memory capture -- what to remember and when",
     },
     async () => ({
       messages: [

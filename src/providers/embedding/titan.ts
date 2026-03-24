@@ -11,7 +11,11 @@ export class TitanEmbeddingProvider implements EmbeddingProvider {
   readonly modelName = "amazon.titan-embed-text-v2:0";
   private readonly client: BedrockRuntimeClient;
 
-  constructor(region = "us-east-1", timeoutMs = 10_000, private readonly dims = 512) {
+  constructor(
+    region = "us-east-1",
+    timeoutMs = 10_000,
+    private readonly dims = 512,
+  ) {
     this.client = new BedrockRuntimeClient({
       region,
       requestHandler: { requestTimeout: timeoutMs },
@@ -23,9 +27,8 @@ export class TitanEmbeddingProvider implements EmbeddingProvider {
   }
 
   async embed(text: string): Promise<number[]> {
-    const inputText = text.length > MAX_INPUT_CHARS
-      ? text.slice(0, MAX_INPUT_CHARS)
-      : text;
+    const inputText =
+      text.length > MAX_INPUT_CHARS ? text.slice(0, MAX_INPUT_CHARS) : text;
 
     try {
       const response = await this.client.send(
@@ -38,7 +41,7 @@ export class TitanEmbeddingProvider implements EmbeddingProvider {
             dimensions: this.dims,
             normalize: true,
           }),
-        })
+        }),
       );
 
       const body = JSON.parse(new TextDecoder().decode(response.body));

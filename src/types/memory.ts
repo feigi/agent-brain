@@ -1,5 +1,11 @@
 // D-17: Predefined memory types
-export type MemoryType = "fact" | "decision" | "learning" | "pattern" | "preference" | "architecture";
+export type MemoryType =
+  | "fact"
+  | "decision"
+  | "learning"
+  | "pattern"
+  | "preference"
+  | "architecture";
 
 // D-08: Memory scopes
 export type MemoryScope = "project" | "user";
@@ -24,9 +30,9 @@ export interface Memory {
   updated_at: Date;
   verified_at: Date | null;
   archived_at: Date | null;
-  comment_count: number;           // D-61: computed via COUNT, present on all responses
-  last_comment_at: Date | null;    // D-62: for change_type detection
-  verified_by: string | null;      // D-19: who verified
+  comment_count: number; // D-61: computed via COUNT, present on all responses
+  last_comment_at: Date | null; // D-62: for change_type detection
+  verified_by: string | null; // D-19: who verified
 }
 
 // D-47: Comment on a memory by a team member
@@ -49,21 +55,21 @@ export interface MemoryGetResponse extends Memory {
 
 // D-37: Memory with change type for memory_list_recent
 export interface MemoryWithChangeType extends Memory {
-  change_type: 'created' | 'updated' | 'commented';
+  change_type: "created" | "updated" | "commented";
 }
 
 // Input type for creating a memory
 export interface MemoryCreate {
   project_id: string;
   content: string;
-  title?: string;          // D-03: auto-generate from content if omitted
+  title?: string; // D-03: auto-generate from content if omitted
   type: MemoryType;
-  scope?: MemoryScope;     // defaults to "project"
+  scope?: MemoryScope; // defaults to "project"
   tags?: string[];
-  author: string;          // D-25, D-38: required for provenance
-  source?: string;         // D-23: manual, agent-auto, session-review, etc.
-  session_id?: string;     // D-24
-  metadata?: Record<string, unknown>;  // D-26
+  author: string; // D-25, D-38: required for provenance
+  source?: string; // D-23: manual, agent-auto, session-review, etc.
+  session_id?: string; // D-24
+  metadata?: Record<string, unknown>; // D-26
 }
 
 // Input type for updating a memory (D-09: partial/PATCH-style)
@@ -83,7 +89,7 @@ export interface MemoryWithRelevance extends Memory {
 // Phase 4: Discriminated union result for autonomous memory_create (budget or dedup skip)
 export interface CreateSkipResult {
   skipped: true;
-  reason: 'budget_exceeded' | 'duplicate';
+  reason: "budget_exceeded" | "duplicate";
   message: string;
   duplicate?: { id: string; title: string; relevance: number; scope?: string };
 }

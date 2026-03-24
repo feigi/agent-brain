@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryService } from "../../src/services/memory-service.js";
 import { ValidationError } from "../../src/utils/errors.js";
 import type { Memory } from "../../src/types/memory.js";
-import type { MemoryRepository, ProjectRepository, SessionRepository } from "../../src/repositories/types.js";
+import type {
+  MemoryRepository,
+  ProjectRepository,
+  SessionRepository,
+} from "../../src/repositories/types.js";
 import type { EmbeddingProvider } from "../../src/providers/embedding/types.js";
 
 // 512-dim zero vector (deterministic for all tests)
@@ -36,7 +40,9 @@ function makeMemory(overrides: Partial<Memory> = {}): Memory {
   };
 }
 
-function makeMemoryRepo(overrides: Partial<MemoryRepository> = {}): MemoryRepository {
+function makeMemoryRepo(
+  overrides: Partial<MemoryRepository> = {},
+): MemoryRepository {
   return {
     create: vi.fn().mockResolvedValue(makeMemory()),
     findById: vi.fn().mockResolvedValue(null),
@@ -48,7 +54,11 @@ function makeMemoryRepo(overrides: Partial<MemoryRepository> = {}): MemoryReposi
     listRecentBothScopes: vi.fn().mockResolvedValue([]),
     verify: vi.fn(),
     findRecentActivity: vi.fn().mockResolvedValue([]),
-    countTeamActivity: vi.fn().mockResolvedValue({ new_memories: 0, updated_memories: 0, commented_memories: 0 }),
+    countTeamActivity: vi.fn().mockResolvedValue({
+      new_memories: 0,
+      updated_memories: 0,
+      commented_memories: 0,
+    }),
     // findDuplicates returns empty array by default (no duplicates)
     findDuplicates: vi.fn().mockResolvedValue([]),
     ...overrides,
@@ -57,7 +67,9 @@ function makeMemoryRepo(overrides: Partial<MemoryRepository> = {}): MemoryReposi
 
 function makeProjectRepo(): ProjectRepository {
   return {
-    findOrCreate: vi.fn().mockResolvedValue({ id: "test-project", created_at: new Date() }),
+    findOrCreate: vi
+      .fn()
+      .mockResolvedValue({ id: "test-project", created_at: new Date() }),
     findById: vi.fn().mockResolvedValue(null),
   };
 }
@@ -70,11 +82,15 @@ function makeEmbeddingProvider(): EmbeddingProvider {
   };
 }
 
-function makeSessionLifecycleRepo(overrides: Partial<SessionRepository> = {}): SessionRepository {
+function makeSessionLifecycleRepo(
+  overrides: Partial<SessionRepository> = {},
+): SessionRepository {
   return {
     createSession: vi.fn().mockResolvedValue(undefined),
     getBudget: vi.fn().mockResolvedValue({ used: 5, limit: 10 }),
-    incrementBudgetUsed: vi.fn().mockResolvedValue({ used: 6, exceeded: false }),
+    incrementBudgetUsed: vi
+      .fn()
+      .mockResolvedValue({ used: 6, exceeded: false }),
     findById: vi.fn().mockResolvedValue(null),
     ...overrides,
   };
@@ -95,7 +111,14 @@ describe("Budget enforcement in memory_create", () => {
 
   it("autonomous write with source agent-auto succeeds when under budget", async () => {
     // getBudget returns used=5, limit=10 (under budget)
-    const service = new MemoryService(memoryRepo, projectRepo, embedder, undefined, undefined, sessionLifecycleRepo);
+    const service = new MemoryService(
+      memoryRepo,
+      projectRepo,
+      embedder,
+      undefined,
+      undefined,
+      sessionLifecycleRepo,
+    );
 
     const result = await service.create({
       project_id: "test-project",
@@ -113,7 +136,14 @@ describe("Budget enforcement in memory_create", () => {
   });
 
   it("autonomous write with source session-review succeeds when under budget", async () => {
-    const service = new MemoryService(memoryRepo, projectRepo, embedder, undefined, undefined, sessionLifecycleRepo);
+    const service = new MemoryService(
+      memoryRepo,
+      projectRepo,
+      embedder,
+      undefined,
+      undefined,
+      sessionLifecycleRepo,
+    );
 
     const result = await service.create({
       project_id: "test-project",
@@ -134,7 +164,14 @@ describe("Budget enforcement in memory_create", () => {
     sessionLifecycleRepo = makeSessionLifecycleRepo({
       getBudget: vi.fn().mockResolvedValue({ used: 10, limit: 10 }),
     });
-    const service = new MemoryService(memoryRepo, projectRepo, embedder, undefined, undefined, sessionLifecycleRepo);
+    const service = new MemoryService(
+      memoryRepo,
+      projectRepo,
+      embedder,
+      undefined,
+      undefined,
+      sessionLifecycleRepo,
+    );
 
     const result = await service.create({
       project_id: "test-project",
@@ -159,9 +196,20 @@ describe("Budget enforcement in memory_create", () => {
   it("manual write bypasses budget check", async () => {
     // getBudget should never be called for manual writes
     sessionLifecycleRepo = makeSessionLifecycleRepo({
-      getBudget: vi.fn().mockRejectedValue(new Error("getBudget should not be called for manual writes")),
+      getBudget: vi
+        .fn()
+        .mockRejectedValue(
+          new Error("getBudget should not be called for manual writes"),
+        ),
     });
-    const service = new MemoryService(memoryRepo, projectRepo, embedder, undefined, undefined, sessionLifecycleRepo);
+    const service = new MemoryService(
+      memoryRepo,
+      projectRepo,
+      embedder,
+      undefined,
+      undefined,
+      sessionLifecycleRepo,
+    );
 
     const result = await service.create({
       project_id: "test-project",
@@ -179,7 +227,14 @@ describe("Budget enforcement in memory_create", () => {
   });
 
   it("autonomous write without session_id throws ValidationError", async () => {
-    const service = new MemoryService(memoryRepo, projectRepo, embedder, undefined, undefined, sessionLifecycleRepo);
+    const service = new MemoryService(
+      memoryRepo,
+      projectRepo,
+      embedder,
+      undefined,
+      undefined,
+      sessionLifecycleRepo,
+    );
 
     await expect(
       service.create({
@@ -204,7 +259,14 @@ describe("Budget enforcement in memory_create", () => {
   });
 
   it("manual write without session_id succeeds", async () => {
-    const service = new MemoryService(memoryRepo, projectRepo, embedder, undefined, undefined, sessionLifecycleRepo);
+    const service = new MemoryService(
+      memoryRepo,
+      projectRepo,
+      embedder,
+      undefined,
+      undefined,
+      sessionLifecycleRepo,
+    );
 
     const result = await service.create({
       project_id: "test-project",
@@ -223,9 +285,18 @@ describe("Budget enforcement in memory_create", () => {
     // incrementBudgetUsed returns used=6
     sessionLifecycleRepo = makeSessionLifecycleRepo({
       getBudget: vi.fn().mockResolvedValue({ used: 5, limit: 10 }),
-      incrementBudgetUsed: vi.fn().mockResolvedValue({ used: 6, exceeded: false }),
+      incrementBudgetUsed: vi
+        .fn()
+        .mockResolvedValue({ used: 6, exceeded: false }),
     });
-    const service = new MemoryService(memoryRepo, projectRepo, embedder, undefined, undefined, sessionLifecycleRepo);
+    const service = new MemoryService(
+      memoryRepo,
+      projectRepo,
+      embedder,
+      undefined,
+      undefined,
+      sessionLifecycleRepo,
+    );
 
     const result = await service.create({
       project_id: "test-project",
