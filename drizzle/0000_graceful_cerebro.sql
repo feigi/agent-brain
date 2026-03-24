@@ -13,7 +13,7 @@ CREATE TABLE "memories" (
 	"source" text,
 	"session_id" text,
 	"metadata" jsonb,
-	"embedding" vector(512),
+	"embedding" vector(768),
 	"embedding_model" text,
 	"embedding_dimensions" integer,
 	"version" integer DEFAULT 1 NOT NULL,
