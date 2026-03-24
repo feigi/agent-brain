@@ -3,18 +3,15 @@
   "version": "0.1.0",
   "type": "module",
   "description": "A long-term memory system for AI agents, exposed as an MCP server",
-  "bin": {
-    "agentic-brain": "bin/agentic-brain.mjs"
-  },
   "scripts": {
-    "dev": "docker compose up -d --wait && npx drizzle-kit migrate && EMBEDDING_PROVIDER=ollama EMBEDDING_DIMENSIONS=768 tsx watch src/server.ts",
+    "dev": "docker compose up -d --wait && npx drizzle-kit migrate && EMBEDDING_PROVIDER=ollama EMBEDDING_DIMENSIONS=768 OLLAMA_BASE_URL=http://localhost:11434 tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "test": "vitest run",
     "test:watch": "vitest",
-    "inspect": "npx @modelcontextprotocol/inspector npx tsx src/server.ts",
+    "inspect": "npx @modelcontextprotocol/inspector --cli --transport http --server-url http://localhost:19898/mcp",
     "seed": "tsx scripts/seed.ts",
     "lint": "eslint .",
     "format": "prettier --write .",
