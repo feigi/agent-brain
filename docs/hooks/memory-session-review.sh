@@ -7,7 +7,6 @@ STOP_ACTIVE=$(echo "$INPUT" | jq -r '.stop_hook_active // "false"')
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // "unknown"')
 TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // ""')
 STATE_FILE="/tmp/claude-session-reviewed-${SESSION_ID}"
-START_FILE="/tmp/claude-session-start-${SESSION_ID}"
 
 # If Claude is responding to the review prompt, mark session as reviewed and allow stop
 if [ "$STOP_ACTIVE" = "true" ]; then
@@ -20,11 +19,18 @@ if [ -f "$STATE_FILE" ]; then
   exit 0
 fi
 
-# Record session start time on first invocation (used for git commit check)
-if [ ! -f "$START_FILE" ]; then
-  date -u +"%Y-%m-%dT%H:%M:%SZ" > "$START_FILE"
+# Derive session start time from transcript file creation (macOS/Linux compatible)
+SESSION_START=""
+if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
+  if stat -f "%SB" -t "%s" "$TRANSCRIPT_PATH" >/dev/null 2>&1; then
+    # macOS: use birth time (creation time)
+    SESSION_START_TS=$(stat -f "%SB" -t "%s" "$TRANSCRIPT_PATH" 2>/dev/null)
+  else
+    # Linux: fall back to modification time of first write (close enough)
+    SESSION_START_TS=$(stat -c "%Y" "$TRANSCRIPT_PATH" 2>/dev/null)
+  fi
+  SESSION_START="@${SESSION_START_TS}"
 fi
-SESSION_START=$(cat "$START_FILE")
 
 # Check if any meaningful work was done (file edits, task management, or git commits)
 # Skip the review for sessions that were just questions or exploration
