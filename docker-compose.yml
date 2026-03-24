@@ -31,8 +31,8 @@ services:
     command:
       - |
         ollama serve &
-        # Wait for Ollama to be ready
-        until curl -sf http://localhost:11434 > /dev/null 2>&1; do
+        # Wait for Ollama to be ready (curl not available in image; use ollama list with explicit host)
+        until OLLAMA_HOST=http://localhost:11434 ollama list > /dev/null 2>&1; do
           echo "Waiting for Ollama to start..."
           sleep 1
         done
