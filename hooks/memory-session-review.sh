@@ -79,7 +79,7 @@ fi
 cat <<'REVIEW'
 {
   "decision": "block",
-  "reason": "Before ending, please perform a session-end memory review: reflect on this session's work and save any key learnings, decisions, conventions, or patterns worth remembering using memory_create with source 'session-review'. Focus on insights that will help in future sessions. If this session had no meaningful work (e.g. a brief question, no code changes, no decisions made), just say 'Nothing to save this session' and stop — do not create a placeholder memory. Then you may stop."
+  "reason": "Session-end memory review: save key learnings/decisions via memory_create (source: 'session-review'), or say 'Nothing to save' if trivial session."
 }
 REVIEW
 exit 0
