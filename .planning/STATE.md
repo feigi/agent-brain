@@ -3,8 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: v1.0 milestone complete
-stopped_at: Completed 04-04-PLAN.md
-last_updated: "2026-03-23T23:26:15.318Z"
+stopped_at: Completed quick task 260324-3fy
+last_updated: "2026-03-24T01:30:23.656Z"
+last_activity: "2026-03-24 - Completed quick task 260324-2zs: Add Claude Code integration section to README"
 progress:
   total_phases: 4
   completed_phases: 4
@@ -127,10 +128,11 @@ None — v1.0 milestone complete. Starting fresh for v1.1.
 | 260324-0vu | Add configurable embedding dimensions and Ollama provider support for local deployment | 2026-03-23 | [260324-0vu-add-configurable-embedding-dimensions-an](./quick/260324-0vu-add-configurable-embedding-dimensions-an/) |
 | 260324-1iq | Add docker-compose.ollama.yml with Ollama service, update .env.example and README with embedding provider docs | 2026-03-24 | [260324-1iq-add-docker-compose-ollama-yml-with-ollam](./quick/260324-1iq-add-docker-compose-ollama-yml-with-ollam/) |
 | 260324-2zs | Add Claude Code integration section to README with CLAUDE.md snippet and session-review hook | 2026-03-24 | [260324-2zs-add-claude-code-integration-section-to-r](./quick/260324-2zs-add-claude-code-integration-section-to-r/) |
+| 260324-3fy | Change EMBEDDING_PROVIDER from mock to ollama in .env for local Ollama embeddings | 2026-03-24 | [260324-3fy-change-embedding-provider-from-mock-to-o](./quick/260324-3fy-change-embedding-provider-from-mock-to-o/) |
 
 ## Session Continuity
 
-Last session: 2026-03-24T01:12:10.000Z
+Last session: 2026-03-24T01:30:23.653Z
 Last activity: 2026-03-24 - Completed quick task 260324-2zs: Add Claude Code integration section to README
-Stopped at: Completed quick task 260324-2zs
+Stopped at: Completed quick task 260324-3fy
 Resume file: None
