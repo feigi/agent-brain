@@ -15,6 +15,6 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["src/**/*", "tests/**/*", "drizzle.config.ts", "vitest.config.ts"],
+  "include": ["src/**/*", "tests/**/*", "drizzle.config.ts", "vitest.config.ts", "vitest.ci.config.ts", "eslint.config.mjs"],
   "exclude": ["node_modules", "dist"]
 }
