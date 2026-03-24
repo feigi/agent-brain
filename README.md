@@ -122,7 +122,25 @@ Mock mode uses random vectors — search results won't be semantically meaningfu
 
 ### 4. Connect to Claude Code
 
-Add to your Claude Code MCP settings (`~/.claude/settings.json` or project `.claude/settings.json`):
+**Option A: npx (no clone required)**
+
+```json
+{
+  "mcpServers": {
+    "agentic-brain": {
+      "command": "npx",
+      "args": ["-y", "agentic-brain"],
+      "env": {
+        "DATABASE_URL": "postgresql://agentic:agentic@localhost:5432/agentic_brain",
+        "EMBEDDING_PROVIDER": "ollama",
+        "EMBEDDING_DIMENSIONS": "768"
+      }
+    }
+  }
+}
+```
+
+**Option B: from a local clone**
 
 ```json
 {
@@ -140,7 +158,7 @@ Add to your Claude Code MCP settings (`~/.claude/settings.json` or project `.cla
 }
 ```
 
-For production with Titan embeddings, set `EMBEDDING_PROVIDER=titan` and ensure `AWS_REGION` and credentials are available.
+Add to `~/.claude/settings.json` (global) or project `.claude/settings.json`. For production with Titan embeddings, set `EMBEDDING_PROVIDER=titan` and ensure `AWS_REGION` and credentials are available.
 
 ### 5. Integrate with Claude Code (optional)
 
