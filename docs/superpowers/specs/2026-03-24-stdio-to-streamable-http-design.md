@@ -72,36 +72,52 @@ New `Dockerfile` in project root:
 - **No build step:** `tsx` runs TypeScript directly, matching the existing dev workflow.
 - **Expose:** `19898`
 
-### 4. Docker Compose Changes
+### 4. Docker Compose — Two Configurations
 
-**File:** `docker-compose.yml`
+Two compose files for two workflows:
 
-Add `agentic-brain` service:
+**`docker-compose.yml` (dev infrastructure only — default):**
+
+Postgres + Ollama only. The server runs on the host via `npm run dev`. This is the existing behavior, unchanged.
 
 ```yaml
-agentic-brain:
-  build: .
-  ports:
-    - "19898:19898"
-  environment:
-    DATABASE_URL: postgres://agentic:agentic@postgres:5432/agentic_brain
-    EMBEDDING_PROVIDER: ollama
-    OLLAMA_BASE_URL: http://ollama:11434
-    EMBEDDING_DIMENSIONS: 768
-    PORT: 19898
-  depends_on:
-    postgres:
-      condition: service_healthy
-    ollama:
-      condition: service_healthy
-  healthcheck:
-    test: ["CMD", "curl", "-sf", "http://localhost:19898/health"]
-    interval: 5s
-    timeout: 5s
-    retries: 5
+# Unchanged — postgres and ollama services only
 ```
 
-Postgres and Ollama services remain unchanged.
+**`docker-compose.prod.yml` (full stack):**
+
+Extends the base with the agentic-brain server container. Used when you want everything containerized (e.g., testing the Docker build, or running as a persistent daemon).
+
+```yaml
+# docker-compose.prod.yml
+services:
+  agentic-brain:
+    build: .
+    ports:
+      - "19898:19898"
+    environment:
+      DATABASE_URL: postgres://agentic:agentic@postgres:5432/agentic_brain
+      EMBEDDING_PROVIDER: ollama
+      OLLAMA_BASE_URL: http://ollama:11434
+      EMBEDDING_DIMENSIONS: 768
+      PORT: 19898
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:19898/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+```
+
+**Usage:**
+- Dev: `docker compose up` (just infra, run server with `npm run dev`)
+- Full: `docker compose -f docker-compose.yml -f docker-compose.prod.yml up`
+
+The `npm run dev` script is updated to also start the HTTP server (not stdio), so the dev experience is: infra in Docker, server on host with hot-reload via `tsx watch`.
 
 ### 5. Hook Simplification
 
@@ -188,21 +204,22 @@ The `hooks/settings-snippet.json` in the repo is updated to reflect this.
 - Embedding provider abstraction (`src/providers/embedding/`)
 - Prompts (`src/prompts/`)
 - Stop hook and guard hook
-- `npm start` / `npm run dev` — still useful for running outside Docker
+- `npm start` / `npm run dev` — still useful for running the server on the host (now starts HTTP server instead of stdio)
 
 ## Migration Steps
 
 1. Add `express` dependency
 2. Rewrite `src/server.ts` for Streamable HTTP transport
 3. Add REST routes (`/health`, `/api/tools/:toolName`)
-4. Create `Dockerfile`
-5. Update `docker-compose.yml` with `agentic-brain` service
-6. Rewrite `hooks/memory-session-start.sh` to use `curl`
-7. Update `hooks/settings-snippet.json` with new MCP config
-8. Remove `bin/agentic-brain.mjs` and `"bin"` from `package.json`
-9. Update `npm run inspect` script
-10. Update `~/.claude/settings.json` on the dev machine
-11. Test: `docker-compose up`, verify Claude Code connects, verify hooks work
+4. Update `npm run dev` to start the HTTP server (with `tsx watch`)
+5. Create `Dockerfile`
+6. Create `docker-compose.prod.yml` with `agentic-brain` service (base `docker-compose.yml` unchanged)
+7. Rewrite `hooks/memory-session-start.sh` to use `curl`
+8. Update `hooks/settings-snippet.json` with new MCP config
+9. Remove `bin/agentic-brain.mjs` and `"bin"` from `package.json`
+10. Update `npm run inspect` script
+11. Update `~/.claude/settings.json` on the dev machine
+12. Test: `docker compose up`, verify Claude Code connects, verify hooks work
 
 ## Future Work
 
