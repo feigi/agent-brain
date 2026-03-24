@@ -1,10 +1,4 @@
 services:
-  postgres:
-    # Inherits from base docker-compose.yml — no overrides needed
-    extends:
-      file: docker-compose.yml
-      service: postgres
-
   ollama:
     image: ollama/ollama:latest
     ports:
