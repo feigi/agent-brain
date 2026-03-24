@@ -1,6 +1,6 @@
 # Agentic Brain
 
-Long-term memory for AI agents. Agents read relevant memories at session start, write new insights during sessions, and team members can manually save context. Exposed as an MCP server — works with Claude Code, Cursor, and any MCP-compatible agent.
+Long-term memory for AI agents. Agents read relevant memories at session start, write new insights during sessions, and team members can manually save context. Exposed as an MCP server — works with Claude Code, GitHub Copilot, Cursor, and any MCP-compatible agent.
 
 **Core value:** agents remember what matters across sessions. No team knowledge is lost because a conversation ended.
 
@@ -220,6 +220,38 @@ chmod +x .claude/hooks/memory-session-review.sh
 ```
 
 When Claude is about to stop, the hook blocks the first attempt and asks Claude to reflect on the session and save key learnings. See `docs/hooks/README.md` for details.
+
+### 5b. Integrate with GitHub Copilot (optional)
+
+GitHub Copilot's coding agent has its own instruction and hook system that lives in `.github/`. The concepts are the same as the Claude Code integration above, just different file locations.
+
+#### Add custom instructions
+
+Create `.github/copilot-instructions.md` in your project root. This is Copilot's equivalent of `CLAUDE.md` — it tells the Copilot coding agent when and how to use the memory tools.
+
+A ready-to-use instructions file is included in this repo at [`.github/copilot-instructions.md`](.github/copilot-instructions.md).
+
+#### Add a session-start hook (optional)
+
+Copilot supports hooks via `.github/hooks/hooks.json`. You can add a `sessionStart` hook to automatically trigger memory retrieval at the beginning of each coding agent session.
+
+Create `.github/hooks/hooks.json`:
+
+```json
+{
+  "hooks": [
+    {
+      "event": "sessionStart",
+      "script": {
+        "type": "command",
+        "bash": "echo 'Agentic Brain MCP server is available. Call memory_session_start at the beginning of each session to load relevant memories.'"
+      }
+    }
+  ]
+}
+```
+
+> **Note:** Copilot hooks use a different format from Claude Code hooks. See [GitHub's hooks documentation](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/use-hooks) for details.
 
 ### 6. Use the MCP Inspector (dev/debug)
 
