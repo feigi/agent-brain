@@ -18,11 +18,51 @@ affects: [01-02, 01-03, 01-04]
 
 # Tech tracking
 tech-stack:
-  added: [typescript@5.9, drizzle-orm@0.45, drizzle-kit@0.31, postgres.js@3.4, pgvector@0.2, vitest@4.1, "@modelcontextprotocol/sdk@1.27", "zod@4.3", nanoid@5, dotenv@16, tsx@4.21, "@aws-sdk/client-bedrock-runtime@3"]
-  patterns: [stderr-only-logging, domain-error-hierarchy, nanoid-id-generation, docker-init-scripts-for-extensions, drizzle-pgvector-hnsw-index]
+  added:
+    [
+      typescript@5.9,
+      drizzle-orm@0.45,
+      drizzle-kit@0.31,
+      postgres.js@3.4,
+      pgvector@0.2,
+      vitest@4.1,
+      "@modelcontextprotocol/sdk@1.27",
+      "zod@4.3",
+      nanoid@5,
+      dotenv@16,
+      tsx@4.21,
+      "@aws-sdk/client-bedrock-runtime@3",
+    ]
+  patterns:
+    [
+      stderr-only-logging,
+      domain-error-hierarchy,
+      nanoid-id-generation,
+      docker-init-scripts-for-extensions,
+      drizzle-pgvector-hnsw-index,
+    ]
 
 key-files:
-  created: [package.json, tsconfig.json, docker-compose.yml, drizzle.config.ts, vitest.config.ts, src/config.ts, src/utils/logger.ts, src/utils/id.ts, src/utils/errors.ts, src/db/schema.ts, src/db/index.ts, src/db/migrate.ts, src/types/memory.ts, src/types/envelope.ts, tests/global-setup.ts, scripts/init-extensions.sql, "drizzle/0000_graceful_cerebro.sql"]
+  created:
+    [
+      package.json,
+      tsconfig.json,
+      docker-compose.yml,
+      drizzle.config.ts,
+      vitest.config.ts,
+      src/config.ts,
+      src/utils/logger.ts,
+      src/utils/id.ts,
+      src/utils/errors.ts,
+      src/db/schema.ts,
+      src/db/index.ts,
+      src/db/migrate.ts,
+      src/types/memory.ts,
+      src/types/envelope.ts,
+      tests/global-setup.ts,
+      scripts/init-extensions.sql,
+      "drizzle/0000_graceful_cerebro.sql",
+    ]
   modified: []
 
 key-decisions:
@@ -55,6 +95,7 @@ completed: 2026-03-23
 - **Files modified:** 22
 
 ## Accomplishments
+
 - Complete project scaffolding with all runtime and dev dependencies installed
 - Drizzle schema defining memories table (19 columns) with vector(512) column, HNSW index (m=16, ef_construction=64), and projects table with slug-based PK
 - Generated and applied Drizzle migration against Docker Postgres with pgvector 0.8.2
@@ -68,6 +109,7 @@ Each task was committed atomically:
 2. **Task 2: Database schema, types, and migration infrastructure** - `7ba1a51` (feat)
 
 ## Files Created/Modified
+
 - `package.json` - Project manifest with all runtime and dev dependencies
 - `tsconfig.json` - TypeScript config with nodenext module resolution
 - `docker-compose.yml` - pgvector/pgvector:pg17 with healthcheck and init script mount
@@ -89,6 +131,7 @@ Each task was committed atomically:
 - `drizzle/0000_graceful_cerebro.sql` - Initial migration SQL with all tables, enums, indexes
 
 ## Decisions Made
+
 - Used `ef_construction` (snake_case) instead of `efConstruction` (camelCase) in Drizzle HNSW index `.with()` -- Drizzle passes keys verbatim to SQL, pgvector expects snake_case
 - Added Docker init script for pgvector extension in addition to `CREATE EXTENSION` in migration SQL -- belt-and-suspenders approach ensures extension is available regardless of migration order
 
@@ -97,6 +140,7 @@ Each task was committed atomically:
 ### Auto-fixed Issues
 
 **1. [Rule 1 - Bug] Fixed HNSW index ef_construction parameter name**
+
 - **Found during:** Task 2 (migration generation and application)
 - **Issue:** Plan specified `.with({ m: 16, efConstruction: 64 })` but Drizzle ORM passes keys verbatim to SQL, and pgvector expects `ef_construction` (snake_case), not `efConstruction` (camelCase). Migration failed with "unrecognized parameter efconstruction".
 - **Fix:** Changed to `.with({ m: 16, ef_construction: 64 })` in schema.ts
@@ -105,6 +149,7 @@ Each task was committed atomically:
 - **Committed in:** 7ba1a51 (Task 2 commit)
 
 **2. [Rule 3 - Blocking] Added Docker init script for pgvector extension**
+
 - **Found during:** Task 2 (migration application)
 - **Issue:** Editing the generated Drizzle migration to add `CREATE EXTENSION IF NOT EXISTS vector` was needed for the migration to work on a clean database without pgvector pre-enabled
 - **Fix:** Added `scripts/init-extensions.sql` mounted via Docker Compose to `/docker-entrypoint-initdb.d/01-extensions.sql`, AND added `CREATE EXTENSION IF NOT EXISTS vector` to the migration SQL itself for production portability
@@ -118,16 +163,20 @@ Each task was committed atomically:
 **Impact on plan:** Both fixes necessary for correct migration application. No scope creep.
 
 ## Issues Encountered
+
 - `drizzle-kit migrate` CLI exit code 1 with no visible error message -- required programmatic migration via drizzle-orm to surface actual PostgreSQL error about unrecognized HNSW parameter name
 - Drizzle ORM `.with()` passes JS object keys verbatim to SQL WITH clause -- camelCase keys don't work for pgvector parameters that expect snake_case
 
 ## User Setup Required
+
 None - Docker Compose handles all local infrastructure.
 
 ## Known Stubs
+
 None - all files are fully implemented with no placeholder data.
 
 ## Next Phase Readiness
+
 - Database schema and types are ready for service layer (Plan 02: Embedding Provider)
 - Docker Postgres with pgvector running and verified
 - All shared utilities (logger, id, errors, config) available for import
@@ -138,5 +187,6 @@ None - all files are fully implemented with no placeholder data.
 All 17 key files verified present. Both task commits (a6947d3, 7ba1a51) verified in git history.
 
 ---
-*Phase: 01-foundation-and-core-memory*
-*Completed: 2026-03-23*
+
+_Phase: 01-foundation-and-core-memory_
+_Completed: 2026-03-23_

@@ -50,7 +50,7 @@ Multiple users share project memories with provenance tracking, threaded discuss
 - **D-22:** Documentation-only coordination for shared DB setup. No application code needed — this is an ops/config concern.
 - **D-23:** Optimistic locking (Phase 1 D-30) sufficient for concurrent writes from multiple server instances. No additional concurrency controls.
 - **D-24:** Postgres advisory locks during migration to prevent race conditions when multiple users update simultaneously.
-- **D-25:** Connection pool hardcoded at 3 per instance (not configurable via env var). At expected team size, 3 * N users is well within RDS limits.
+- **D-25:** Connection pool hardcoded at 3 per instance (not configurable via env var). At expected team size, 3 \* N users is well within RDS limits.
 - **D-26:** No team info on startup banner. Keep existing banner as-is (version, DB status, embedding provider).
 - **D-27:** Backwards-compatible migrations not a concern — small team, coordinated updates.
 
@@ -146,23 +146,28 @@ Multiple users share project memories with provenance tracking, threaded discuss
 </decisions>
 
 <canonical_refs>
+
 ## Canonical References
 
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Project Documentation
+
 - `.planning/PROJECT.md` — Project vision, constraints, key decisions
 - `.planning/REQUIREMENTS.md` — Full v1 requirements with traceability matrix (TEAM-01 through TEAM-07)
 - `.planning/ROADMAP.md` — Phase breakdown with success criteria
 
 ### Prior Phase Context
+
 - `.planning/phases/01-foundation-and-core-memory/01-CONTEXT.md` — All Phase 1 decisions (D-01 through D-68). Critical refs: D-02 (envelope format), D-10 (comment deferred to Phase 3), D-11 (memory_verify), D-12 (memory_list_stale), D-25 (author field), D-30 (optimistic locking), D-37 (app-level filtering, RLS deferred), D-38 (user_id on writes), D-49 (stdio only)
 - `.planning/phases/02-retrieval-quality-and-session-lifecycle/02-CONTEXT.md` — Phase 2 decisions (D-01 through D-18). Critical refs: D-08 (cross-scope 'both'), D-09 (user_id for cross-scope), D-10 (single SQL OR), D-12 (memory_session_start)
 
 ### Tech Stack
+
 - `CLAUDE.md` §Technology Stack — Stack versions, Drizzle ORM patterns, pgvector config
 
 ### Existing Implementation
+
 - `src/db/schema.ts` — Current DB schema (memories, projects tables). Phase 3 adds comments table, new columns on memories, session tracking table.
 - `src/types/memory.ts` — Memory, MemoryCreate, MemoryUpdate, MemoryWithRelevance types. Phase 3 adds comment_count, last_comment_at to Memory, new Comment type, capability booleans on get response.
 - `src/repositories/types.ts` — Repository interfaces. Phase 3 adds CommentRepository, extends MemoryRepository with scope enforcement.
@@ -177,9 +182,11 @@ Multiple users share project memories with provenance tracking, threaded discuss
 </canonical_refs>
 
 <code_context>
+
 ## Existing Code Insights
 
 ### Reusable Assets
+
 - `toolResponse` and `withErrorHandling` in `src/tools/tool-utils.ts` — tool utilities for new memory_comment and memory_list_recent tools
 - `memoryColumns` in memory-repository.ts — explicit column selection, extend with comment_count subquery
 - Envelope response structure — consistent `{ data, meta }` pattern across all tools
@@ -188,6 +195,7 @@ Multiple users share project memories with provenance tracking, threaded discuss
 - `generateId` from `src/utils/id.ts` — nanoid generation for comment IDs
 
 ### Established Patterns
+
 - App-layer filtering after DB query (Phase 1 D-42 min_similarity, Phase 2 composite scoring) — access control checks follow same pattern
 - Repository interface abstraction — new CommentRepository follows MemoryRepository pattern
 - Tool registration pattern — `registerMemoryComment`, `registerMemoryListRecent` follow existing convention
@@ -195,6 +203,7 @@ Multiple users share project memories with provenance tracking, threaded discuss
 - Integration tests against real Docker Postgres (Phase 1 D-61)
 
 ### Integration Points
+
 - `src/tools/index.ts` — register memory_comment and memory_list_recent
 - `src/db/schema.ts` — add comments table, session_tracking table, new columns on memories (last_comment_at, verified_by)
 - `src/types/memory.ts` — extend Memory type with comment_count, last_comment_at; add Comment type
@@ -225,6 +234,7 @@ Multiple users share project memories with provenance tracking, threaded discuss
 None — discussion stayed within phase scope.
 
 All scope boundaries maintained:
+
 - HTTP transport / real authentication → v2 / future phase
 - RLS database enforcement → deferred with HTTP transport
 - Users table / user management → not needed for trust-the-client model
@@ -236,5 +246,5 @@ All scope boundaries maintained:
 
 ---
 
-*Phase: 03-team-collaboration*
-*Context gathered: 2026-03-23*
+_Phase: 03-team-collaboration_
+_Context gathered: 2026-03-23_

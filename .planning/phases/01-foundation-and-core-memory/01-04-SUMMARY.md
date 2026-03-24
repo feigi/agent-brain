@@ -56,7 +56,19 @@ patterns-established:
   - "Truncation pattern: delete memories before projects (FK-safe order) in beforeEach"
   - "Seed script pattern: use service layer for data creation to exercise full stack including auto-project-creation"
 
-requirements-completed: [CORE-01, CORE-02, CORE-03, CORE-04, CORE-05, CORE-07, CORE-08, SCOP-01, SCOP-02, SCOP-04]
+requirements-completed:
+  [
+    CORE-01,
+    CORE-02,
+    CORE-03,
+    CORE-04,
+    CORE-05,
+    CORE-07,
+    CORE-08,
+    SCOP-01,
+    SCOP-02,
+    SCOP-04,
+  ]
 
 # Metrics
 duration: ~25min (across sessions with human-verify checkpoint)
@@ -92,6 +104,7 @@ Each task was committed atomically:
 3. **Task 3: Verify complete MCP server end-to-end** - N/A (human-verify checkpoint, approved)
 
 Post-checkpoint fix commits (discovered during human verification):
+
 - `ef0a20f` - fix(tools): harden Zod schemas against MCP Inspector empty-value quirks
 - `0b43db0` - fix(db): suppress PostgreSQL NOTICE messages from stdout
 - `539b770` - fix(tools): move enum validation to handler for MCP client compatibility
@@ -125,6 +138,7 @@ Post-checkpoint fix commits (discovered during human verification):
 ### Auto-fixed Issues
 
 **1. [Rule 1 - Bug] Fixed cosine distance SQL operator precedence**
+
 - **Found during:** Task 1 (integration test suite)
 - **Issue:** `1 - embedding <=> $vector` was parsed as `(1 - embedding) <=> $vector` instead of `1 - (embedding <=> $vector)`, producing incorrect similarity scores
 - **Fix:** Added explicit parentheses around the `<=>` expression in the SQL query
@@ -133,6 +147,7 @@ Post-checkpoint fix commits (discovered during human verification):
 - **Committed in:** b3c8c6d (part of Task 1 commit)
 
 **2. [Rule 3 - Blocking] Added fileParallelism: false to vitest config**
+
 - **Found during:** Task 1 (integration test suite)
 - **Issue:** Parallel test files caused race conditions on shared Docker Postgres (truncation in one file corrupting another)
 - **Fix:** Set `fileParallelism: false` in vitest.config.ts
@@ -141,6 +156,7 @@ Post-checkpoint fix commits (discovered during human verification):
 - **Committed in:** b3c8c6d (part of Task 1 commit)
 
 **3. [Rule 1 - Bug] Fixed closeDb to reset singleton DB reference**
+
 - **Found during:** Task 1 (integration test suite)
 - **Issue:** closeDb() called `db.$client.end()` but didn't reset the module-level `db` variable, causing stale connection errors on subsequent test file runs
 - **Fix:** Set `db = undefined` after ending the client connection
@@ -149,6 +165,7 @@ Post-checkpoint fix commits (discovered during human verification):
 - **Committed in:** b3c8c6d (part of Task 1 commit)
 
 **4. [Rule 1 - Bug] Suppressed PostgreSQL NOTICE messages from stdout**
+
 - **Found during:** Task 3 human verification (MCP Inspector testing)
 - **Issue:** `CREATE EXTENSION IF NOT EXISTS pgvector` emitted NOTICE messages to stdout, corrupting JSON-RPC message framing and causing MCP Inspector connection failures
 - **Fix:** Added `onnotice: () => {}` to postgres.js connection config in src/db/index.ts
@@ -157,6 +174,7 @@ Post-checkpoint fix commits (discovered during human verification):
 - **Committed in:** 0b43db0
 
 **5. [Rule 2 - Missing Critical] Added .catch() on optional Zod schemas**
+
 - **Found during:** Task 3 human verification (MCP Inspector testing)
 - **Issue:** MCP Inspector sent empty strings for optional fields, causing Zod validation errors instead of graceful fallback
 - **Fix:** Added `.catch()` to optional schema fields in tool definitions for defensive parsing
@@ -196,5 +214,6 @@ None - all test data uses real service layer calls, all tools are fully wired to
 All 5 created files verified on disk. All 6 commit hashes verified in git log.
 
 ---
-*Phase: 01-foundation-and-core-memory*
-*Completed: 2026-03-23*
+
+_Phase: 01-foundation-and-core-memory_
+_Completed: 2026-03-23_

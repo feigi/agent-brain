@@ -16,6 +16,7 @@ This project uses [Agentic Brain](https://github.com/feigi/agent-brain) for shar
 ### When to Call `memory_search`
 
 **Call `memory_search` before actions that affect shared systems.** This includes:
+
 1. **The user asks about notes, context, or team knowledge** -- e.g. "any notes?", "what should I know?"
 2. **Before actions that affect shared infrastructure** -- deploys, database migrations, credential rotation, etc.
 3. **Before running shared/integration tests** (e.g. E2E, load tests) -- but NOT local unit tests or builds

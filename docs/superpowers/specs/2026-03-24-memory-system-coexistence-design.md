@@ -9,6 +9,7 @@
 Claude Code has a built-in file-based auto-memory system (`~/.claude/projects/**/memory/`). Agent-brain is an MCP-based memory server with richer capabilities (semantic search, team visibility, types, tags, verification, write budgets). Both systems compete for the same role: persistent memory across sessions.
 
 Currently there are three competing memory targets with no routing rule:
+
 1. Claude Code's system prompt says write to file-based auto-memory
 2. MEMORY.md header says "don't save here, use obsidian skills"
 3. CLAUDE.md + stop hook say use `memory_create` (agent-brain MCP)
@@ -46,6 +47,7 @@ Three layers say the same thing (CLAUDE.md instructions, guard hook enforcement,
 Replace the "Agent Memory" section in `~/.claude/CLAUDE.md` with instructions that explicitly override auto-memory behavior.
 
 Key additions:
+
 - "Do NOT use Claude Code's built-in file-based auto-memory system (`~/.claude/projects/**/memory/`)"
 - "All memory operations go through agent-brain MCP tools"
 - "Never write to MEMORY.md or create files in the memory/ directory"
@@ -83,6 +85,7 @@ This user uses **agent-brain** (MCP server) as their sole memory system across a
 ### When to Call `memory_search`
 
 **Call `memory_search` before actions that affect shared systems.** This includes:
+
 1. **The user asks about notes, context, or team knowledge** -- e.g. "any notes?", "what should I know?"
 2. **Before actions that affect shared infrastructure** -- deploys, database migrations, credential rotation, etc.
 3. **Before running shared/integration tests** (e.g. E2E, load tests) -- but NOT local unit tests or builds
@@ -171,6 +174,7 @@ Use agent-brain MCP tools: memory_create, memory_search, memory_update.
 ```
 
 This stub only needs to exist for the current project. For other projects, either:
+
 - The stub is created as part of onboarding
 - The guard hook blocks the first auto-memory write and the model self-corrects
 
@@ -226,27 +230,27 @@ Update `hooks/settings-snippet.json` to include all three hook entries as a **re
 
 ### Files to Modify
 
-| File | Change |
-|------|--------|
-| `hooks/memory-session-start.sh` | Delete CWD filter (lines 8-11) |
-| `hooks/settings-snippet.json` | Replace with full three-hook config |
-| `~/.claude/CLAUDE.md` | Replace "Agent Memory" section with "Memory System" section |
-| `~/.claude/projects/-Users-chris-dev-agent-brain/memory/MEMORY.md` | Replace with stub |
-| `~/.claude/settings.json` | Remove PostToolUse `memory-md-guard.sh`, add PreToolUse `memory-guard.sh` (merge into existing hooks, do not replace) |
+| File                                                               | Change                                                                                                                |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `hooks/memory-session-start.sh`                                    | Delete CWD filter (lines 8-11)                                                                                        |
+| `hooks/settings-snippet.json`                                      | Replace with full three-hook config                                                                                   |
+| `~/.claude/CLAUDE.md`                                              | Replace "Agent Memory" section with "Memory System" section                                                           |
+| `~/.claude/projects/-Users-chris-dev-agent-brain/memory/MEMORY.md` | Replace with stub                                                                                                     |
+| `~/.claude/settings.json`                                          | Remove PostToolUse `memory-md-guard.sh`, add PreToolUse `memory-guard.sh` (merge into existing hooks, do not replace) |
 
 ### Files to Create
 
-| File | Purpose |
-|------|---------|
+| File                    | Purpose                                                  |
+| ----------------------- | -------------------------------------------------------- |
 | `hooks/memory-guard.sh` | PreToolUse hook — blocks writes to auto-memory directory |
 
 ### Files to Delete
 
-| File | Reason |
-|------|--------|
-| `~/.claude/projects/-Users-chris-dev-agent-brain/memory/project_ollama_setup.md` | Content already exists in agent-brain |
+| File                                                                                | Reason                                  |
+| ----------------------------------------------------------------------------------- | --------------------------------------- |
+| `~/.claude/projects/-Users-chris-dev-agent-brain/memory/project_ollama_setup.md`    | Content already exists in agent-brain   |
 | `~/.claude/projects/-Users-chris-dev-agent-brain/memory/feedback_memory_display.md` | Content becomes a CLAUDE.md instruction |
-| `~/.claude/hooks/memory-md-guard.sh` | Replaced by PreToolUse guard hook |
+| `~/.claude/hooks/memory-md-guard.sh`                                                | Replaced by PreToolUse guard hook       |
 
 ## Onboarding (New Team Members)
 
@@ -271,9 +275,9 @@ Manual process for now. Automation deferred until team grows.
 
 ## Risks
 
-| Risk | Mitigation |
-|------|------------|
-| Model ignores CLAUDE.md under context compression | Guard hook blocks writes regardless of instruction compliance |
-| Guard hook regex misses an auto-memory path variant | Pattern `*/.claude/projects/*/memory/*` matches Claude Code's known auto-memory path structure |
-| Session-start hook fails for projects without agent-brain data | `memory_session_start` returns empty result gracefully; hook outputs nothing |
-| Agent-brain MCP server not running | Session-start hook fails silently (stderr suppressed); model falls back to session-only context. Stop hook still prompts but memory_create calls fail — acceptable degradation |
+| Risk                                                           | Mitigation                                                                                                                                                                     |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Model ignores CLAUDE.md under context compression              | Guard hook blocks writes regardless of instruction compliance                                                                                                                  |
+| Guard hook regex misses an auto-memory path variant            | Pattern `*/.claude/projects/*/memory/*` matches Claude Code's known auto-memory path structure                                                                                 |
+| Session-start hook fails for projects without agent-brain data | `memory_session_start` returns empty result gracefully; hook outputs nothing                                                                                                   |
+| Agent-brain MCP server not running                             | Session-start hook fails silently (stderr suppressed); model falls back to session-only context. Stop hook still prompts but memory_create calls fail — acceptable degradation |

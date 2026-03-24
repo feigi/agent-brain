@@ -18,7 +18,11 @@ affects: [02-02, 02-03]
 # Tech tracking
 tech-stack:
   added: []
-  patterns: ["exponential decay for recency scoring", "composite relevance = similarity(80%) + recency(15%) + verification(5%)"]
+  patterns:
+    [
+      "exponential decay for recency scoring",
+      "composite relevance = similarity(80%) + recency(15%) + verification(5%)",
+    ]
 
 key-files:
   created:
@@ -61,6 +65,7 @@ completed: 2026-03-23
 - **Files modified:** 8
 
 ## Accomplishments
+
 - Implemented exponentialDecay() and computeRelevance() pure scoring functions with 15 unit tests (TDD)
 - Renamed MemoryWithScore to MemoryWithRelevance with cascading updates across 6 source/test files
 - Extended config with recencyHalfLifeDays (RECENCY_HALF_LIFE_DAYS env var, default 14)
@@ -76,6 +81,7 @@ Each task was committed atomically:
 _Note: Task 1 used TDD with separate RED/GREEN commits._
 
 ## Files Created/Modified
+
 - `src/utils/scoring.ts` - Pure scoring functions: exponentialDecay, computeRelevance, weight constants
 - `tests/unit/scoring.test.ts` - 15 unit tests covering decay, composite scoring, clamping, constants
 - `src/types/memory.ts` - MemoryWithRelevance type (renamed from MemoryWithScore)
@@ -86,7 +92,8 @@ _Note: Task 1 used TDD with separate RED/GREEN commits._
 - `tests/integration/memory-search.test.ts` - Updated property assertions from similarity to relevance
 
 ## Decisions Made
-- Composite relevance formula: 0.80*similarity + 0.15*recency_decay + 0.05*verified_boost -- per D-01/D-02/D-03
+
+- Composite relevance formula: 0.80*similarity + 0.15*recency_decay + 0.05\*verified_boost -- per D-01/D-02/D-03
 - Recency decay uses `pow(0.5, ageDays/halfLifeDays)` for mathematically clean half-life behavior
 - Repository search maps raw cosine similarity to `relevance` field now -- composite scoring will be layered on top by service in Plan 02
 
@@ -95,6 +102,7 @@ _Note: Task 1 used TDD with separate RED/GREEN commits._
 ### Auto-fixed Issues
 
 **1. [Rule 3 - Blocking] Updated integration tests for field rename**
+
 - **Found during:** Task 2 (type rename)
 - **Issue:** Integration tests in tests/integration/memory-search.test.ts referenced `.similarity` property which no longer exists on MemoryWithRelevance
 - **Fix:** Renamed all `.similarity` property accesses to `.relevance` in integration test assertions
@@ -108,12 +116,15 @@ _Note: Task 1 used TDD with separate RED/GREEN commits._
 **Impact on plan:** Integration test update was necessary to maintain a working test suite after the type rename. No scope creep.
 
 ## Issues Encountered
+
 - Vitest v4 does not support `-x` flag for bail-on-first-failure; used `--bail 1` instead
 
 ## User Setup Required
+
 None - no external service configuration required.
 
 ## Next Phase Readiness
+
 - Scoring functions ready for Plan 02 (service-layer re-ranking integration)
 - MemoryWithRelevance type available for all downstream consumers
 - Config pattern for recencyHalfLifeDays established for Plan 02 to wire into service
@@ -123,5 +134,6 @@ None - no external service configuration required.
 All 8 files verified present. All 3 commit hashes verified in git log.
 
 ---
-*Phase: 02-retrieval-quality-and-session-lifecycle*
-*Completed: 2026-03-23*
+
+_Phase: 02-retrieval-quality-and-session-lifecycle_
+_Completed: 2026-03-23_

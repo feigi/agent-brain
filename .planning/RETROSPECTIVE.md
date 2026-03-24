@@ -1,6 +1,6 @@
 # Project Retrospective
 
-*A living document updated after each milestone. Lessons feed forward into future planning.*
+_A living document updated after each milestone. Lessons feed forward into future planning._
 
 ## Milestone: v1.0 — MVP
 
@@ -53,16 +53,16 @@
 
 ### Process Evolution
 
-| Milestone | Sessions | Phases | Key Change |
-|-----------|----------|--------|------------|
-| v1.0 | 1 day | 4 | Initial baseline |
+| Milestone | Sessions | Phases | Key Change       |
+| --------- | -------- | ------ | ---------------- |
+| v1.0      | 1 day    | 4      | Initial baseline |
 
 ### Cumulative Quality
 
-| Milestone | Tests | Notes |
-|-----------|-------|-------|
-| v1.0 | 140+ | Unit + integration against real Docker Postgres |
+| Milestone | Tests | Notes                                           |
+| --------- | ----- | ----------------------------------------------- |
+| v1.0      | 140+  | Unit + integration against real Docker Postgres |
 
 ### Top Lessons (Verified Across Milestones)
 
-1. *(Single milestone — trends will emerge with v1.1+)*
+1. _(Single milestone — trends will emerge with v1.1+)_

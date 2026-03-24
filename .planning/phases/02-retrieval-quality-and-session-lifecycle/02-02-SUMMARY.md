@@ -19,7 +19,11 @@ affects: [02-03]
 # Tech tracking
 tech-stack:
   added: []
-  patterns: ["over-fetch 3x and re-rank with composite scoring", "OR-based cross-scope SQL query in repository"]
+  patterns:
+    [
+      "over-fetch 3x and re-rank with composite scoring",
+      "OR-based cross-scope SQL query in repository",
+    ]
 
 key-files:
   created: []
@@ -61,6 +65,7 @@ completed: 2026-03-23
 - **Files modified:** 6
 
 ## Accomplishments
+
 - Integrated composite relevance scoring into the search pipeline with over-fetch (3x) and re-rank strategy
 - Added cross-scope search (scope='both') through all layers: repository SQL, service, and MCP tool
 - Fixed raw SQL 'similarity' alias leaking through to API boundary -- results now contain only 'relevance'
@@ -74,6 +79,7 @@ Each task was committed atomically:
 2. **Task 2: Composite scoring in service layer, tool update, and test updates** - `231dbb9` (feat)
 
 ## Files Created/Modified
+
 - `src/repositories/types.ts` - SearchOptions scope field now accepts 'both' (D-08)
 - `src/repositories/memory-repository.ts` - Cross-scope OR-based SQL query and similarity alias stripping
 - `src/services/memory-service.ts` - Over-fetch/re-rank pipeline with computeRelevance integration
@@ -82,6 +88,7 @@ Each task was committed atomically:
 - `tests/integration/memory-scoping.test.ts` - Threshold fix for mock embedding compatibility
 
 ## Decisions Made
+
 - Over-fetch 3x candidates at repository layer, then re-rank with composite relevance at service layer -- keeps repository as a simple data access layer while service handles scoring logic
 - Cross-scope search uses single SQL query with OR condition rather than two separate queries -- avoids N+1 and simplifies result merging
 - Stripped raw SQL 'similarity' alias in repository map to prevent internal column names from leaking to API boundary
@@ -92,6 +99,7 @@ Each task was committed atomically:
 ### Auto-fixed Issues
 
 **1. [Rule 1 - Bug] Fixed raw SQL 'similarity' alias leaking into MemoryWithRelevance output**
+
 - **Found during:** Task 2 (composite scoring integration)
 - **Issue:** Repository search method spread `rowToMemory(row)` which included the SQL-computed `similarity` column alias. The `similarity` field leaked through to MemoryWithRelevance objects alongside the intended `relevance` field.
 - **Fix:** Destructure `{ similarity: rawSim, ...memoryFields }` from the row before spreading to strip the SQL alias.
@@ -100,6 +108,7 @@ Each task was committed atomically:
 - **Committed in:** 231dbb9 (Task 2 commit)
 
 **2. [Rule 1 - Bug] Fixed min_similarity=0 threshold filtering out mock embedding results**
+
 - **Found during:** Task 2 (test execution)
 - **Issue:** Mock embedding provider generates deterministic sine-based vectors that can produce negative cosine similarity. Tests using `min_similarity: 0` would filter these out at the repository layer, causing tests to return empty results.
 - **Fix:** Changed test `min_similarity` thresholds from `0` to `-1` across memory-search.test.ts and memory-scoping.test.ts. Also relaxed `toBeGreaterThan(0)` to `toBeGreaterThanOrEqual(0)` for composite score assertion since clamping to [0,1] can produce exactly 0.
@@ -113,12 +122,15 @@ Each task was committed atomically:
 **Impact on plan:** Both fixes necessary for correctness. The similarity leak fix ensures clean API boundaries. The threshold fix ensures test reliability with mock embeddings. No scope creep.
 
 ## Issues Encountered
+
 None beyond the auto-fixed deviations above.
 
 ## User Setup Required
+
 None - no external service configuration required.
 
 ## Next Phase Readiness
+
 - Full composite relevance scoring pipeline operational for search queries
 - Cross-scope search ready for session-start auto-load in Plan 03
 - All integration tests green with mock embeddings
@@ -129,5 +141,6 @@ None - no external service configuration required.
 All 6 files verified present. All 2 commit hashes verified in git log.
 
 ---
-*Phase: 02-retrieval-quality-and-session-lifecycle*
-*Completed: 2026-03-23*
+
+_Phase: 02-retrieval-quality-and-session-lifecycle_
+_Completed: 2026-03-23_

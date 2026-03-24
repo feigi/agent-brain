@@ -2,7 +2,8 @@
 phase: 03-team-collaboration
 plan: 03
 subsystem: comments-and-activity
-tags: [comments, session-tracking, team-activity, memory-get-enhancement, mcp-tools]
+tags:
+  [comments, session-tracking, team-activity, memory-get-enhancement, mcp-tools]
 
 # Dependency graph
 requires:
@@ -134,5 +135,6 @@ None -- all comment functionality is fully wired. Comment repository is real, se
 - All 52 tests pass
 
 ---
-*Phase: 03-team-collaboration*
-*Completed: 2026-03-23*
+
+_Phase: 03-team-collaboration_
+_Completed: 2026-03-23_

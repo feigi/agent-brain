@@ -50,23 +50,28 @@ Enhanced search ranking with composite relevance scoring (semantic similarity + 
 </decisions>
 
 <canonical_refs>
+
 ## Canonical References
 
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Project Documentation
+
 - `.planning/PROJECT.md` — Project vision, constraints, key decisions
 - `.planning/REQUIREMENTS.md` — Full v1 requirements with traceability matrix (SCOP-03, RETR-01 through RETR-05)
 - `.planning/ROADMAP.md` — Phase breakdown with success criteria
 
 ### Phase 1 Context (Prior Decisions)
+
 - `.planning/phases/01-foundation-and-core-memory/01-CONTEXT.md` — All Phase 1 decisions (D-01 through D-68). Particularly relevant: D-02 (envelope format), D-41 (default 10 results), D-42 (min_similarity 0.3), D-43 (full memory + score), D-44 (no debug info), D-47 (single-scope search)
 
 ### Tech Stack
+
 - `CLAUDE.md` §Technology Stack — Complete tech stack with versions, alternatives considered, and compatibility matrix
 - `CLAUDE.md` §Embedding Dimension Strategy — 512 dimensions, accuracy tradeoffs
 
 ### Existing Implementation
+
 - `src/repositories/types.ts` — `SearchOptions` interface to extend for cross-scope
 - `src/repositories/memory-repository.ts` — Current search implementation (cosine distance, app-layer filtering)
 - `src/services/memory-service.ts` — Service layer where composite scoring will be added
@@ -77,9 +82,11 @@ Enhanced search ranking with composite relevance scoring (semantic similarity + 
 </canonical_refs>
 
 <code_context>
+
 ## Existing Code Insights
 
 ### Reusable Assets
+
 - `MemoryWithScore` type — extends Memory with score field. Needs rename: `similarity` → `relevance`
 - `SearchOptions` interface — clean and extensible, add `scope: 'both'` variant
 - `cosineDistance` from drizzle-orm — already used in repository search method
@@ -88,6 +95,7 @@ Enhanced search ranking with composite relevance scoring (semantic similarity + 
 - Envelope response structure — consistent `{ data, meta }` pattern across all tools
 
 ### Established Patterns
+
 - App-layer filtering after DB query (min_similarity pattern from D-42) — composite scoring follows same pattern
 - Repository interface abstraction — new search behavior stays behind `MemoryRepository` interface
 - Tool registration pattern — `registerMemorySearch` style, used for new `memory_session_start` tool
@@ -95,6 +103,7 @@ Enhanced search ranking with composite relevance scoring (semantic similarity + 
 - All logging to stderr via `logger` utility
 
 ### Integration Points
+
 - `src/tools/index.ts` — register new `memory_session_start` tool
 - `src/services/memory-service.ts` — add composite scoring logic and session-start method
 - `src/repositories/types.ts` — extend `SearchOptions` for cross-scope
@@ -119,6 +128,7 @@ Enhanced search ranking with composite relevance scoring (semantic similarity + 
 None — discussion stayed within phase scope.
 
 All scope boundaries maintained:
+
 - Session tracking/management → Phase 4
 - Access frequency tracking → Not planned (would require new infrastructure)
 - Enriched response with "reason for inclusion" → Not planned (keeps responses simple)
@@ -128,5 +138,5 @@ All scope boundaries maintained:
 
 ---
 
-*Phase: 02-retrieval-quality-and-session-lifecycle*
-*Context gathered: 2026-03-23*
+_Phase: 02-retrieval-quality-and-session-lifecycle_
+_Context gathered: 2026-03-23_

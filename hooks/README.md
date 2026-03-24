@@ -8,10 +8,10 @@ without any hook setup.
 
 ## Included Templates
 
-| File | Purpose |
-|------|---------|
+| File                       | Purpose                                                   |
+| -------------------------- | --------------------------------------------------------- |
 | `memory-session-review.sh` | Stop hook that triggers memory review before Claude exits |
-| `settings-snippet.json` | Hook configuration to merge into `.claude/settings.json` |
+| `settings-snippet.json`    | Hook configuration to merge into `.claude/settings.json`  |
 
 ## Prerequisites
 

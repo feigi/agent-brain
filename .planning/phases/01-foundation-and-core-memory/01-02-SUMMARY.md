@@ -2,7 +2,16 @@
 phase: 01-foundation-and-core-memory
 plan: 02
 subsystem: embedding, repository, service
-tags: [embedding-provider, titan-v2, pgvector, cosine-similarity, drizzle-orm, cursor-pagination, optimistic-locking]
+tags:
+  [
+    embedding-provider,
+    titan-v2,
+    pgvector,
+    cosine-similarity,
+    drizzle-orm,
+    cursor-pagination,
+    optimistic-locking,
+  ]
 
 # Dependency graph
 requires:
@@ -19,10 +28,29 @@ affects: [01-03, 01-04]
 # Tech tracking
 tech-stack:
   added: []
-  patterns: [embedding-provider-interface, repository-pattern, constructor-injection, cursor-based-pagination, optimistic-locking, cosine-similarity-search, auto-title-generation]
+  patterns:
+    [
+      embedding-provider-interface,
+      repository-pattern,
+      constructor-injection,
+      cursor-based-pagination,
+      optimistic-locking,
+      cosine-similarity-search,
+      auto-title-generation,
+    ]
 
 key-files:
-  created: [src/providers/embedding/types.ts, src/providers/embedding/titan.ts, src/providers/embedding/mock.ts, src/providers/embedding/index.ts, src/repositories/types.ts, src/repositories/memory-repository.ts, src/repositories/project-repository.ts, src/services/memory-service.ts]
+  created:
+    [
+      src/providers/embedding/types.ts,
+      src/providers/embedding/titan.ts,
+      src/providers/embedding/mock.ts,
+      src/providers/embedding/index.ts,
+      src/repositories/types.ts,
+      src/repositories/memory-repository.ts,
+      src/repositories/project-repository.ts,
+      src/services/memory-service.ts,
+    ]
   modified: []
 
 key-decisions:
@@ -57,6 +85,7 @@ completed: 2026-03-23
 - **Files modified:** 8
 
 ## Accomplishments
+
 - EmbeddingProvider interface with Amazon Titan V2 (512d, Bedrock InvokeModelCommand) and deterministic Mock implementation for dev/test
 - Factory function selects provider based on EMBEDDING_PROVIDER env var ("titan" or "mock")
 - DrizzleMemoryRepository implementing all 8 repository methods: create, findById, update (optimistic locking), archive (nulls embedding), search (cosine similarity), list (cursor pagination with type/tag filters), findStale, verify
@@ -72,6 +101,7 @@ Each task was committed atomically:
 2. **Task 2: Repository interfaces, implementations, and memory service** - `59f4ca1` (feat)
 
 ## Files Created/Modified
+
 - `src/providers/embedding/types.ts` - EmbeddingProvider interface (embed, modelName, dimensions)
 - `src/providers/embedding/titan.ts` - Amazon Titan V2 implementation with Bedrock client, 32K char truncation
 - `src/providers/embedding/mock.ts` - Deterministic mock using sine-hash vectors (512d)
@@ -82,6 +112,7 @@ Each task was committed atomically:
 - `src/services/memory-service.ts` - Business logic orchestrating embedding + storage with timing in all responses
 
 ## Decisions Made
+
 - Similarity filtering done in application layer after pgvector query -- computing `1 - cosineDistance()` in a SQL WHERE clause is complex; application-layer filtering on the ordered results is simpler and correct for the expected result set sizes
 - Cursor pagination uses compound cursor (timestamp + id) for deterministic ordering, serialized as `created_at|id` string in Envelope meta
 - ProjectRepository.findOrCreate uses `onConflictDoNothing` + re-select for race condition safety
@@ -91,15 +122,19 @@ Each task was committed atomically:
 None - plan executed exactly as written.
 
 ## Issues Encountered
+
 None
 
 ## User Setup Required
+
 None - no external service configuration required.
 
 ## Known Stubs
+
 None - all files are fully implemented with no placeholder data.
 
 ## Next Phase Readiness
+
 - Service layer complete and ready for MCP tool handlers (Plan 03)
 - All 8 memory operations (create, get, update, archive, search, list, verify, listStale) available via MemoryService
 - EmbeddingProvider abstraction ready for both development (mock) and production (titan)
@@ -110,5 +145,6 @@ None - all files are fully implemented with no placeholder data.
 All 8 key files verified present. Both task commits (75b61d2, 59f4ca1) verified in git history.
 
 ---
-*Phase: 01-foundation-and-core-memory*
-*Completed: 2026-03-23*
+
+_Phase: 01-foundation-and-core-memory_
+_Completed: 2026-03-23_

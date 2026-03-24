@@ -68,16 +68,19 @@ Agents autonomously capture insights mid-session and extract learnings at sessio
 </decisions>
 
 <canonical_refs>
+
 ## Canonical References
 
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Prior Phase Decisions
+
 - `.planning/phases/01-foundation-and-core-memory/01-CONTEXT.md` — D-23 (source field values), D-24 (session_id field), D-30 (optimistic locking)
 - `.planning/phases/02-retrieval-quality-and-session-lifecycle/02-CONTEXT.md` — D-17 (session management deferred to Phase 4)
 - `.planning/phases/03-team-collaboration/03-CONTEXT.md` — D-28 (session tracking table), D-29/D-30 (team_activity in session_start response)
 
 ### Existing Implementation
+
 - `src/tools/memory-session-start.ts` — current session_start tool (must be extended to return session_id)
 - `src/tools/memory-create.ts` — current create tool (must add budget tracking, dedup, session_id validation)
 - `src/services/memory-service.ts` — service layer (budget and dedup logic goes here)
@@ -87,9 +90,11 @@ Agents autonomously capture insights mid-session and extract learnings at sessio
 </canonical_refs>
 
 <code_context>
+
 ## Existing Code Insights
 
 ### Reusable Assets
+
 - `EmbeddingProvider` interface and Titan implementation — reuse for dedup similarity computation
 - `computeRelevance` and cosine distance infrastructure — reuse for duplicate threshold comparison
 - `SessionTrackingRepository` — already tracks last_session_at per user/project, extend for session_id and budget counters
@@ -97,12 +102,14 @@ Agents autonomously capture insights mid-session and extract learnings at sessio
 - `session_id` field on memories — already exists as optional column
 
 ### Established Patterns
+
 - Envelope response format: `{ data, meta: { count, timing } }` — budget metadata fits in `meta`
 - Soft reject pattern: return structured response (not MCP error) with skip indicators
 - Slug validation: `slugSchema` in `src/utils/validation.ts` for input validation
 - Tool registration pattern in `src/tools/` — one file per tool with `register*` function
 
 ### Integration Points
+
 - `memory_session_start` tool — add session_id generation and return
 - `memory_create` tool/service — add dedup check, budget check, session_id validation
 - Server entry point (`src/server.ts`) — register new MCP prompt resource
@@ -128,5 +135,5 @@ None — discussion stayed within phase scope
 
 ---
 
-*Phase: 04-agent-autonomy*
-*Context gathered: 2026-03-23*
+_Phase: 04-agent-autonomy_
+_Context gathered: 2026-03-23_

@@ -59,17 +59,17 @@ _(None — clean slate for v1.1)_
 
 ## Key Decisions
 
-| Decision | Rationale | Outcome |
-|----------|-----------|---------|
-| MCP as primary interface | Broadest agent compatibility (Claude Code, Cursor, etc.) | ✓ Good — works with all major agents |
-| Postgres + pgvector | Proven, single DB for relational + vector data | ✓ Good — HNSW queries fast, no separate vector DB needed |
-| Amazon Titan embeddings | Same AWS ecosystem as RDS, cheap, swappable | ✓ Good — effectively free at expected scale |
-| Abstracted storage + embedding layers | Avoid vendor lock-in, enable future flexibility | ✓ Good — swapping providers is a config change |
-| Two memory scopes (project + user) | Agents need both project context and user-specific knowledge | ✓ Good — covers all v1 use cases |
-| Composite relevance (80/15/5) | Recency and verification signal boost quality | ✓ Good — over-fetch/re-rank pipeline keeps it fast |
-| Per-session write budget + dedup | Prevent memory bloat from autonomous agents | ✓ Good — atomic budget increment, no locking required |
-| Static MCP prompt resource | Universal guidance across projects, simplicity first | ✓ Good — usable immediately without configuration |
-| stdio transport for v1 | Simplest deployment, works with Claude Code directly | ✓ Good — Streamable HTTP deferred to v1.1 |
+| Decision                              | Rationale                                                    | Outcome                                                  |
+| ------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------- |
+| MCP as primary interface              | Broadest agent compatibility (Claude Code, Cursor, etc.)     | ✓ Good — works with all major agents                     |
+| Postgres + pgvector                   | Proven, single DB for relational + vector data               | ✓ Good — HNSW queries fast, no separate vector DB needed |
+| Amazon Titan embeddings               | Same AWS ecosystem as RDS, cheap, swappable                  | ✓ Good — effectively free at expected scale              |
+| Abstracted storage + embedding layers | Avoid vendor lock-in, enable future flexibility              | ✓ Good — swapping providers is a config change           |
+| Two memory scopes (project + user)    | Agents need both project context and user-specific knowledge | ✓ Good — covers all v1 use cases                         |
+| Composite relevance (80/15/5)         | Recency and verification signal boost quality                | ✓ Good — over-fetch/re-rank pipeline keeps it fast       |
+| Per-session write budget + dedup      | Prevent memory bloat from autonomous agents                  | ✓ Good — atomic budget increment, no locking required    |
+| Static MCP prompt resource            | Universal guidance across projects, simplicity first         | ✓ Good — usable immediately without configuration        |
+| stdio transport for v1                | Simplest deployment, works with Claude Code directly         | ✓ Good — Streamable HTTP deferred to v1.1                |
 
 ## Evolution
 
@@ -78,6 +78,7 @@ This document evolves at phase transitions and milestone boundaries.
 Last updated: 2026-03-24 after v1.0 milestone completion
 
 **After each phase transition** (via `/gsd:transition`):
+
 1. Requirements invalidated? → Move to Out of Scope with reason
 2. Requirements validated? → Move to Validated with phase reference
 3. New requirements emerged? → Add to Active
@@ -85,10 +86,12 @@ Last updated: 2026-03-24 after v1.0 milestone completion
 5. "What This Is" still accurate? → Update if drifted
 
 **After each milestone** (via `/gsd:complete-milestone`):
+
 1. Full review of all sections
 2. Core Value check — still the right priority?
 3. Audit Out of Scope — reasons still valid?
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-24 after v1.0 milestone — full feature MCP memory server shipped*
+
+_Last updated: 2026-03-24 after v1.0 milestone — full feature MCP memory server shipped_

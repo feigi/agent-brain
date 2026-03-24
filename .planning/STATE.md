@@ -38,15 +38,15 @@ Plan: Not started
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| - | - | - | - |
+| ----- | ----- | ----- | -------- |
+| -     | -     | -     | -        |
 
 **Recent Trend:**
 
 - Last 5 plans: -
 - Trend: -
 
-*Updated after each plan completion*
+_Updated after each plan completion_
 | Phase 01 P01 | 14min | 2 tasks | 22 files |
 | Phase 01 P02 | 4min | 2 tasks | 8 files |
 | Phase 01 P03 | 4min | 2 tasks | 11 files |
@@ -83,7 +83,7 @@ Recent decisions affecting current work:
 - [Phase 01]: Disabled vitest file parallelism for shared Docker Postgres integration tests
 - [Phase 01]: Suppressed PostgreSQL NOTICE messages on connection -- prevents stdout corruption in MCP stdio transport
 - [Phase 01]: Added .catch() on optional Zod tool schemas for defensive MCP client handling
-- [Phase 02]: Composite relevance formula: 0.80*similarity + 0.15*recency + 0.05*verified (D-01/D-02/D-03)
+- [Phase 02]: Composite relevance formula: 0.80*similarity + 0.15*recency + 0.05\*verified (D-01/D-02/D-03)
 - [Phase 02]: Repository search maps raw cosine similarity to relevance field -- composite scoring layered by service in Plan 02
 - [Phase 02]: Over-fetch 3x candidates at repository, re-rank with composite relevance in service layer
 - [Phase 02]: Cross-scope search uses single SQL query with OR condition (not two separate queries)
@@ -93,7 +93,7 @@ Recent decisions affecting current work:
 - [Phase 02]: Dedicated listRecentBothScopes repository method rather than extending ListOptions -- avoids cascading changes
 - [Phase 03]: comment_count defaults to 0 in memory create path; rowToMemory falls back to 0 when not in SELECT
 - [Phase 03]: verify(id, verifiedBy) signature threaded through interface, repository, service, and tool layers for provenance tracking
-- [Phase 03]: slugSchema enforces /^[a-z0-9]+(?:-[a-z0-9]+)*$/ max 64 chars for user_id and project_id -- shared validator in src/utils/validation.ts
+- [Phase 03]: slugSchema enforces /^[a-z0-9]+(?:-[a-z0-9]+)\*$/ max 64 chars for user_id and project_id -- shared validator in src/utils/validation.ts
 - [Phase 03]: baseMemoryColumns (static) for RETURNING, memoryColumns() method with correlated subquery for SELECT -- mutations re-fetch via findById for comment_count
 - [Phase 03]: Not-found masking (D-17): get() returns NotFoundError for non-owners of user-scoped memories to prevent existence leakage
 - [Phase 03]: user_id required in all service methods and tools -- slug validation enforced at tool layer, access control enforced at service layer
@@ -123,13 +123,13 @@ None — v1.0 milestone complete. Starting fresh for v1.1.
 
 ### Quick Tasks Completed
 
-| # | Description | Date | Directory |
-|---|-------------|------|-----------|
-| 260324-0vu | Add configurable embedding dimensions and Ollama provider support for local deployment | 2026-03-23 | [260324-0vu-add-configurable-embedding-dimensions-an](./quick/260324-0vu-add-configurable-embedding-dimensions-an/) |
+| #          | Description                                                                                                    | Date       | Directory                                                                                                           |
+| ---------- | -------------------------------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------- |
+| 260324-0vu | Add configurable embedding dimensions and Ollama provider support for local deployment                         | 2026-03-23 | [260324-0vu-add-configurable-embedding-dimensions-an](./quick/260324-0vu-add-configurable-embedding-dimensions-an/) |
 | 260324-1iq | Add docker-compose.ollama.yml with Ollama service, update .env.example and README with embedding provider docs | 2026-03-24 | [260324-1iq-add-docker-compose-ollama-yml-with-ollam](./quick/260324-1iq-add-docker-compose-ollama-yml-with-ollam/) |
-| 260324-2zs | Add Claude Code integration section to README with CLAUDE.md snippet and session-review hook | 2026-03-24 | [260324-2zs-add-claude-code-integration-section-to-r](./quick/260324-2zs-add-claude-code-integration-section-to-r/) |
-| 260324-3fy | Change EMBEDDING_PROVIDER from mock to ollama in .env for local Ollama embeddings | 2026-03-24 | [260324-3fy-change-embedding-provider-from-mock-to-o](./quick/260324-3fy-change-embedding-provider-from-mock-to-o/) |
-| 260324-3sx | Merge docker-compose.ollama.yml into docker-compose.yml for single-file local dev | 2026-03-24 | [260324-3sx-merge-the-two-docker-compose-files](./quick/260324-3sx-merge-the-two-docker-compose-files/) |
+| 260324-2zs | Add Claude Code integration section to README with CLAUDE.md snippet and session-review hook                   | 2026-03-24 | [260324-2zs-add-claude-code-integration-section-to-r](./quick/260324-2zs-add-claude-code-integration-section-to-r/) |
+| 260324-3fy | Change EMBEDDING_PROVIDER from mock to ollama in .env for local Ollama embeddings                              | 2026-03-24 | [260324-3fy-change-embedding-provider-from-mock-to-o](./quick/260324-3fy-change-embedding-provider-from-mock-to-o/) |
+| 260324-3sx | Merge docker-compose.ollama.yml into docker-compose.yml for single-file local dev                              | 2026-03-24 | [260324-3sx-merge-the-two-docker-compose-files](./quick/260324-3sx-merge-the-two-docker-compose-files/)             |
 
 ## Session Continuity
 

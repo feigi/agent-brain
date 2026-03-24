@@ -18,9 +18,9 @@
 
 ## Progress
 
-| Phase | Milestone | Plans Complete | Status | Completed |
-|-------|-----------|----------------|--------|-----------|
-| 1. Foundation and Core Memory | v1.0 | 4/4 | Complete | 2026-03-23 |
-| 2. Retrieval Quality and Session Lifecycle | v1.0 | 3/3 | Complete | 2026-03-23 |
-| 3. Team Collaboration | v1.0 | 5/5 | Complete | 2026-03-23 |
-| 4. Agent Autonomy | v1.0 | 4/4 | Complete | 2026-03-23 |
+| Phase                                      | Milestone | Plans Complete | Status   | Completed  |
+| ------------------------------------------ | --------- | -------------- | -------- | ---------- |
+| 1. Foundation and Core Memory              | v1.0      | 4/4            | Complete | 2026-03-23 |
+| 2. Retrieval Quality and Session Lifecycle | v1.0      | 3/3            | Complete | 2026-03-23 |
+| 3. Team Collaboration                      | v1.0      | 5/5            | Complete | 2026-03-23 |
+| 4. Agent Autonomy                          | v1.0      | 4/4            | Complete | 2026-03-23 |

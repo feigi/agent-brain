@@ -115,6 +115,7 @@ MCP server with save, search, retrieve, update, archive, list, verify, and stale
 </decisions>
 
 <canonical_refs>
+
 ## Canonical References
 
 **Downstream agents MUST read these before planning or implementing.**
@@ -122,11 +123,13 @@ MCP server with save, search, retrieve, update, archive, list, verify, and stale
 No external specs or ADRs exist yet. Requirements are fully captured in decisions above and in:
 
 ### Project Documentation
+
 - `.planning/PROJECT.md` — Project vision, constraints, key decisions
 - `.planning/REQUIREMENTS.md` — Full v1 requirements with traceability matrix
 - `.planning/ROADMAP.md` — Phase breakdown with success criteria
 
 ### Tech Stack
+
 - `CLAUDE.md` §Technology Stack — Complete tech stack with versions, alternatives considered, and compatibility matrix
 - `CLAUDE.md` §Embedding Dimension Strategy — 512 dimensions chosen, accuracy tradeoffs
 - `CLAUDE.md` §HNSW Index Tuning — m=16, ef_construction=64 defaults
@@ -135,15 +138,19 @@ No external specs or ADRs exist yet. Requirements are fully captured in decision
 </canonical_refs>
 
 <code_context>
+
 ## Existing Code Insights
 
 ### Reusable Assets
+
 - None — greenfield project. Only CLAUDE.md exists.
 
 ### Established Patterns
+
 - None yet. Phase 1 establishes all foundational patterns (project structure, module organization, error handling, testing).
 
 ### Integration Points
+
 - MCP client configuration (claude_desktop_config.json or equivalent) — agents will configure this server's entry point
 - Docker Compose — local Postgres with pgvector extension
 - AWS Bedrock — Titan V2 embedding API calls
@@ -168,6 +175,7 @@ No external specs or ADRs exist yet. Requirements are fully captured in decision
 None — discussion stayed within phase scope.
 
 All scope boundaries maintained:
+
 - Comment/threading → Phase 3
 - Cross-project search → Phase 2
 - Tag filtering on search → Phase 2 (ADVR-02)
@@ -179,5 +187,5 @@ All scope boundaries maintained:
 
 ---
 
-*Phase: 01-foundation-and-core-memory*
-*Context gathered: 2026-03-23*
+_Phase: 01-foundation-and-core-memory_
+_Context gathered: 2026-03-23_

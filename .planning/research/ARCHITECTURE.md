@@ -69,15 +69,15 @@
 
 ### Component Responsibilities
 
-| Component | Responsibility | Typical Implementation |
-|-----------|----------------|------------------------|
-| MCP Server | Protocol handling, tool registration, transport management, request routing, input validation | `McpServer` from `@modelcontextprotocol/sdk`, Zod schemas for validation |
-| Memory Service | Write path: validate input, generate embeddings, store memory, handle scoping (project/user) | Service class orchestrating embedding + storage providers |
-| Retrieval Service | Read path: embed query, vector similarity search, optional keyword matching, relevance scoring | Service class using storage provider for hybrid search |
-| Lifecycle Service | Staleness tracking, verification timestamps, archival, listing stale notes | Service class operating on metadata fields (verified_at, archived_at) |
-| EmbeddingProvider | Generate vector embeddings from text, abstract over embedding model differences | Interface with `embed(text) -> vector` method; TitanProvider as default impl |
-| StorageProvider | CRUD operations for memories, vector similarity search, scoped queries, RLS enforcement | Interface with save/search/get/update/archive methods; PgVectorStore as default impl |
-| Auth Layer | Resolve user/project context from MCP connection, enforce access control | Tenant context from connection metadata or environment; RLS at DB level |
+| Component         | Responsibility                                                                                 | Typical Implementation                                                               |
+| ----------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| MCP Server        | Protocol handling, tool registration, transport management, request routing, input validation  | `McpServer` from `@modelcontextprotocol/sdk`, Zod schemas for validation             |
+| Memory Service    | Write path: validate input, generate embeddings, store memory, handle scoping (project/user)   | Service class orchestrating embedding + storage providers                            |
+| Retrieval Service | Read path: embed query, vector similarity search, optional keyword matching, relevance scoring | Service class using storage provider for hybrid search                               |
+| Lifecycle Service | Staleness tracking, verification timestamps, archival, listing stale notes                     | Service class operating on metadata fields (verified_at, archived_at)                |
+| EmbeddingProvider | Generate vector embeddings from text, abstract over embedding model differences                | Interface with `embed(text) -> vector` method; TitanProvider as default impl         |
+| StorageProvider   | CRUD operations for memories, vector similarity search, scoped queries, RLS enforcement        | Interface with save/search/get/update/archive methods; PgVectorStore as default impl |
+| Auth Layer        | Resolve user/project context from MCP connection, enforce access control                       | Tenant context from connection metadata or environment; RLS at DB level              |
 
 ## Recommended Project Structure
 
@@ -138,6 +138,7 @@ agent-brain/
 **Trade-offs:** Adds a layer of indirection, but the project constraints demand it. Keep interfaces minimal (5-7 methods max) to avoid abstraction bloat.
 
 **Example:**
+
 ```typescript
 // providers/embedding/embedding-provider.ts
 export interface EmbeddingProvider {
@@ -147,7 +148,10 @@ export interface EmbeddingProvider {
 }
 
 // providers/embedding/titan-provider.ts
-import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
+import {
+  BedrockRuntimeClient,
+  InvokeModelCommand,
+} from "@aws-sdk/client-bedrock-runtime";
 
 export class TitanEmbeddingProvider implements EmbeddingProvider {
   readonly dimensions = 1024; // Titan v2 default
@@ -173,7 +177,7 @@ export class TitanEmbeddingProvider implements EmbeddingProvider {
   }
 
   async embedBatch(texts: string[]): Promise<number[][]> {
-    return Promise.all(texts.map(t => this.embed(t)));
+    return Promise.all(texts.map((t) => this.embed(t)));
   }
 }
 ```
@@ -187,6 +191,7 @@ export class TitanEmbeddingProvider implements EmbeddingProvider {
 **Trade-offs:** RLS adds a small query planning overhead (~1-2ms). Worth it for guaranteed isolation. Application-level filtering is also applied as defense-in-depth, but RLS is the enforcement layer.
 
 **Example:**
+
 ```typescript
 // auth/auth-context.ts
 export interface AuthContext {
@@ -211,6 +216,7 @@ async withTenantContext(ctx: AuthContext, fn: () => Promise<T>): Promise<T> {
 **Trade-offs:** More files than a "put everything in the tool handler" approach. But tool handlers that embed, store, and search in one function become untestable and unswappable.
 
 **Example:**
+
 ```typescript
 // services/memory-service.ts
 export class MemoryService {
@@ -219,7 +225,11 @@ export class MemoryService {
     private storage: StorageProvider,
   ) {}
 
-  async saveNote(ctx: AuthContext, content: string, metadata: NoteMetadata): Promise<Note> {
+  async saveNote(
+    ctx: AuthContext,
+    content: string,
+    metadata: NoteMetadata,
+  ): Promise<Note> {
     const vector = await this.embedding.embed(content);
     const note = await this.storage.save(ctx, {
       content,
@@ -234,14 +244,22 @@ export class MemoryService {
 }
 
 // tools/memory-tools.ts -- thin tool wiring
-server.registerTool("save_note", {
-  description: "Save a new memory note",
-  inputSchema: SaveNoteSchema,
-}, async (params) => {
-  const ctx = resolveAuthContext(); // from MCP connection
-  const note = await memoryService.saveNote(ctx, params.content, params.metadata);
-  return { content: [{ type: "text", text: `Saved note ${note.id}` }] };
-});
+server.registerTool(
+  "save_note",
+  {
+    description: "Save a new memory note",
+    inputSchema: SaveNoteSchema,
+  },
+  async (params) => {
+    const ctx = resolveAuthContext(); // from MCP connection
+    const note = await memoryService.saveNote(
+      ctx,
+      params.content,
+      params.metadata,
+    );
+    return { content: [{ type: "text", text: `Saved note ${note.id}` }] };
+  },
+);
 ```
 
 ## Data Flow
@@ -429,12 +447,12 @@ CREATE POLICY memories_scope_visibility ON memories
 
 ## Scaling Considerations
 
-| Scale | Architecture Adjustments |
-|-------|--------------------------|
-| 0-10K memories | Single Postgres instance on RDS. HNSW index fits in memory. No optimization needed. Embedding calls at ~$0.02/1M tokens are effectively free. |
-| 10K-100K memories | Same architecture. May want to increase `ef_search` for better recall. Consider connection pooling if multiple agents hit the server concurrently. |
-| 100K-1M memories | HNSW index may need tuning (increase `m`). Consider partitioning memories table by project_id for large multi-tenant deployments. Embedding batch operations become worthwhile. |
-| 1M+ memories | Likely premature to plan for. If reached: consider halfvec (float16) to halve storage, separate read replicas, or move to a dedicated vector database like Pinecone. The provider abstraction enables this migration. |
+| Scale             | Architecture Adjustments                                                                                                                                                                                              |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0-10K memories    | Single Postgres instance on RDS. HNSW index fits in memory. No optimization needed. Embedding calls at ~$0.02/1M tokens are effectively free.                                                                         |
+| 10K-100K memories | Same architecture. May want to increase `ef_search` for better recall. Consider connection pooling if multiple agents hit the server concurrently.                                                                    |
+| 100K-1M memories  | HNSW index may need tuning (increase `m`). Consider partitioning memories table by project_id for large multi-tenant deployments. Embedding batch operations become worthwhile.                                       |
+| 1M+ memories      | Likely premature to plan for. If reached: consider halfvec (float16) to halve storage, separate read replicas, or move to a dedicated vector database like Pinecone. The provider abstraction enables this migration. |
 
 ### Scaling Priorities
 
@@ -478,33 +496,35 @@ CREATE POLICY memories_scope_visibility ON memories
 
 ### External Services
 
-| Service | Integration Pattern | Notes |
-|---------|---------------------|-------|
+| Service                   | Integration Pattern                                             | Notes                                                                                                                                      |
+| ------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | Amazon Bedrock (Titan v2) | AWS SDK `@aws-sdk/client-bedrock-runtime`, `InvokeModelCommand` | Region-specific endpoint. IAM auth. Model ID: `amazon.titan-embed-text-v2:0`. Supports 256/512/1024 dimensions. Use 1024 for best quality. |
-| PostgreSQL + pgvector | `pg` npm package or Drizzle ORM | RDS connection string via env var. Enable `vector` extension. Transaction pooling required for RLS. |
-| MCP Clients (Claude Code) | stdio transport, configured in `.claude/mcp.json` | Server spawned as child process. One process per agent session. Config: `{ "command": "node", "args": ["dist/index.js"], "env": { ... } }` |
-| MCP Clients (Cursor) | stdio transport, configured in `.cursor/mcp.json` | Same pattern as Claude Code. Same server binary. |
+| PostgreSQL + pgvector     | `pg` npm package or Drizzle ORM                                 | RDS connection string via env var. Enable `vector` extension. Transaction pooling required for RLS.                                        |
+| MCP Clients (Claude Code) | stdio transport, configured in `.claude/mcp.json`               | Server spawned as child process. One process per agent session. Config: `{ "command": "node", "args": ["dist/index.js"], "env": { ... } }` |
+| MCP Clients (Cursor)      | stdio transport, configured in `.cursor/mcp.json`               | Same pattern as Claude Code. Same server binary.                                                                                           |
 
 ### Internal Boundaries
 
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| Tools <-> Services | Direct function call | Tools instantiate services at startup (dependency injection via constructor). No event bus needed at this scale. |
-| Services <-> Providers | Direct function call via interface | Services hold provider references. Providers are stateless (except DB connection pool). |
-| Services <-> Auth | AuthContext passed as first argument | Every service method takes `AuthContext` as its first parameter. Resolved once at the tool layer from MCP connection metadata. |
-| Storage Provider <-> PostgreSQL | SQL via connection pool | Pool created at startup, shared across all storage calls. RLS session variables set per-query within a transaction. |
+| Boundary                        | Communication                        | Notes                                                                                                                          |
+| ------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| Tools <-> Services              | Direct function call                 | Tools instantiate services at startup (dependency injection via constructor). No event bus needed at this scale.               |
+| Services <-> Providers          | Direct function call via interface   | Services hold provider references. Providers are stateless (except DB connection pool).                                        |
+| Services <-> Auth               | AuthContext passed as first argument | Every service method takes `AuthContext` as its first parameter. Resolved once at the tool layer from MCP connection metadata. |
+| Storage Provider <-> PostgreSQL | SQL via connection pool              | Pool created at startup, shared across all storage calls. RLS session variables set per-query within a transaction.            |
 
 ### Agent Integration Architecture
 
 The MCP server is **passive** -- it does not push memories to agents or decide when to write. Agent behavior is driven by system prompt instructions (CLAUDE.md, Cursor rules, etc.).
 
 **Claude Code integration:**
+
 - Server configured in `~/.claude/mcp.json` (global) or `.claude/mcp.json` (project)
 - CLAUDE.md contains instructions for when to call `search_memory` and `save_note`
 - Agent reads CLAUDE.md at session start, which triggers memory search
 - Server process lifecycle tied to Claude Code session
 
 **Cursor integration:**
+
 - Server configured in `.cursor/mcp.json`
 - Cursor rules file contains equivalent memory instructions
 - Same MCP server binary, same protocol
@@ -514,6 +534,7 @@ The MCP server is **passive** -- it does not push memories to agents or decide w
 ### Transport Decision
 
 **Use stdio for v1.** Rationale:
+
 - All target agents (Claude Code, Cursor) support stdio natively
 - Stdio is simpler: no HTTP server, no port management, no auth tokens
 - Each agent session gets its own server process -- natural isolation
@@ -521,6 +542,7 @@ The MCP server is **passive** -- it does not push memories to agents or decide w
 - No network overhead: microsecond-level transport latency
 
 **Add Streamable HTTP later if needed.** Conditions that would trigger this:
+
 - Remote/cloud-hosted server deployment (team members not co-located)
 - Web UI for memory management
 - Multiple agents sharing one server process
@@ -563,6 +585,7 @@ Phase 5: Integration
 ```
 
 **Why this order:**
+
 - Types and schemas have zero dependencies -- build them first to establish contracts
 - Providers are the lowest runtime layer -- services cannot be built without them
 - Services orchestrate providers -- they need working providers to function
@@ -586,5 +609,6 @@ Phase 5: Integration
 - [Claude Code MCP Integration](https://code.claude.com/docs/en/mcp) - Agent-side configuration patterns
 
 ---
-*Architecture research for: AI Agent Long-Term Memory System (MCP Server)*
-*Researched: 2026-03-23*
+
+_Architecture research for: AI Agent Long-Term Memory System (MCP Server)_
+_Researched: 2026-03-23_

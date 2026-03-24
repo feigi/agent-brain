@@ -15,13 +15,13 @@ created: 2026-03-23
 
 ## Test Infrastructure
 
-| Property | Value |
-|----------|-------|
-| **Framework** | vitest |
-| **Config file** | `vitest.config.ts` |
-| **Quick run command** | `npx vitest run --reporter=verbose` |
+| Property               | Value                                          |
+| ---------------------- | ---------------------------------------------- |
+| **Framework**          | vitest                                         |
+| **Config file**        | `vitest.config.ts`                             |
+| **Quick run command**  | `npx vitest run --reporter=verbose`            |
 | **Full suite command** | `npx vitest run --reporter=verbose --coverage` |
-| **Estimated runtime** | ~15 seconds |
+| **Estimated runtime**  | ~15 seconds                                    |
 
 ---
 
@@ -36,16 +36,16 @@ created: 2026-03-23
 
 ## Per-Task Verification Map
 
-| Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
-|---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 02-01-01 | 01 | 1 | RETR-02 | unit | `npx vitest run tests/unit/scoring.test.ts -x` | No (W0) | pending |
-| 02-01-02 | 01 | 1 | RETR-03 | compile | `npx tsc --noEmit` | N/A (type rename) | pending |
-| 02-02-01 | 02 | 2 | SCOP-03 | compile | `npx tsc --noEmit` | N/A (repo update) | pending |
-| 02-02-02 | 02 | 2 | RETR-01, RETR-03 | integration | `npx vitest run tests/integration/memory-search.test.ts tests/integration/memory-scoping.test.ts -x` | Yes (needs update) | pending |
-| 02-03-01 | 03 | 3 | RETR-04 | compile | `npx tsc --noEmit` | N/A (service method) | pending |
-| 02-03-02 | 03 | 3 | RETR-04, RETR-05 | integration | `npx vitest run tests/integration/session-start.test.ts -x` | No (W0) | pending |
+| Task ID  | Plan | Wave | Requirement      | Test Type   | Automated Command                                                                                    | File Exists          | Status  |
+| -------- | ---- | ---- | ---------------- | ----------- | ---------------------------------------------------------------------------------------------------- | -------------------- | ------- |
+| 02-01-01 | 01   | 1    | RETR-02          | unit        | `npx vitest run tests/unit/scoring.test.ts -x`                                                       | No (W0)              | pending |
+| 02-01-02 | 01   | 1    | RETR-03          | compile     | `npx tsc --noEmit`                                                                                   | N/A (type rename)    | pending |
+| 02-02-01 | 02   | 2    | SCOP-03          | compile     | `npx tsc --noEmit`                                                                                   | N/A (repo update)    | pending |
+| 02-02-02 | 02   | 2    | RETR-01, RETR-03 | integration | `npx vitest run tests/integration/memory-search.test.ts tests/integration/memory-scoping.test.ts -x` | Yes (needs update)   | pending |
+| 02-03-01 | 03   | 3    | RETR-04          | compile     | `npx tsc --noEmit`                                                                                   | N/A (service method) | pending |
+| 02-03-02 | 03   | 3    | RETR-04, RETR-05 | integration | `npx vitest run tests/integration/session-start.test.ts -x`                                          | No (W0)              | pending |
 
-*Status: pending / green / red / flaky*
+_Status: pending / green / red / flaky_
 
 ---
 
@@ -56,13 +56,13 @@ created: 2026-03-23
 - [ ] `tests/integration/memory-scoping.test.ts` -- verify no stale `.similarity` field references (verified by Plan 02-02 Task 2)
 - [ ] `tests/integration/session-start.test.ts` -- integration tests for `memory_session_start` tool (created by Plan 02-03 Task 2)
 
-*Existing vitest infrastructure from Phase 1 covers framework requirements.*
+_Existing vitest infrastructure from Phase 1 covers framework requirements._
 
 ---
 
 ## Manual-Only Verifications
 
-*All phase behaviors have automated verification.*
+_All phase behaviors have automated verification._
 
 ---
 
