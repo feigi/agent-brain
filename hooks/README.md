@@ -26,7 +26,7 @@ without any hook setup.
 
 ```bash
 mkdir -p .claude/hooks
-cp docs/hooks/memory-session-review.sh .claude/hooks/
+cp hooks/memory-session-review.sh .claude/hooks/
 ```
 
 ### Step 2: Make it executable
