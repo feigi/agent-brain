@@ -9,6 +9,7 @@ import {
 } from "../src/repositories/session-repository.js";
 import { MockEmbeddingProvider } from "../src/providers/embedding/mock.js";
 import { MemoryService } from "../src/services/memory-service.js";
+import type { Memory, CreateSkipResult } from "../src/types/memory.js";
 import {
   memories,
   projects,
@@ -72,6 +73,17 @@ export async function truncateAll(): Promise<void> {
   await testDb.delete(sessionTracking); // FK: references projects
   await testDb.delete(memories); // FK: references projects
   await testDb.delete(projects);
+}
+
+/** Assert that a create result is a Memory (not a skip). Use after service.create() in tests. */
+export function assertMemory(
+  result: Memory | CreateSkipResult,
+): asserts result is Memory {
+  if ("skipped" in result && result.skipped) {
+    throw new Error(
+      `Expected Memory but got CreateSkipResult: ${result.message}`,
+    );
+  }
 }
 
 /** Close DB connection after all tests */

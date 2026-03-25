@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
-import { createTestService, truncateAll, closeDb } from "../helpers.js";
+import {
+  createTestService,
+  truncateAll,
+  closeDb,
+  assertMemory,
+} from "../helpers.js";
 import type { MemoryService } from "../../src/services/memory-service.js";
 
 describe("Memory search integration tests", () => {
@@ -77,14 +82,15 @@ describe("Memory search integration tests", () => {
   });
 
   it("excludes archived memories from search", async () => {
-    const created = await service.create({
+    const { data: createdData } = await service.create({
       project_id: "test-project",
       content: "This memory will be archived and should not appear in search",
       type: "fact",
       author: "alice",
     });
+    assertMemory(createdData);
 
-    await service.archive(created.data.id, "alice");
+    await service.archive(createdData.id, "alice");
 
     const result = await service.search(
       "archived memory search",
@@ -93,7 +99,7 @@ describe("Memory search integration tests", () => {
       "alice",
     );
 
-    const archivedInResults = result.data.find((m) => m.id === created.data.id);
+    const archivedInResults = result.data.find((m) => m.id === createdData.id);
     expect(archivedInResults).toBeUndefined();
   });
 

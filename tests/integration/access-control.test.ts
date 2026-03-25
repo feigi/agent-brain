@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
-import { createTestService, truncateAll, closeDb } from "../helpers.js";
+import {
+  createTestService,
+  truncateAll,
+  closeDb,
+  assertMemory,
+} from "../helpers.js";
 import { NotFoundError } from "../../src/utils/errors.js";
 import type { MemoryService } from "../../src/services/memory-service.js";
 
@@ -26,6 +31,7 @@ describe("Access Control", () => {
         author: "alice",
         scope: "project",
       });
+      assertMemory(alice.data);
 
       // Bob creates a project memory
       const bob = await service.create({
@@ -35,6 +41,7 @@ describe("Access Control", () => {
         author: "bob",
         scope: "project",
       });
+      assertMemory(bob.data);
 
       // Bob can read Alice's memory
       const readByBob = await service.get(alice.data.id, "bob");
@@ -53,6 +60,7 @@ describe("Access Control", () => {
         author: "alice",
         scope: "project",
       });
+      assertMemory(memory);
       // Bob updates Alice's project memory
       const updated = await service.update(
         memory.id,
@@ -71,6 +79,7 @@ describe("Access Control", () => {
         author: "alice",
         scope: "project",
       });
+      assertMemory(memory);
       const result = await service.archive(memory.id, "bob");
       expect(result.data.archived_count).toBe(1);
     });
@@ -86,6 +95,7 @@ describe("Access Control", () => {
         author: "alice",
         scope: "user",
       });
+      assertMemory(memory);
       const result = await service.get(memory.id, "alice");
       expect(result.data.content).toBe("Private note");
     });
@@ -98,6 +108,7 @@ describe("Access Control", () => {
         author: "alice",
         scope: "user",
       });
+      assertMemory(memory);
       await expect(service.get(memory.id, "bob")).rejects.toThrow(
         NotFoundError,
       );
@@ -111,6 +122,7 @@ describe("Access Control", () => {
         author: "alice",
         scope: "user",
       });
+      assertMemory(memory);
       await expect(
         service.update(memory.id, memory.version, { content: "Hacked" }, "bob"),
       ).rejects.toThrow(); // AuthorizationError or NotFoundError
@@ -124,6 +136,7 @@ describe("Access Control", () => {
         author: "alice",
         scope: "user",
       });
+      assertMemory(memory);
       await expect(service.archive(memory.id, "bob")).rejects.toThrow();
     });
   });
@@ -137,6 +150,7 @@ describe("Access Control", () => {
         type: "fact",
         author: "alice",
       });
+      assertMemory(memory);
       expect(memory.author).toBe("alice");
     });
   });
@@ -151,6 +165,7 @@ describe("Access Control", () => {
         author: "alice",
         scope: "project",
       });
+      assertMemory(memory);
       const { data: comment } = await service.addComment(
         memory.id,
         "bob",
@@ -170,6 +185,7 @@ describe("Access Control", () => {
         author: "alice",
         scope: "project",
       });
+      assertMemory(memory);
       const verified = await service.verify(memory.id, "bob");
       expect(verified.data.verified_at).not.toBeNull();
       expect(verified.data.verified_by).toBe("bob");
@@ -183,6 +199,7 @@ describe("Access Control", () => {
         author: "alice",
         scope: "user",
       });
+      assertMemory(memory);
       await expect(service.verify(memory.id, "bob")).rejects.toThrow();
     });
 
@@ -194,6 +211,7 @@ describe("Access Control", () => {
         author: "alice",
         scope: "user",
       });
+      assertMemory(memory);
       const verified = await service.verify(memory.id, "alice");
       expect(verified.data.verified_by).toBe("alice");
     });
@@ -247,6 +265,7 @@ describe("Access Control", () => {
         author: "alice",
         scope: "project",
       });
+      assertMemory(memory);
       expect(memory.comment_count).toBe(0);
     });
 
@@ -258,6 +277,7 @@ describe("Access Control", () => {
         author: "alice",
         scope: "project",
       });
+      assertMemory(memory);
       await service.addComment(memory.id, "bob", "Comment 1");
       await service.addComment(memory.id, "charlie", "Comment 2");
 

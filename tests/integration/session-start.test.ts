@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
-import { createTestService, truncateAll, closeDb } from "../helpers.js";
+import {
+  createTestService,
+  truncateAll,
+  closeDb,
+  assertMemory,
+} from "../helpers.js";
 import type { MemoryService } from "../../src/services/memory-service.js";
 
 describe("memory_session_start integration tests", () => {
@@ -143,17 +148,18 @@ describe("memory_session_start integration tests", () => {
   });
 
   it("excludes archived memories", async () => {
-    const created = await service.create({
+    const { data: createdData } = await service.create({
       project_id: "test-project",
       content: "This will be archived and should not appear at session start",
       type: "fact",
       author: "alice",
     });
-    await service.archive(created.data.id, "alice");
+    assertMemory(createdData);
+    await service.archive(createdData.id, "alice");
 
     const result = await service.sessionStart("test-project", "alice");
 
-    const found = result.data.find((m) => m.id === created.data.id);
+    const found = result.data.find((m) => m.id === createdData.id);
     expect(found).toBeUndefined();
   });
 

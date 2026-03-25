@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
-import { createTestService, truncateAll, closeDb } from "../helpers.js";
+import {
+  createTestService,
+  truncateAll,
+  closeDb,
+  assertMemory,
+} from "../helpers.js";
 import type { MemoryService } from "../../src/services/memory-service.js";
 
 describe("Team Activity", () => {
@@ -51,6 +56,7 @@ describe("Team Activity", () => {
         author: "alice",
         scope: "project",
       });
+      assertMemory(memory);
 
       // Bob comments on alice's memory (self-comment is blocked, so use different user)
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -142,6 +148,7 @@ describe("Team Activity", () => {
         author: "alice",
         scope: "project",
       });
+      assertMemory(memory);
 
       const sinceDate = new Date();
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -172,6 +179,7 @@ describe("Team Activity", () => {
         author: "alice",
         scope: "project",
       });
+      assertMemory(memory);
 
       const sinceDate = new Date();
       await new Promise((resolve) => setTimeout(resolve, 50));

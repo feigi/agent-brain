@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
-import { createTestService, truncateAll, closeDb } from "../helpers.js";
+import {
+  createTestService,
+  truncateAll,
+  closeDb,
+  assertMemory,
+} from "../helpers.js";
 import type { MemoryService } from "../../src/services/memory-service.js";
 
 describe("Memory scoping integration tests", () => {
@@ -74,6 +79,7 @@ describe("Memory scoping integration tests", () => {
       type: "fact",
       author: "alice",
     });
+    assertMemory(result.data);
 
     expect(result.data.project_id).toBe("brand-new-project");
     expect(result.data.id).toBeDefined();
@@ -81,34 +87,36 @@ describe("Memory scoping integration tests", () => {
 
   it("stale memories appear in list_stale", async () => {
     // Create a memory (verified_at is null by default = stale)
-    const created = await service.create({
+    const { data: createdData } = await service.create({
       project_id: "test-project",
       content: "Stale memory that has never been verified",
       type: "fact",
       author: "alice",
     });
+    assertMemory(createdData);
 
     const staleResult = await service.listStale("test-project", "alice", 30);
 
     expect(staleResult.data.length).toBeGreaterThan(0);
-    const found = staleResult.data.find((m) => m.id === created.data.id);
+    const found = staleResult.data.find((m) => m.id === createdData.id);
     expect(found).toBeDefined();
   });
 
   it("recently verified memories excluded from list_stale", async () => {
-    const created = await service.create({
+    const { data: createdData } = await service.create({
       project_id: "test-project",
       content: "Freshly verified memory",
       type: "fact",
       author: "alice",
     });
+    assertMemory(createdData);
 
     // Verify the memory (sets verified_at to now)
-    await service.verify(created.data.id, "alice");
+    await service.verify(createdData.id, "alice");
 
     const staleResult = await service.listStale("test-project", "alice", 30);
 
-    const found = staleResult.data.find((m) => m.id === created.data.id);
+    const found = staleResult.data.find((m) => m.id === createdData.id);
     expect(found).toBeUndefined();
   });
 });
