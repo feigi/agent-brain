@@ -1,7 +1,8 @@
 FROM node:22-slim AS deps
 WORKDIR /app
+RUN npm install -g npm@latest
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --force
+RUN npm ci --omit=dev
 
 FROM node:22-slim
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
