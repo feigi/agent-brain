@@ -67,29 +67,62 @@ Every memory has:
 
 ### Prerequisites
 
-- Docker (for local Postgres + Ollama)
-- Node.js 22+ (only if running from a local clone)
+- Node.js 22+
+- Docker (for local Postgres)
+- AWS credentials with Bedrock access (for production embeddings; mock works locally without AWS)
 
-### 1. Start the database
+### 1. Install
 
 ```bash
-docker compose up -d --wait
+git clone https://github.com/feigi/agent-brain.git
+cd agent-brain
+npm install
 ```
 
-This starts Postgres with pgvector. If using Ollama for embeddings (recommended for local dev), it starts that too.
+### 2. Configure
 
-> **Don't have the repo cloned?** Grab just the compose file:
->
-> ```bash
-> curl -O https://raw.githubusercontent.com/feigi/agent-brain/main/docker-compose.yml
-> docker compose up -d --wait
-> ```
+Copy and edit the environment file:
 
-### 2. Connect to your MCP client
+```bash
+cp .env.example .env
+```
 
-Agent Brain runs as an MCP server over stdio. Your client starts it automatically — no global install needed.
+Key variables:
 
-**Claude Code** — add to `~/.claude/settings.json` (global) or `.claude/settings.json` (per-project):
+```env
+# Database (defaults work with docker compose)
+DATABASE_URL=postgresql://agentic:agentic@localhost:5432/agent_brain
+
+# Embedding provider: "ollama" for local dev, "titan" for production
+EMBEDDING_PROVIDER=ollama
+
+# AWS (required when EMBEDDING_PROVIDER=titan)
+AWS_REGION=us-east-1
+```
+
+### 3. Start
+
+**Local development (everything runs locally via Docker — no AWS needed):**
+
+```bash
+npm run dev
+```
+
+This starts Postgres + Ollama via Docker Compose (downloading `nomic-embed-text` on first run — ~274MB), runs database migrations, and starts the MCP server on stdio. No cloud credentials required.
+
+**Minimal local setup (mock embeddings — fastest, no Ollama download):**
+
+```bash
+docker compose up -d --wait        # Start Postgres only
+npx drizzle-kit migrate             # Run migrations
+EMBEDDING_PROVIDER=mock npm start   # Start with mock embeddings
+```
+
+Mock mode uses random vectors — search results won't be semantically meaningful, but all tools work. Good for testing the MCP integration.
+
+### 4. Connect to Claude Code
+
+**Option A: npx from GitHub (no clone required)**
 
 ```json
 {
@@ -107,7 +140,7 @@ Agent Brain runs as an MCP server over stdio. Your client starts it automaticall
 }
 ```
 
-**From a local clone** — if you've cloned the repo and want to run from source:
+**Option B: from a local clone**
 
 ```json
 {
@@ -125,7 +158,7 @@ Agent Brain runs as an MCP server over stdio. Your client starts it automaticall
 }
 ```
 
-Database migrations run automatically on first connection. For production with Titan embeddings, set `EMBEDDING_PROVIDER=titan` and ensure `AWS_REGION` and AWS credentials are available.
+Add to `~/.claude/settings.json` (global) or project `.claude/settings.json`. For production with Titan embeddings, set `EMBEDDING_PROVIDER=titan` and ensure `AWS_REGION` and credentials are available.
 
 ### 5. Integrate with Claude Code (optional)
 
