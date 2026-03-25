@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
-import { createTestService, truncateAll, closeDb } from "../helpers.js";
+import {
+  createTestService,
+  truncateAll,
+  closeDb,
+  assertMemory,
+} from "../helpers.js";
 import type { MemoryService } from "../../src/services/memory-service.js";
 import { ConflictError, NotFoundError } from "../../src/utils/errors.js";
 
@@ -22,6 +27,7 @@ describe("Memory CRUD integration tests", () => {
       type: "decision",
       author: "alice",
     });
+    assertMemory(result.data);
 
     expect(result.data.id).toBeTypeOf("string");
     expect(result.data.id.length).toBe(21); // nanoid default
@@ -46,6 +52,7 @@ describe("Memory CRUD integration tests", () => {
       type: "fact",
       author: "alice",
     });
+    assertMemory(result.data);
 
     expect(result.data.title).toBe(longContent.slice(0, 80) + "...");
   });
@@ -61,6 +68,7 @@ describe("Memory CRUD integration tests", () => {
       metadata: { file: "README.md" },
       tags: ["deploy", "ci"],
     });
+    assertMemory(result.data);
 
     const fetched = await service.get(result.data.id, "bob");
     expect(fetched.data.source).toBe("manual");
@@ -76,6 +84,7 @@ describe("Memory CRUD integration tests", () => {
       type: "fact",
       author: "alice",
     });
+    assertMemory(created.data);
 
     const fetched = await service.get(created.data.id, "alice");
     expect(fetched.data.content).toBe("Retrievable memory");
@@ -95,6 +104,7 @@ describe("Memory CRUD integration tests", () => {
       type: "fact",
       author: "alice",
     });
+    assertMemory(created.data);
 
     const updated = await service.update(
       created.data.id,
@@ -119,6 +129,7 @@ describe("Memory CRUD integration tests", () => {
       type: "fact",
       author: "alice",
     });
+    assertMemory(created.data);
 
     const updated = await service.update(
       created.data.id,
@@ -142,6 +153,7 @@ describe("Memory CRUD integration tests", () => {
       type: "fact",
       author: "alice",
     });
+    assertMemory(created.data);
 
     // First update succeeds (version 1 -> 2)
     await service.update(
@@ -166,6 +178,7 @@ describe("Memory CRUD integration tests", () => {
       type: "fact",
       author: "alice",
     });
+    assertMemory(created.data);
 
     const result = await service.archive(created.data.id, "alice");
     expect(result.data.archived_count).toBe(1);
@@ -183,12 +196,14 @@ describe("Memory CRUD integration tests", () => {
       type: "fact",
       author: "alice",
     });
+    assertMemory(m1.data);
     const m2 = await service.create({
       project_id: "test-project",
       content: "Bulk archive 2",
       type: "fact",
       author: "alice",
     });
+    assertMemory(m2.data);
 
     const result = await service.archive([m1.data.id, m2.data.id], "alice");
     expect(result.data.archived_count).toBe(2);
@@ -201,6 +216,7 @@ describe("Memory CRUD integration tests", () => {
       type: "fact",
       author: "alice",
     });
+    assertMemory(created.data);
 
     await service.archive(created.data.id, "alice");
     // Second archive should succeed without error
@@ -216,6 +232,7 @@ describe("Memory CRUD integration tests", () => {
       type: "fact",
       author: "alice",
     });
+    assertMemory(created.data);
 
     expect(created.data.verified_at).toBeNull();
 

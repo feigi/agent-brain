@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
-import { createTestService, truncateAll, closeDb } from "../helpers.js";
+import {
+  createTestService,
+  truncateAll,
+  closeDb,
+  assertMemory,
+} from "../helpers.js";
 import { ValidationError, NotFoundError } from "../../src/utils/errors.js";
 import type { MemoryService } from "../../src/services/memory-service.js";
 
@@ -25,6 +30,7 @@ describe("Comments", () => {
         author: "alice",
         scope: "project",
       });
+      assertMemory(memory);
       const result = await service.addComment(memory.id, "bob", "My comment");
       expect(result.data.author).toBe("bob");
       expect(result.data.content).toBe("My comment");
@@ -40,6 +46,7 @@ describe("Comments", () => {
         author: "alice",
         scope: "project",
       });
+      assertMemory(memory);
       const c1 = await service.addComment(memory.id, "bob", "First");
       expect(c1.meta.comment_count).toBe(1);
       const c2 = await service.addComment(memory.id, "charlie", "Second");
@@ -57,6 +64,7 @@ describe("Comments", () => {
         author: "alice",
         scope: "project",
       });
+      assertMemory(memory);
       await service.addComment(memory.id, "bob", "A comment");
       const fetched = await service.get(memory.id, "alice");
       expect(fetched.data.content).toBe("Original content");
@@ -70,6 +78,7 @@ describe("Comments", () => {
         author: "alice",
         scope: "project",
       });
+      assertMemory(memory);
       const versionBefore = memory.version;
       await service.addComment(memory.id, "bob", "Comment");
       const fetched = await service.get(memory.id, "alice");
@@ -84,6 +93,7 @@ describe("Comments", () => {
         author: "alice",
         scope: "project",
       });
+      assertMemory(memory);
       const createdAt = memory.updated_at;
       // Small delay to ensure timestamps differ
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -106,6 +116,7 @@ describe("Comments", () => {
         author: "alice",
         scope: "project",
       });
+      assertMemory(memory);
       await expect(
         service.addComment(memory.id, "alice", "Self comment"),
       ).rejects.toThrow(ValidationError);
@@ -119,6 +130,7 @@ describe("Comments", () => {
         author: "alice",
         scope: "project",
       });
+      assertMemory(memory);
       try {
         await service.addComment(memory.id, "alice", "Self comment");
         expect.fail("Should have thrown");
@@ -138,6 +150,7 @@ describe("Comments", () => {
         author: "alice",
         scope: "project",
       });
+      assertMemory(memory);
       await service.archive(memory.id, "alice");
       await expect(
         service.addComment(memory.id, "bob", "Comment"),
@@ -155,6 +168,7 @@ describe("Comments", () => {
         author: "alice",
         scope: "project",
       });
+      assertMemory(memory);
       const result = await service.getWithComments(memory.id, "bob");
       expect(result.data.can_comment).toBe(true);
       expect(result.data.can_edit).toBe(true);
@@ -170,6 +184,7 @@ describe("Comments", () => {
         author: "alice",
         scope: "project",
       });
+      assertMemory(memory);
       const result = await service.getWithComments(memory.id, "alice");
       expect(result.data.can_comment).toBe(false); // self-comment blocked
       expect(result.data.can_edit).toBe(true);
@@ -185,6 +200,7 @@ describe("Comments", () => {
         author: "alice",
         scope: "user",
       });
+      assertMemory(memory);
       const result = await service.getWithComments(memory.id, "alice");
       expect(result.data.can_comment).toBe(false);
       expect(result.data.can_edit).toBe(true);
@@ -198,6 +214,7 @@ describe("Comments", () => {
         author: "alice",
         scope: "user",
       });
+      assertMemory(memory);
       await expect(service.getWithComments(memory.id, "bob")).rejects.toThrow(
         NotFoundError,
       );
@@ -214,6 +231,7 @@ describe("Comments", () => {
         author: "alice",
         scope: "project",
       });
+      assertMemory(memory);
       await service.addComment(memory.id, "bob", "First comment");
       await new Promise((resolve) => setTimeout(resolve, 50));
       await service.addComment(memory.id, "charlie", "Second comment");
