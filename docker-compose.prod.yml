@@ -2,12 +2,12 @@ include:
   - docker-compose.yml
 
 services:
-  agentic-brain:
+  agent-brain:
     build: .
     ports:
       - "19898:19898"
     environment:
-      DATABASE_URL: postgres://agentic:agentic@postgres:5432/agentic_brain
+      DATABASE_URL: postgres://agentic:agentic@postgres:5432/agent_brain
       EMBEDDING_PROVIDER: ollama
       OLLAMA_BASE_URL: http://ollama:11434
       EMBEDDING_DIMENSIONS: 768

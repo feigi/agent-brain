@@ -1,5 +1,5 @@
 {
-  "name": "agentic-brain",
+  "name": "agent-brain",
   "version": "0.1.0",
   "type": "module",
   "description": "A long-term memory system for AI agents, exposed as an MCP server",

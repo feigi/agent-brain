@@ -24,7 +24,7 @@ export function getTestDb(): Database {
   if (!db) {
     const url =
       process.env.DATABASE_URL ??
-      "postgresql://agentic:agentic@localhost:5432/agentic_brain";
+      "postgresql://agentic:agentic@localhost:5432/agent_brain";
     db = createDb(url);
   }
   return db;

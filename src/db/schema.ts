@@ -27,7 +27,7 @@ export const memoryScopeEnum = pgEnum("memory_scope", ["project", "user"]);
 
 // D-32: Projects identified by human-readable slug
 export const projects = pgTable("projects", {
-  id: text("id").primaryKey(), // slug string, e.g. "agentic-brain"
+  id: text("id").primaryKey(), // slug string, e.g. "agent-brain"
   created_at: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

@@ -3,7 +3,7 @@ import "dotenv/config";
 export const config = {
   databaseUrl:
     process.env.DATABASE_URL ??
-    "postgresql://agentic:agentic@localhost:5432/agentic_brain",
+    "postgresql://agentic:agentic@localhost:5432/agent_brain",
   embeddingProvider: (process.env.EMBEDDING_PROVIDER ?? "mock") as
     | "titan"
     | "mock"

@@ -1,4 +1,4 @@
-# Agentic Brain
+# Agent Brain
 
 Long-term memory for AI agents. Agents read relevant memories at session start, write new insights during sessions, and team members can manually save context. Exposed as an MCP server — works with Claude Code, GitHub Copilot, Cursor, and any MCP-compatible agent.
 
@@ -15,7 +15,7 @@ Long-term memory for AI agents. Agents read relevant memories at session start, 
 └───────────────────┬─────────────────────────────────┘
                     │ stdio (JSON-RPC)
 ┌───────────────────▼─────────────────────────────────┐
-│               Agentic Brain MCP Server              │
+│                Agent Brain MCP Server                │
 │                                                     │
 │  Tools                      Services                │
 │  ├─ memory_session_start     ├─ MemoryService        │
@@ -91,7 +91,7 @@ Key variables:
 
 ```env
 # Database (defaults work with docker compose)
-DATABASE_URL=postgresql://agentic:agentic@localhost:5432/agentic_brain
+DATABASE_URL=postgresql://agentic:agentic@localhost:5432/agent_brain
 
 # Embedding provider: "ollama" for local dev, "titan" for production
 EMBEDDING_PROVIDER=ollama
@@ -127,11 +127,11 @@ Mock mode uses random vectors — search results won't be semantically meaningfu
 ```json
 {
   "mcpServers": {
-    "agentic-brain": {
+    "agent-brain": {
       "command": "npx",
       "args": ["-y", "github:feigi/agent-brain"],
       "env": {
-        "DATABASE_URL": "postgresql://agentic:agentic@localhost:5432/agentic_brain",
+        "DATABASE_URL": "postgresql://agentic:agentic@localhost:5432/agent_brain",
         "EMBEDDING_PROVIDER": "ollama",
         "EMBEDDING_DIMENSIONS": "768"
       }
@@ -145,11 +145,11 @@ Mock mode uses random vectors — search results won't be semantically meaningfu
 ```json
 {
   "mcpServers": {
-    "agentic-brain": {
+    "agent-brain": {
       "command": "npx",
       "args": ["tsx", "/path/to/agent-brain/src/server.ts"],
       "env": {
-        "DATABASE_URL": "postgresql://agentic:agentic@localhost:5432/agentic_brain",
+        "DATABASE_URL": "postgresql://agentic:agentic@localhost:5432/agent_brain",
         "EMBEDDING_PROVIDER": "ollama",
         "EMBEDDING_DIMENSIONS": "768"
       }
@@ -162,7 +162,7 @@ Add to `~/.claude/settings.json` (global) or project `.claude/settings.json`. Fo
 
 ### 5. Integrate with Claude Code (optional)
 
-Three hooks make Claude Code work seamlessly with Agentic Brain: automatic memory loading at session start, a guard that prevents writes to Claude Code's built-in file-based memory, and a session-review prompt at session end.
+Three hooks make Claude Code work seamlessly with Agent Brain: automatic memory loading at session start, a guard that prevents writes to Claude Code's built-in file-based memory, and a session-review prompt at session end.
 
 **Prerequisites:** `jq` installed (`brew install jq` on macOS).
 
@@ -257,7 +257,7 @@ Create `.github/hooks/hooks.json`:
       "event": "sessionStart",
       "script": {
         "type": "command",
-        "bash": "echo 'Agentic Brain MCP server is available. Call memory_session_start at the beginning of each session to load relevant memories.'"
+        "bash": "echo 'Agent Brain MCP server is available. Call memory_session_start at the beginning of each session to load relevant memories.'"
       }
     }
   ]
@@ -385,15 +385,15 @@ src/
 
 ## Configuration reference
 
-| Variable                   | Default                                                     | Description                                                         |
-| -------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------- |
-| `DATABASE_URL`             | `postgresql://agentic:agentic@localhost:5432/agentic_brain` | Postgres connection string                                          |
-| `EMBEDDING_PROVIDER`       | `mock`                                                      | `mock`, `ollama`, or `titan`                                        |
-| `AWS_REGION`               | `us-east-1`                                                 | AWS region for Bedrock                                              |
-| `WRITE_BUDGET_PER_SESSION` | `10`                                                        | Max memories an agent can create per session                        |
-| `DUPLICATE_THRESHOLD`      | `0.90`                                                      | Cosine similarity above which a new memory is rejected as duplicate |
-| `RECENCY_HALF_LIFE_DAYS`   | `14`                                                        | Half-life for recency score decay in search ranking                 |
-| `EMBEDDING_DIMENSIONS`     | `512`                                                       | Vector dimensions (512 for Titan, 768 for nomic-embed-text)         |
-| `OLLAMA_BASE_URL`          | `http://localhost:11434`                                    | Ollama API endpoint                                                 |
-| `OLLAMA_MODEL`             | `nomic-embed-text`                                          | Ollama model for embeddings                                         |
-| `EMBEDDING_TIMEOUT_MS`     | `10000`                                                     | Timeout for embedding API calls                                     |
+| Variable                   | Default                                                   | Description                                                         |
+| -------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------- |
+| `DATABASE_URL`             | `postgresql://agentic:agentic@localhost:5432/agent_brain` | Postgres connection string                                          |
+| `EMBEDDING_PROVIDER`       | `mock`                                                    | `mock`, `ollama`, or `titan`                                        |
+| `AWS_REGION`               | `us-east-1`                                               | AWS region for Bedrock                                              |
+| `WRITE_BUDGET_PER_SESSION` | `10`                                                      | Max memories an agent can create per session                        |
+| `DUPLICATE_THRESHOLD`      | `0.90`                                                    | Cosine similarity above which a new memory is rejected as duplicate |
+| `RECENCY_HALF_LIFE_DAYS`   | `14`                                                      | Half-life for recency score decay in search ranking                 |
+| `EMBEDDING_DIMENSIONS`     | `512`                                                     | Vector dimensions (512 for Titan, 768 for nomic-embed-text)         |
+| `OLLAMA_BASE_URL`          | `http://localhost:11434`                                  | Ollama API endpoint                                                 |
+| `OLLAMA_MODEL`             | `nomic-embed-text`                                        | Ollama model for embeddings                                         |
+| `EMBEDDING_TIMEOUT_MS`     | `10000`                                                   | Timeout for embedding API calls                                     |
