@@ -6,12 +6,12 @@ services:
     environment:
       POSTGRES_USER: agentic
       POSTGRES_PASSWORD: agentic
-      POSTGRES_DB: agentic_brain
+      POSTGRES_DB: agent_brain
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./scripts/init-extensions.sql:/docker-entrypoint-initdb.d/01-extensions.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U agentic -d agentic_brain"]
+      test: ["CMD-SHELL", "pg_isready -U agentic -d agent_brain"]
       interval: 5s
       timeout: 5s
       retries: 5

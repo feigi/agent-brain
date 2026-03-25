@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "agentic-brain": {
+    "agent-brain": {
       "url": "http://localhost:19898/mcp"
     }
   },

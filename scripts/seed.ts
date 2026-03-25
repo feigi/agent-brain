@@ -9,7 +9,7 @@ import type { MemoryCreate } from "../src/types/memory.js";
 
 const DATABASE_URL =
   process.env.DATABASE_URL ??
-  "postgresql://agentic:agentic@localhost:5432/agentic_brain";
+  "postgresql://agentic:agentic@localhost:5432/agent_brain";
 
 async function seed() {
   console.error("[seed] Connecting to database...");
@@ -34,11 +34,11 @@ async function seed() {
     );
   }
 
-  // --- Project 1: agentic-brain (8 memories covering all types) ---
-  console.error("\n[seed] Creating memories for project: agentic-brain");
+  // --- Project 1: agent-brain (8 memories covering all types) ---
+  console.error("\n[seed] Creating memories for project: agent-brain");
 
   await createMemory({
-    project_id: "agentic-brain",
+    project_id: "agent-brain",
     content:
       "PostgreSQL 17 with pgvector 0.8.x supports HNSW indexes for fast similarity search. Iterative index scans in 0.8.0 fix filtered search accuracy issues and provide up to 5.7x query performance improvement.",
     type: "fact",
@@ -48,7 +48,7 @@ async function seed() {
   });
 
   await createMemory({
-    project_id: "agentic-brain",
+    project_id: "agent-brain",
     content:
       "Using 512 dimensions for embeddings -- retains 99% accuracy of 1024 at half the storage cost. Each vector takes 2KB. This is the best balance of accuracy, storage, and HNSW index build performance.",
     type: "decision",
@@ -58,7 +58,7 @@ async function seed() {
   });
 
   await createMemory({
-    project_id: "agentic-brain",
+    project_id: "agent-brain",
     content:
       "console.log in MCP stdio servers corrupts JSON-RPC framing because stdout is the transport channel. Always use console.error for debug output -- it writes to stderr and doesn't interfere with the protocol.",
     type: "learning",
@@ -69,7 +69,7 @@ async function seed() {
   });
 
   await createMemory({
-    project_id: "agentic-brain",
+    project_id: "agent-brain",
     content:
       "All MCP tool responses use envelope format: { data, meta: { count, timing } }. The data field contains the actual response payload, meta.timing is milliseconds for the operation, and meta.count is present for list/search results.",
     type: "pattern",
@@ -79,7 +79,7 @@ async function seed() {
   });
 
   await createMemory({
-    project_id: "agentic-brain",
+    project_id: "agent-brain",
     content:
       "Use nanoid for ID generation -- 21 chars, URL-safe, 148 bits of entropy. Faster and smaller than UUID. Import from nanoid package: import { nanoid } from 'nanoid'; const id = nanoid();",
     type: "preference",
@@ -89,7 +89,7 @@ async function seed() {
   });
 
   await createMemory({
-    project_id: "agentic-brain",
+    project_id: "agent-brain",
     content:
       "Layered architecture: transport (MCP stdio) -> tools (Zod schemas) -> services (business logic) -> repositories (data access) -> database (Drizzle + Postgres). Each layer only depends on the one below it. Tools never touch the database directly.",
     type: "architecture",
@@ -99,7 +99,7 @@ async function seed() {
   });
 
   await createMemory({
-    project_id: "agentic-brain",
+    project_id: "agent-brain",
     content:
       "Optimistic locking via version column prevents concurrent update conflicts. Every update must include the expected version number. If it doesn't match, the update fails with ConflictError (409). The client must re-read and retry.",
     type: "decision",
@@ -109,7 +109,7 @@ async function seed() {
   });
 
   await createMemory({
-    project_id: "agentic-brain",
+    project_id: "agent-brain",
     content:
       "Amazon Titan Text Embeddings V2 costs $0.02 per million tokens. Model ID: amazon.titan-embed-text-v2:0. Supports 8192 token input and configurable output dimensions (256/512/1024). Outputs unit-normalized vectors optimized for cosine similarity.",
     type: "fact",
@@ -145,7 +145,7 @@ async function seed() {
   console.error("\n[seed] Creating user-scoped memory for alice");
 
   await createMemory({
-    project_id: "agentic-brain",
+    project_id: "agent-brain",
     content:
       "Alice prefers TypeScript strict mode with noUncheckedIndexedAccess enabled. Always use explicit return types on exported functions. Favor composition over inheritance.",
     type: "preference",

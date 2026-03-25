@@ -53,7 +53,7 @@ async function main() {
   // Factory: creates a fresh MCP server per session (tools + prompts registered)
   function createMcpServerForSession(): McpServer {
     const server = new McpServer({
-      name: "agentic-brain",
+      name: "agent-brain",
       version: config.version,
     });
     registerAllTools(server, memoryService);
