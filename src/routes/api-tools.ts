@@ -32,7 +32,8 @@ export function createApiToolsRouter(memoryService: MemoryService): Router {
           res.status(404).json({ error: `Unknown tool: ${toolName}` });
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Internal server error";
+      const message =
+        err instanceof Error ? err.message : "Internal server error";
       res.status(500).json({ error: message });
     }
   });
