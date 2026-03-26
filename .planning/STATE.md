@@ -130,10 +130,11 @@ None — v1.0 milestone complete. Starting fresh for v1.1.
 | 260324-2zs | Add Claude Code integration section to README with CLAUDE.md snippet and session-review hook                   | 2026-03-24 | [260324-2zs-add-claude-code-integration-section-to-r](./quick/260324-2zs-add-claude-code-integration-section-to-r/) |
 | 260324-3fy | Change EMBEDDING_PROVIDER from mock to ollama in .env for local Ollama embeddings                              | 2026-03-24 | [260324-3fy-change-embedding-provider-from-mock-to-o](./quick/260324-3fy-change-embedding-provider-from-mock-to-o/) |
 | 260324-3sx | Merge docker-compose.ollama.yml into docker-compose.yml for single-file local dev                              | 2026-03-24 | [260324-3sx-merge-the-two-docker-compose-files](./quick/260324-3sx-merge-the-two-docker-compose-files/)             |
+| 260326-2e5 | Add crash handlers, route error handling, DB idle timeout fix, Docker restart policy                           | 2026-03-26 | [260326-2e5-add-crash-handlers-and-fix-connection-st](./quick/260326-2e5-add-crash-handlers-and-fix-connection-st/) |
 
 ## Session Continuity
 
-Last session: 2026-03-24T01:44:18.542Z
-Last activity: 2026-03-24 - Completed quick task 260324-3sx: Merge docker compose files
-Stopped at: Completed quick task 260324-3sx
+Last session: 2026-03-26T00:45:28Z
+Last activity: 2026-03-26 - Completed quick task 260326-2e5: Add crash handlers and fix connection stability
+Stopped at: Completed quick task 260326-2e5
 Resume file: None
