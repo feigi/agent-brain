@@ -1,13 +1,20 @@
 import { Router } from "express";
+import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
-import { DomainError } from "../utils/errors.js";
+import { DomainError, ValidationError } from "../utils/errors.js";
+import { logger } from "../utils/logger.js";
+import { toolSchemas, type ToolName } from "./api-schemas.js";
 
 function parseCursor(
   cursor: string | undefined,
 ): { created_at: string; id: string } | undefined {
   if (!cursor) return undefined;
   const sep = cursor.indexOf("|");
-  if (sep === -1) return undefined;
+  if (sep === -1) {
+    throw new ValidationError(
+      'Invalid cursor format: expected "created_at|id"',
+    );
+  }
   return {
     created_at: cursor.slice(0, sep),
     id: cursor.slice(sep + 1),
@@ -27,49 +34,57 @@ export function createApiToolsRouter(memoryService: MemoryService): Router {
 
   router.post("/api/tools/:toolName", async (req, res) => {
     const { toolName } = req.params;
-    const body = req.body;
+
+    const schema = toolSchemas[toolName as ToolName];
+    if (!schema) {
+      res.status(404).json({ error: `Unknown tool: ${toolName}` });
+      return;
+    }
 
     try {
+      const body = schema.parse(req.body);
+
       switch (toolName) {
         case "memory_session_start": {
+          const b = body as z.infer<typeof toolSchemas.memory_session_start>;
           const result = await memoryService.sessionStart(
-            body.project_id,
-            body.user_id,
-            body.context,
-            body.limit ?? 10,
+            b.project_id,
+            b.user_id,
+            b.context,
+            b.limit,
           );
           res.json(result);
           break;
         }
 
         case "memory_create": {
+          const b = body as z.infer<typeof toolSchemas.memory_create>;
           const result = await memoryService.create({
-            project_id: body.project_id,
-            content: body.content,
-            title: body.title,
-            type: body.type,
-            tags: body.tags,
-            scope: body.scope,
-            author: body.user_id,
-            source: body.source,
-            session_id: body.session_id,
-            metadata: body.metadata,
+            project_id: b.project_id,
+            content: b.content,
+            title: b.title,
+            type: b.type,
+            tags: b.tags,
+            scope: b.scope,
+            author: b.user_id,
+            source: b.source,
+            session_id: b.session_id,
+            metadata: b.metadata,
           });
           res.json(result);
           break;
         }
 
         case "memory_get": {
-          const result = await memoryService.getWithComments(
-            body.id,
-            body.user_id,
-          );
+          const b = body as z.infer<typeof toolSchemas.memory_get>;
+          const result = await memoryService.getWithComments(b.id, b.user_id);
           res.json(result);
           break;
         }
 
         case "memory_update": {
-          const { id, version, user_id, ...updates } = body;
+          const b = body as z.infer<typeof toolSchemas.memory_update>;
+          const { id, version, user_id, ...updates } = b;
           const result = await memoryService.update(
             id,
             version,
@@ -81,93 +96,103 @@ export function createApiToolsRouter(memoryService: MemoryService): Router {
         }
 
         case "memory_archive": {
-          const result = await memoryService.archive(body.ids, body.user_id);
+          const b = body as z.infer<typeof toolSchemas.memory_archive>;
+          const result = await memoryService.archive(b.ids, b.user_id);
           res.json(result);
           break;
         }
 
         case "memory_search": {
+          const b = body as z.infer<typeof toolSchemas.memory_search>;
           const result = await memoryService.search(
-            body.query,
-            body.project_id,
-            body.scope ?? "project",
-            body.user_id,
-            body.limit ?? 10,
-            body.min_similarity ?? 0.3,
+            b.query,
+            b.project_id,
+            b.scope,
+            b.user_id,
+            b.limit,
+            b.min_similarity,
           );
           res.json(result);
           break;
         }
 
         case "memory_list": {
+          const b = body as z.infer<typeof toolSchemas.memory_list>;
           const result = await memoryService.list({
-            project_id: body.project_id,
-            scope: body.scope ?? "project",
-            user_id: body.user_id,
-            type: body.type,
-            tags: body.tags,
-            sort_by: body.sort_by ?? "created_at",
-            order: body.order ?? "desc",
-            cursor: parseCursor(body.cursor),
-            limit: body.limit ?? 20,
+            project_id: b.project_id,
+            scope: b.scope,
+            user_id: b.user_id,
+            type: b.type,
+            tags: b.tags,
+            sort_by: b.sort_by,
+            order: b.order,
+            cursor: parseCursor(b.cursor),
+            limit: b.limit,
           });
           res.json(result);
           break;
         }
 
         case "memory_verify": {
-          const result = await memoryService.verify(body.id, body.user_id);
+          const b = body as z.infer<typeof toolSchemas.memory_verify>;
+          const result = await memoryService.verify(b.id, b.user_id);
           res.json(result);
           break;
         }
 
         case "memory_list_stale": {
+          const b = body as z.infer<typeof toolSchemas.memory_list_stale>;
           const result = await memoryService.listStale(
-            body.project_id,
-            body.user_id,
-            body.threshold_days ?? 30,
-            body.limit ?? 20,
-            parseCursor(body.cursor),
+            b.project_id,
+            b.user_id,
+            b.threshold_days,
+            b.limit,
+            parseCursor(b.cursor),
           );
           res.json(result);
           break;
         }
 
         case "memory_comment": {
+          const b = body as z.infer<typeof toolSchemas.memory_comment>;
           const result = await memoryService.addComment(
-            body.memory_id,
-            body.user_id,
-            body.content,
+            b.memory_id,
+            b.user_id,
+            b.content,
           );
           res.json(result);
           break;
         }
 
         case "memory_list_recent": {
+          const b = body as z.infer<typeof toolSchemas.memory_list_recent>;
           const result = await memoryService.listRecentActivity(
-            body.project_id,
-            body.user_id,
-            new Date(body.since),
-            body.limit ?? 10,
-            body.exclude_self ?? false,
+            b.project_id,
+            b.user_id,
+            new Date(b.since),
+            b.limit,
+            b.exclude_self,
           );
           res.json(result);
           break;
         }
-
-        default:
-          res.status(404).json({ error: `Unknown tool: ${toolName}` });
       }
     } catch (err) {
+      if (err instanceof z.ZodError) {
+        res
+          .status(400)
+          .json({ error: "Validation failed", details: err.issues });
+        return;
+      }
       if (err instanceof DomainError) {
+        logger.warn(`DomainError [${err.code}] on ${toolName}:`, err.message);
         res
           .status(err.statusHint ?? 500)
           .json({ error: err.message, code: err.code });
         return;
       }
-      const message =
-        err instanceof Error ? err.message : "Internal server error";
-      res.status(500).json({ error: message });
+      logger.error(`Unhandled error in tool route [${toolName}]:`, err);
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
