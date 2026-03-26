@@ -3,3 +3,4 @@
 2026-03-26T00:19:10.696295Z  INFO ralph: Spawning subprocess for TUI mode child_args=["-c", "ralph.yml", "run", "--rpc", "-p", "using pr review skill, perform pr review onmain, fix all issues, repeat"]
 2026-03-26T00:19:10.696377Z  INFO ralph: TUI subprocess stderr redirected to log file log_file=/Users/chris/dev/agent-brain/.ralph/diagnostics/logs/ralph-2026-03-26T01-19-10-696-4827.log
 2026-03-26T00:19:10.697564Z  INFO ralph: TUI running in subprocess RPC mode
+2026-03-26T00:29:46.795422Z  INFO ralph_tui::app: Ctrl+C detected, signaling abort
