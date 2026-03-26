@@ -7,7 +7,8 @@ export type Database = ReturnType<typeof createDb>;
 export function createDb(databaseUrl: string) {
   const client = postgres(databaseUrl, {
     max: 10,
-    idle_timeout: 20,
+    idle_timeout: 0,
+    connect_timeout: 10,
     onnotice: () => {}, // Suppress PG NOTICE from stdout — corrupts MCP stdio framing
   });
   return drizzle(client, { schema });

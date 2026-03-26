@@ -4,6 +4,7 @@ include:
 services:
   agent-brain:
     build: .
+    restart: unless-stopped
     ports:
       - "19898:19898"
     environment:
