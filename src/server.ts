@@ -22,6 +22,16 @@ import { registerRoutes } from "./routes/index.js";
 import { logger } from "./utils/logger.js";
 
 async function main() {
+  process.on("unhandledRejection", (reason, promise) => {
+    logger.error("Unhandled rejection at:", promise, "reason:", reason);
+    process.exit(1);
+  });
+
+  process.on("uncaughtException", (error) => {
+    logger.error("Uncaught exception:", error);
+    process.exit(1);
+  });
+
   logger.info(`v${config.version} starting...`);
 
   // Initialize database
@@ -117,7 +127,14 @@ async function main() {
       res.status(400).send("Invalid or missing session ID");
       return;
     }
-    await transports[sessionId].handleRequest(req, res);
+    try {
+      await transports[sessionId].handleRequest(req, res);
+    } catch (error) {
+      logger.error("MCP SSE error:", error);
+      if (!res.headersSent) {
+        res.status(500).send("Internal server error");
+      }
+    }
   });
 
   // MCP Streamable HTTP: DELETE /mcp (session termination)
@@ -127,7 +144,14 @@ async function main() {
       res.status(400).send("Invalid or missing session ID");
       return;
     }
-    await transports[sessionId].handleRequest(req, res);
+    try {
+      await transports[sessionId].handleRequest(req, res);
+    } catch (error) {
+      logger.error("MCP session teardown error:", error);
+      if (!res.headersSent) {
+        res.status(500).send("Internal server error");
+      }
+    }
   });
 
   // Start HTTP server
