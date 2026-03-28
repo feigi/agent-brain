@@ -155,8 +155,8 @@ async function main() {
   });
 
   // Start HTTP server
-  app.listen(config.port, () => {
-    logger.info(`Server ready on http://0.0.0.0:${config.port}/mcp`);
+  app.listen(config.port, config.host, () => {
+    logger.info(`Server ready on http://${config.host}:${config.port}/mcp`);
   });
 
   // Graceful shutdown
