@@ -17,7 +17,7 @@ import type { SQL } from "drizzle-orm";
 import type { Database } from "../db/index.js";
 import { memories, comments } from "../db/schema.js";
 import type { Memory, MemoryWithRelevance } from "../types/memory.js";
-import { ConflictError } from "../utils/errors.js";
+import { ConflictError, ValidationError } from "../utils/errors.js";
 import type {
   MemoryRepository,
   ListOptions,
@@ -204,7 +204,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       );
     } else if (options.scope === "user") {
       if (!options.user_id) {
-        throw new Error("user_id is required for user-scoped search");
+        throw new ValidationError("user_id is required for user-scoped search");
       }
       conditions.push(
         or(
@@ -215,7 +215,9 @@ export class DrizzleMemoryRepository implements MemoryRepository {
     } else {
       // scope === 'both' (D-10: single SQL query with OR)
       if (!options.user_id) {
-        throw new Error("user_id is required for cross-scope search (D-09)");
+        throw new ValidationError(
+          "user_id is required for cross-scope search (D-09)",
+        );
       }
       conditions.push(
         or(
@@ -269,7 +271,9 @@ export class DrizzleMemoryRepository implements MemoryRepository {
     // SCOP-01, SCOP-04: Scope-based filtering
     if (options.scope === "workspace") {
       if (!options.project_id) {
-        throw new Error("project_id is required for workspace-scoped list");
+        throw new ValidationError(
+          "project_id is required for workspace-scoped list",
+        );
       }
       conditions.push(eq(memories.project_id, options.project_id));
     } else if (options.scope === "project") {
@@ -277,7 +281,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       conditions.push(eq(memories.scope, "project"));
     } else {
       if (!options.user_id) {
-        throw new Error("user_id is required for user-scoped list");
+        throw new ValidationError("user_id is required for user-scoped list");
       }
       conditions.push(eq(memories.author, options.user_id));
       conditions.push(eq(memories.scope, "user"));
@@ -507,7 +511,9 @@ export class DrizzleMemoryRepository implements MemoryRepository {
 
     if (options.scope === "workspace") {
       if (!options.projectId) {
-        throw new Error("projectId is required for workspace-scoped dedup");
+        throw new ValidationError(
+          "projectId is required for workspace-scoped dedup",
+        );
       }
       conditions.push(eq(memories.project_id, options.projectId));
     } else if (options.scope === "project") {
@@ -516,7 +522,9 @@ export class DrizzleMemoryRepository implements MemoryRepository {
     } else {
       // D-16: User memories check against BOTH user AND workspace scope
       if (!options.projectId) {
-        throw new Error("projectId is required for user-scoped dedup");
+        throw new ValidationError(
+          "projectId is required for user-scoped dedup",
+        );
       }
       conditions.push(
         or(
