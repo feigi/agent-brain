@@ -36,7 +36,19 @@ async function main() {
 
   // Initialize database
   const db = createDb(config.databaseUrl);
-  await runMigrations(db);
+  try {
+    await runMigrations(db);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("ECONNREFUSED") || msg.includes("connect")) {
+      logger.error(
+        `Database connection failed: ${msg}. Is PostgreSQL running? Try: docker compose up -d`,
+      );
+    } else {
+      logger.error(`Database migration failed: ${msg}`);
+    }
+    throw err;
+  }
   logger.info("Database connected, migrations applied");
 
   // Initialize embedding provider

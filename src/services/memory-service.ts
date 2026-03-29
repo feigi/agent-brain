@@ -94,6 +94,9 @@ export class MemoryService {
         input.session_id,
       );
       if (budget && budget.used >= budget.limit) {
+        logger.debug(
+          `Budget skip: session=${input.session_id} source=${input.source} used=${budget.used} limit=${budget.limit}`,
+        );
         return {
           data: {
             skipped: true,
