@@ -79,7 +79,7 @@ export class MemoryService {
     const isAutonomous =
       input.source === "agent-auto" || input.source === "session-review";
 
-    if (input.scope === "project" && isAutonomous) {
+    if (effectiveScope === "project" && isAutonomous) {
       throw new ValidationError(
         `Project-scoped memories require user confirmation and cannot be created autonomously (source: '${input.source}').`,
       );
