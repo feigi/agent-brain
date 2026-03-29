@@ -75,17 +75,18 @@ export class MemoryService {
       );
     }
 
-    // Guard 0b -- Project-scope restriction: cannot be created autonomously
-    if (input.scope === "project" && input.source === "agent-auto") {
+    // Guard 0b -- Project-scope restriction: cannot be created by autonomous sources
+    const isAutonomous =
+      input.source === "agent-auto" || input.source === "session-review";
+
+    if (input.scope === "project" && isAutonomous) {
       throw new ValidationError(
-        "Project-scoped memories require user confirmation and cannot be created autonomously (source: 'agent-auto').",
+        `Project-scoped memories require user confirmation and cannot be created autonomously (source: '${input.source}').`,
       );
     }
 
     // Phase 4: Autonomous source flag (used for budget check + increment below)
     // session_id is optional — budget tracking is best-effort, not a hard gate
-    const isAutonomous =
-      input.source === "agent-auto" || input.source === "session-review";
 
     // Phase 4: Guard 2 -- Budget check (D-10, D-12, D-13)
     // Manual writes (source: 'manual') bypass budget checks entirely

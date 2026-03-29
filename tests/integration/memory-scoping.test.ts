@@ -130,7 +130,7 @@ describe("Memory scoping integration tests", () => {
     expect(found!.content).toContain("ESM imports");
   });
 
-  it("project-scoped memory cannot be created autonomously", async () => {
+  it("project-scoped memory cannot be created by agent-auto", async () => {
     await expect(
       service.create({
         project_id: "test-project",
@@ -139,6 +139,19 @@ describe("Memory scoping integration tests", () => {
         scope: "project",
         author: "agent-user",
         source: "agent-auto",
+      }),
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it("project-scoped memory cannot be created by session-review", async () => {
+    await expect(
+      service.create({
+        project_id: "test-project",
+        content: "Session review trying to create project-scoped memory",
+        type: "fact",
+        scope: "project",
+        author: "agent-user",
+        source: "session-review",
       }),
     ).rejects.toThrow(ValidationError);
   });

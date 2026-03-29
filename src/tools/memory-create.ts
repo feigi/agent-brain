@@ -45,7 +45,7 @@ export function registerMemoryCreate(
           .enum(["workspace", "user", "project"])
           .catch("workspace")
           .describe(
-            "'workspace' scopes to this workspace (shared with team), 'user' is private to you, 'project' is visible across all workspaces (user-confirmed only, not for agent-auto)",
+            "'workspace' scopes to this workspace (shared with team), 'user' is private to you, 'project' is visible across all workspaces (user-confirmed only, not for autonomous sources)",
           ),
         user_id: slugSchema.describe(
           "Who is creating this memory (e.g., 'alice'). Required for provenance and access control.",
