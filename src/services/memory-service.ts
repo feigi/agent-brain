@@ -216,7 +216,7 @@ export class MemoryService {
           config.writeBudgetPerSession,
         );
       } catch (err) {
-        console.error(
+        logger.warn(
           `[budget] Failed to increment budget for session ${input.session_id}: ${err instanceof Error ? err.message : err}`,
         );
       }
@@ -231,7 +231,7 @@ export class MemoryService {
               budget: {
                 used: budgetResult.used,
                 limit: config.writeBudgetPerSession,
-                exceeded: false,
+                exceeded: budgetResult.exceeded,
               },
             }
           : {}),
