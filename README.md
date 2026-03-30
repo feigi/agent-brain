@@ -234,7 +234,7 @@ chmod +x .github/hooks/memory-*.sh
 
 The hooks connect to Agent Brain at `http://localhost:19898` by default. Set the `AGENT_BRAIN_URL` environment variable to override.
 
-> **Note:** Unlike Claude Code, Copilot CLI hooks cannot inject context or block the session end. The agent relies on custom instructions in `.github/copilot-instructions.md` (included in this repo) to call `memory_session_start` at session start and review memories before stopping.
+> **Important:** Copilot CLI's `sessionEnd` hook fires after the conversation ends — its output is ignored and cannot prompt the agent to save memories. Unlike Claude Code's `Stop` hook, there is no reliable automatic trigger for end-of-session memory saving. **The only way to ensure memories are saved is to say goodbye** (e.g. "bye", "done", "that's all"). The agent recognizes these signals and will save a session summary. Make it a habit.
 
 **Step 3: Add custom instructions**
 

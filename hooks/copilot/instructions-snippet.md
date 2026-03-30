@@ -6,7 +6,9 @@ This project uses agent-brain (MCP server) for shared team knowledge.
 
 **Always call `memory_session_start` at the very beginning of every session**, before doing any other work. This loads relevant team memories upfront so nothing is missed.
 
-### When to Call `memory_search`
+### Session End
+
+When the user signals they're done (e.g. "bye", "done", "that's all"), save a memory summarising any important decisions, learnings, or context from the session before it ends.
 
 **Call `memory_search` before actions that affect shared systems.** This includes:
 
