@@ -14,7 +14,7 @@ export type MemoryScope = "workspace" | "user" | "project";
 // Full memory object as stored (without embedding vector per D-44)
 export interface Memory {
   id: string;
-  project_id: string;
+  project_id: string | null;
   content: string;
   title: string;
   type: MemoryType;

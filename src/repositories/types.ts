@@ -66,7 +66,7 @@ export interface MemoryRepository {
   ): Promise<TeamActivityCounts>;
   findDuplicates(options: {
     embedding: number[];
-    projectId: string;
+    projectId: string | null;
     scope: "workspace" | "user" | "project";
     userId: string;
     threshold: number;

@@ -67,7 +67,15 @@ export class MemoryService {
   ): Promise<Envelope<Memory | CreateSkipResult>> {
     const start = Date.now();
 
-    // Guard 0 -- Project-scope restriction: cannot be created autonomously
+    // Guard 0a -- Require project_id for workspace/user scope
+    const effectiveScope = input.scope ?? "workspace";
+    if (effectiveScope !== "project" && !input.project_id) {
+      throw new ValidationError(
+        `project_id is required for ${effectiveScope}-scoped memories.`,
+      );
+    }
+
+    // Guard 0b -- Project-scope restriction: cannot be created autonomously
     if (input.scope === "project" && input.source === "agent-auto") {
       throw new ValidationError(
         "Project-scoped memories require user confirmation and cannot be created autonomously (source: 'agent-auto').",
@@ -133,10 +141,9 @@ export class MemoryService {
     }
 
     // Phase 4: Guard 3 -- Semantic duplicate detection (D-14, D-15, D-16, D-17)
-    const effectiveScope = input.scope ?? "workspace";
     const duplicates = await this.memoryRepo.findDuplicates({
       embedding,
-      projectId: input.project_id ?? "",
+      projectId: input.project_id ?? null,
       scope: effectiveScope,
       userId: input.author,
       threshold: config.duplicateThreshold,
@@ -169,7 +176,7 @@ export class MemoryService {
 
     const memoryData: Memory & { embedding: number[] } = {
       id,
-      project_id: input.project_id ?? (null as unknown as string),
+      project_id: input.project_id ?? null,
       content: input.content,
       title,
       type: input.type,
