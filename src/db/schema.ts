@@ -23,7 +23,12 @@ export const memoryTypeEnum = pgEnum("memory_type", [
 ]);
 
 // D-08: Memory scope enum
-export const memoryScopeEnum = pgEnum("memory_scope", ["project", "user"]);
+// workspace = scoped to workspace (old "project"), user = private, project = cross-workspace
+export const memoryScopeEnum = pgEnum("memory_scope", [
+  "workspace",
+  "user",
+  "project",
+]);
 
 // D-32: Projects identified by human-readable slug
 export const projects = pgTable("projects", {
@@ -40,13 +45,11 @@ export const memories = pgTable(
   "memories",
   {
     id: text("id").primaryKey(), // nanoid (D-18)
-    project_id: text("project_id")
-      .notNull()
-      .references(() => projects.id), // D-31
+    project_id: text("project_id").references(() => projects.id), // D-31 -- nullable for project-scoped memories
     content: text("content").notNull(), // CORE-08: raw text
     title: text("title").notNull(), // D-03: auto-generated if omitted
     type: memoryTypeEnum("type").notNull(), // D-16, D-17: CORE-06
-    scope: memoryScopeEnum("scope").notNull().default("project"), // D-08: SCOP-01, SCOP-02
+    scope: memoryScopeEnum("scope").notNull().default("workspace"), // D-08: SCOP-01, SCOP-02
     tags: text("tags")
       .array()
       .default(sql`'{}'::text[]`), // D-16: free-form tags

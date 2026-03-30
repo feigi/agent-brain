@@ -3,8 +3,8 @@ import type { Memory, MemoryWithRelevance, Comment } from "../types/memory.js";
 // INFR-02: Repository interfaces -- abstract storage layer
 
 export interface ListOptions {
-  project_id: string;
-  scope: "project" | "user";
+  project_id?: string; // optional for project-scope listing (cross-workspace)
+  scope: "workspace" | "user" | "project";
   user_id?: string;
   type?: string;
   tags?: string[];
@@ -17,7 +17,7 @@ export interface ListOptions {
 export interface SearchOptions {
   embedding: number[];
   project_id: string;
-  scope: "project" | "user" | "both"; // D-08: 'both' for cross-scope search
+  scope: "workspace" | "user" | "both"; // D-08: 'both' for cross-scope search
   user_id?: string;
   limit?: number;
   min_similarity?: number;
@@ -67,7 +67,7 @@ export interface MemoryRepository {
   findDuplicates(options: {
     embedding: number[];
     projectId: string;
-    scope: "project" | "user";
+    scope: "workspace" | "user" | "project";
     userId: string;
     threshold: number;
   }): Promise<
