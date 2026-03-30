@@ -37,7 +37,7 @@ services:
           sleep 1
         done
         echo "Ollama is ready. Pulling nomic-embed-text..."
-        ollama pull nomic-embed-text
+        OLLAMA_HOST=http://localhost:11434 ollama pull nomic-embed-text
         echo "Model pulled. Ollama is ready for embeddings."
         wait
 
