@@ -74,6 +74,14 @@ async function main() {
   // Express app with DNS rebinding protection
   const app = createMcpExpressApp();
 
+  // No auth — return 404 for OAuth discovery so clients don't think auth is required
+  app.get("/.well-known/oauth-protected-resource", (_req, res) =>
+    res.status(404).end(),
+  );
+  app.get("/.well-known/oauth-authorization-server", (_req, res) =>
+    res.status(404).end(),
+  );
+
   // Register REST routes (health + hook API)
   registerRoutes(app, memoryService);
 

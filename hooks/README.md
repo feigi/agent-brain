@@ -8,10 +8,13 @@ without any hook setup.
 
 ## Included Templates
 
-| File                       | Purpose                                                   |
-| -------------------------- | --------------------------------------------------------- |
-| `memory-session-review.sh` | Stop hook that triggers memory review before Claude exits |
-| `settings-snippet.json`    | Hook configuration to merge into `.claude/settings.json`  |
+| File                       | Purpose                                                       |
+| -------------------------- | ------------------------------------------------------------- |
+| `memory-session-start.sh`  | SessionStart hook that loads memories at session start        |
+| `memory-guard.sh`          | PreToolUse hook that blocks writes to Claude Code auto-memory |
+| `memory-nudge.sh`          | PostToolUse hook that periodically reminds to save memories   |
+| `memory-session-review.sh` | Stop hook that triggers memory review before Claude exits     |
+| `settings-snippet.json`    | Hook configuration to merge into `.claude/settings.json`      |
 
 ## Prerequisites
 
@@ -22,17 +25,20 @@ without any hook setup.
 
 ## Installation
 
-### Step 1: Copy the hook script
+### Step 1: Copy the hook scripts
 
 ```bash
-mkdir -p .claude/hooks
-cp hooks/memory-session-review.sh .claude/hooks/
+mkdir -p ~/.claude/hooks
+cp hooks/memory-session-start.sh ~/.claude/hooks/
+cp hooks/memory-guard.sh ~/.claude/hooks/
+cp hooks/memory-nudge.sh ~/.claude/hooks/
+cp hooks/memory-session-review.sh ~/.claude/hooks/
 ```
 
-### Step 2: Make it executable
+### Step 2: Make them executable
 
 ```bash
-chmod +x .claude/hooks/memory-session-review.sh
+chmod +x ~/.claude/hooks/memory-*.sh
 ```
 
 ### Step 3: Add the Stop hook configuration
@@ -62,6 +68,15 @@ from `settings-snippet.json`. Your settings file should contain:
 If you already have hooks configured, merge this Stop hook array into your existing settings.
 
 ## How It Works
+
+### Memory Nudge (PostToolUse)
+
+The nudge hook fires after every tool call but only emits a reminder every 20 calls. It uses a
+temp file counter (`/tmp/claude-memory-nudge-{session}`) to track invocations. The reminder is
+injected as `additionalContext` — visible to Claude but not the user — prompting it to consider
+saving any decisions, conventions, or preferences shared during the session.
+
+### Session Review (Stop)
 
 1. Claude Code fires the Stop hook when Claude is about to stop responding.
 2. The hook script reads the hook input JSON from stdin and checks the `stop_hook_active` field.

@@ -28,6 +28,18 @@
         ]
       }
     ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|Edit|Write|MultiEdit|Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/memory-nudge.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "matcher": "",
