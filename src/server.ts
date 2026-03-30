@@ -40,7 +40,16 @@ async function main() {
     await runMigrations(db);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes("ECONNREFUSED") || msg.includes("connect")) {
+    const code =
+      err != null && typeof err === "object" && "code" in err
+        ? (err as { code: string }).code
+        : "";
+    const isConnectionError =
+      code === "ECONNREFUSED" ||
+      code === "ENOTFOUND" ||
+      code === "ECONNRESET" ||
+      code.startsWith("08"); // PostgreSQL connection exception class
+    if (isConnectionError) {
       logger.error(
         `Database connection failed: ${msg}. Is PostgreSQL running? Try: docker compose up -d`,
       );
