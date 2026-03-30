@@ -2,16 +2,9 @@
 
 This project uses [Agentic Brain](https://github.com/feigi/agent-brain) for shared team knowledge.
 
-### Available Tools
+### Session Start
 
-- **memory_search** -- Search for relevant memories. Call with a query describing what you need.
-- **memory_create** -- Save a new memory from important context the user shares.
-- **memory_get** -- Read a specific memory by ID.
-- **memory_update** -- Modify an existing memory.
-- **memory_comment** -- Append a comment to an existing memory (turns it into a thread).
-- **memory_verify** -- Confirm a memory is still accurate (updates verified_at).
-- **memory_archive** -- Archive a memory that is no longer relevant.
-- **memory_list_stale** -- List memories that need review (old or unverified).
+**Always call `memory_session_start` at the very beginning of every session**, before doing any other work. This loads relevant team memories upfront so nothing is missed.
 
 ### When to Call `memory_search`
 
