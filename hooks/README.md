@@ -110,13 +110,14 @@ fi
 
 ### Included Templates
 
-| File                              | Purpose                                                                 |
-| --------------------------------- | ----------------------------------------------------------------------- |
-| `copilot/hooks.json`              | Hook configuration template for `.github/hooks/` or `~/.copilot/hooks/` |
-| `copilot/mcp-snippet.json`        | MCP server configuration to merge into `~/.copilot/mcp-config.json`     |
-| `copilot/memory-session-start.sh` | sessionStart hook that pre-warms the Agent Brain session                |
-| `copilot/memory-nudge.sh`         | postToolUse hook that logs tool usage per session                       |
-| `copilot/memory-session-end.sh`   | sessionEnd hook that cleans up temp files                               |
+| File                              | Purpose                                                                       |
+| --------------------------------- | ----------------------------------------------------------------------------- |
+| `copilot/hooks.json`              | Hook configuration template for `.github/hooks/` or `~/.copilot/hooks/`       |
+| `copilot/mcp-snippet.json`        | MCP server configuration to merge into `~/.copilot/mcp-config.json`           |
+| `copilot/memory-session-start.sh` | sessionStart hook — pre-warms Agent Brain session and creates guard flag      |
+| `copilot/memory-session-guard.sh` | **preToolUse hook — blocks all tools until `memory_session_start` is called** |
+| `copilot/memory-nudge.sh`         | postToolUse hook — logs tool usage and clears guard flag on success           |
+| `copilot/memory-session-end.sh`   | sessionEnd hook that cleans up temp files                                     |
 
 ### Prerequisites
 
@@ -135,10 +136,9 @@ Copilot CLI hooks have important limitations compared to Claude Code hooks:
 | Remind agent mid-session        | ✅ via `additionalContext` | ❌ Output ignored                 |
 | Block session end for review    | ✅ via `decision: block`   | ❌ Output ignored                 |
 
-Because of these limitations, **custom instructions are more important** for Copilot CLI than for
-Claude Code. The `.github/copilot-instructions.md` file (included in this repo) tells the agent
-when and how to use memory tools — including calling `memory_session_start` at the beginning of
-each session and reviewing memories before stopping.
+Because `preToolUse` with `permissionDecision: deny` is the **only hook output that Copilot CLI
+processes**, the `memory-session-guard.sh` hook leverages this to hard-enforce the session start
+requirement. All other hooks only perform side-effects (logging, cleanup).
 
 ### Installation
 
@@ -167,6 +167,7 @@ Copy the hook scripts and configuration into your project's `.github/hooks/` dir
 mkdir -p .github/hooks
 cp hooks/copilot/hooks.json .github/hooks/hooks.json
 cp hooks/copilot/memory-session-start.sh .github/hooks/
+cp hooks/copilot/memory-session-guard.sh .github/hooks/
 cp hooks/copilot/memory-nudge.sh .github/hooks/
 cp hooks/copilot/memory-session-end.sh .github/hooks/
 chmod +x .github/hooks/memory-*.sh
@@ -178,37 +179,81 @@ Copilot CLI automatically loads hooks from `.github/hooks/` in your working dire
 
 ```bash
 mkdir -p ~/.copilot/hooks
-cp hooks/copilot/hooks.json ~/.copilot/hooks/hooks.json
 cp hooks/copilot/memory-session-start.sh ~/.copilot/hooks/
+cp hooks/copilot/memory-session-guard.sh ~/.copilot/hooks/
 cp hooks/copilot/memory-nudge.sh ~/.copilot/hooks/
 cp hooks/copilot/memory-session-end.sh ~/.copilot/hooks/
 chmod +x ~/.copilot/hooks/memory-*.sh
 ```
 
+Then create `~/.copilot/hooks/hooks.json` with absolute paths:
+
+```json
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "bash": "$HOME/.copilot/hooks/memory-session-start.sh",
+        "timeoutSec": 10
+      }
+    ],
+    "preToolUse": [
+      {
+        "type": "command",
+        "bash": "$HOME/.copilot/hooks/memory-session-guard.sh",
+        "timeoutSec": 5
+      }
+    ],
+    "postToolUse": [
+      {
+        "type": "command",
+        "bash": "$HOME/.copilot/hooks/memory-nudge.sh",
+        "timeoutSec": 5
+      }
+    ],
+    "sessionEnd": [
+      {
+        "type": "command",
+        "bash": "$HOME/.copilot/hooks/memory-session-end.sh",
+        "timeoutSec": 5
+      }
+    ]
+  }
+}
+```
+
 #### Step 3: Add custom instructions
 
-Create or verify `.github/copilot-instructions.md` in your project root. A ready-to-use
-instructions file is included in this repo.
-
-Copilot CLI also reads `CLAUDE.md` and `AGENTS.md` from the repository root.
+Create or verify `.github/copilot-instructions.md` in your project root (or
+`~/.copilot/copilot-instructions.md` for personal use). A ready-to-use instructions snippet
+is at `hooks/copilot/instructions-snippet.md`.
 
 ### How It Works
 
-#### Session Start
+#### Session Start + Guard Flag
 
-The `memory-session-start.sh` hook fires when a new Copilot CLI session begins. It calls the
-Agent Brain REST API to pre-create a session, warming the server connection. The session ID is
-stashed in `/tmp/` for the session-end hook.
+The `memory-session-start.sh` hook fires when a new session begins. It:
 
-**Note:** Unlike Claude Code, the hook output is ignored — the agent must still call
-`memory_session_start` via MCP tools. The custom instructions in
-`.github/copilot-instructions.md` guide the agent to do this.
+1. Creates a guard flag file `/tmp/copilot-guard-{cwd_hash}` marking that `memory_session_start` has not yet been called
+2. Pre-warms the Agent Brain server via its REST API
 
-#### Tool Usage Audit
+#### Pre-Tool-Use Guard (hard enforcement)
 
-The `memory-nudge.sh` hook fires after each tool use and increments a counter in `/tmp/`. This
-provides an audit trail of tool invocations per session. Unlike the Claude Code version, it
-cannot inject reminders to the agent.
+The `memory-session-guard.sh` hook fires before **every** tool call. It:
+
+1. Checks for the guard flag
+2. If the flag exists and the tool is not `memory_session_start` → returns `permissionDecision: deny` with a clear reason message
+3. The agent sees the denial and **must** call `memory_session_start` to unblock itself
+
+This is the only Copilot CLI hook output the agent receives, making it the enforcement layer.
+
+#### Post-Tool-Use (flag cleanup)
+
+The `memory-nudge.sh` hook fires after each tool call. When it detects that `memory_session_start`
+completed successfully, it removes the guard flag, allowing all subsequent tool calls to proceed
+normally.
 
 #### Session End
 
@@ -229,6 +274,10 @@ If it happens, check that your `jq` version supports the `// "false"` default sy
 
 **Copilot CLI: Hooks not loading:** Ensure `hooks.json` is in `.github/hooks/` (repo-level) or
 `~/.copilot/hooks/` (personal). The file must have `"version": 1` at the top level.
+
+**Copilot CLI: Guard blocks tools even after calling memory_session_start:** The guard flag is
+keyed by CWD hash. Ensure `jq` and `sha256sum` are available. On macOS, `sha256sum` comes from
+`coreutils` (`brew install coreutils`); if unavailable, the fallback key `"default"` is used.
 
 ## Notes
 

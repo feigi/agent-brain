@@ -8,6 +8,13 @@
         "timeoutSec": 10
       }
     ],
+    "preToolUse": [
+      {
+        "type": "command",
+        "bash": "./.github/hooks/memory-session-guard.sh",
+        "timeoutSec": 5
+      }
+    ],
     "postToolUse": [
       {
         "type": "command",

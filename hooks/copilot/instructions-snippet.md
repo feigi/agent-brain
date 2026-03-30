@@ -2,9 +2,15 @@
 
 This project uses agent-brain (MCP server) for shared team knowledge.
 
-## Session Start
+## REQUIRED: Session Start Check
 
-**Always call `memory_session_start` at the very beginning of every session**, before doing any other work. This loads relevant team memories upfront so nothing is missed.
+**STOP. Before processing any task — including plan mode, research, or simple questions:**
+Have you called `memory_session_start` this session?
+
+- **NO →** Call `memory_session_start` right now. Do not read further until you have.
+- **YES →** Continue.
+
+This applies to EVERY first message in a session, with no exceptions.
 
 ## Session End
 
