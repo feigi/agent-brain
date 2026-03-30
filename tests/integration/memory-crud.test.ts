@@ -5,6 +5,7 @@ import {
   closeDb,
   assertMemory,
 } from "../helpers.js";
+import { config } from "../../src/config.js";
 import type { MemoryService } from "../../src/services/memory-service.js";
 import { ConflictError, NotFoundError } from "../../src/utils/errors.js";
 
@@ -38,7 +39,7 @@ describe("Memory CRUD integration tests", () => {
     expect(result.data.version).toBe(1);
     expect(result.data.scope).toBe("workspace"); // default
     expect(result.data.embedding_model).toBe("mock-deterministic");
-    expect(result.data.embedding_dimensions).toBe(512);
+    expect(result.data.embedding_dimensions).toBe(config.embeddingDimensions);
     expect(result.meta.timing).toBeTypeOf("number");
   });
 
@@ -142,7 +143,7 @@ describe("Memory CRUD integration tests", () => {
 
     // The embedding model should still be set (re-embedding happened)
     expect(updated.data.embedding_model).toBe("mock-deterministic");
-    expect(updated.data.embedding_dimensions).toBe(512);
+    expect(updated.data.embedding_dimensions).toBe(config.embeddingDimensions);
     expect(updated.data.version).toBe(2);
   });
 

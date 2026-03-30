@@ -29,6 +29,13 @@
       "when": 1774744903000,
       "tag": "0003_rename_project_to_workspace",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1774987200000,
+      "tag": "0004_fix_embedding_dimensions",
+      "breakpoints": true
     }
   ]
 }

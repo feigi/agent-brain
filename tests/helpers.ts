@@ -8,6 +8,7 @@ import {
   DrizzleSessionRepository,
 } from "../src/repositories/session-repository.js";
 import { MockEmbeddingProvider } from "../src/providers/embedding/mock.js";
+import { config } from "../src/config.js";
 import { MemoryService } from "../src/services/memory-service.js";
 import type { Memory, CreateSkipResult } from "../src/types/memory.js";
 import {
@@ -34,7 +35,7 @@ export function createTestService(): MemoryService {
   const testDb = getTestDb();
   const memoryRepo = new DrizzleMemoryRepository(testDb);
   const projectRepo = new DrizzleProjectRepository(testDb);
-  const embedder = new MockEmbeddingProvider();
+  const embedder = new MockEmbeddingProvider(config.embeddingDimensions);
   const commentRepo = new DrizzleCommentRepository(testDb);
   const sessionRepo = new DrizzleSessionTrackingRepository(testDb);
   return new MemoryService(
@@ -51,7 +52,7 @@ export function createTestServiceWithSessions(): MemoryService {
   const testDb = getTestDb();
   const memoryRepo = new DrizzleMemoryRepository(testDb);
   const projectRepo = new DrizzleProjectRepository(testDb);
-  const embedder = new MockEmbeddingProvider();
+  const embedder = new MockEmbeddingProvider(config.embeddingDimensions);
   const commentRepo = new DrizzleCommentRepository(testDb);
   const sessionTrackingRepo = new DrizzleSessionTrackingRepository(testDb);
   const sessionLifecycleRepo = new DrizzleSessionRepository(testDb);
