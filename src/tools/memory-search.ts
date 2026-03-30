@@ -19,10 +19,10 @@ export function registerMemorySearch(
         ),
         query: z.string().describe("Natural language search query"),
         scope: z
-          .enum(["project", "user", "both"])
-          .catch("project")
+          .enum(["workspace", "user", "both"])
+          .catch("workspace")
           .describe(
-            "Search scope: 'project' (default), 'user' (your memories), or 'both'",
+            "Search scope: 'workspace' (default), 'user' (your memories), or 'both'. Project-scoped memories are always included.",
           ),
         user_id: slugSchema.describe(
           "User identifier (e.g., 'alice'). Required for access control and user-scope filtering.",

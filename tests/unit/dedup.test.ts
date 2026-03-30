@@ -17,7 +17,7 @@ function makeMemory(overrides: Partial<Memory> = {}): Memory {
     content: "Test content",
     title: "Test title",
     type: "fact",
-    scope: "project",
+    scope: "workspace",
     tags: null,
     author: "alice",
     source: "manual",
@@ -94,7 +94,7 @@ describe("Duplicate detection in memory_create", () => {
           id: "existing-1",
           title: "Existing Memory",
           relevance: 0.95,
-          scope: "project",
+          scope: "workspace",
         },
       ]),
     });
@@ -143,7 +143,7 @@ describe("Duplicate detection in memory_create", () => {
           id: "proj-existing",
           title: "Project Memory",
           relevance: 0.92,
-          scope: "project",
+          scope: "workspace",
         },
       ]),
     });
@@ -171,7 +171,7 @@ describe("Duplicate detection in memory_create", () => {
           id: "proj-1",
           title: "Project Memory",
           relevance: 0.92,
-          scope: "project",
+          scope: "workspace",
         },
       ]),
     });
@@ -200,7 +200,7 @@ describe("Duplicate detection in memory_create", () => {
           id: "existing-99",
           title: "Existing Project Memory",
           relevance: 0.97,
-          scope: "project",
+          scope: "workspace",
         },
       ]),
     });
@@ -211,7 +211,7 @@ describe("Duplicate detection in memory_create", () => {
       content: "Project memory that duplicates another project memory",
       type: "fact",
       author: "alice",
-      scope: "project",
+      scope: "workspace",
     });
 
     expect("skipped" in result.data && result.data.skipped).toBe(true);
@@ -230,7 +230,7 @@ describe("Duplicate detection in memory_create", () => {
           id: "dup-id",
           title: "Dup Title",
           relevance: 0.93,
-          scope: "project",
+          scope: "workspace",
         },
       ]),
     });

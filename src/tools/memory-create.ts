@@ -14,9 +14,11 @@ export function registerMemoryCreate(
       description:
         'Save a new memory to the knowledge base. user_id is required for all operations and enforces scope-based access control. Autonomous writes (source \'agent-auto\' or \'session-review\') require session_id from memory_session_start. Example: memory_create({ project_id: "my-project", content: "Always run migrations before deploying", type: "decision", user_id: "alice" })',
       inputSchema: {
-        project_id: slugSchema.describe(
-          "Project slug (e.g., 'my-project'). Required -- no default project.",
-        ),
+        project_id: slugSchema
+          .optional()
+          .describe(
+            "Project slug (e.g., 'my-project'). Required for workspace/user scope. Optional for project scope (cross-workspace).",
+          ),
         content: contentSchema.describe(
           "Memory content text. Must not be empty. Soft limit ~4000 chars.",
         ),
@@ -40,10 +42,10 @@ export function registerMemoryCreate(
           .catch(undefined)
           .describe("Free-form categorization tags"),
         scope: z
-          .enum(["project", "user"])
-          .catch("project")
+          .enum(["workspace", "user", "project"])
+          .catch("workspace")
           .describe(
-            "'project' scopes to this project (shared with team), 'user' is private to you",
+            "'workspace' scopes to this workspace (shared with team), 'user' is private to you, 'project' is visible across all workspaces (user-confirmed only, not for agent-auto)",
           ),
         user_id: slugSchema.describe(
           "Who is creating this memory (e.g., 'alice'). Required for provenance and access control.",

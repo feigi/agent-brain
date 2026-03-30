@@ -20,7 +20,7 @@ function makeMemory(overrides: Partial<Memory> = {}): Memory {
     content: "Test memory content",
     title: "Test memory",
     type: "fact",
-    scope: "project",
+    scope: "workspace",
     tags: null,
     author: "alice",
     source: "agent-auto",

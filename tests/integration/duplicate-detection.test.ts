@@ -105,7 +105,7 @@ describe("Semantic duplicate detection integration tests", () => {
       project_id: "project-b",
       content,
       type: "fact",
-      scope: "project",
+      scope: "workspace",
       author: "alice",
       source: "manual",
     });
@@ -124,7 +124,7 @@ describe("Semantic duplicate detection integration tests", () => {
       project_id: "test-project",
       content,
       type: "architecture",
-      scope: "project",
+      scope: "workspace",
       author: "alice",
       source: "manual",
     });

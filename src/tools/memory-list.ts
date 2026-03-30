@@ -27,12 +27,16 @@ export function registerMemoryList(
       description:
         'Browse memories with filtering, sorting, and pagination. user_id is required for access control. Use for browsing by type or tags. For semantic search, use memory_search instead. Example: memory_list({ project_id: "my-project", user_id: "alice", type: "decision" })',
       inputSchema: {
-        project_id: slugSchema.describe("Project slug (e.g., 'my-project')"),
-        scope: z
-          .enum(["project", "user"])
-          .catch("project")
+        project_id: slugSchema
+          .optional()
           .describe(
-            "List scope: 'project' (shared team memories) or 'user' (your private memories)",
+            "Project slug (e.g., 'my-project'). Required for workspace/user scope. Optional for project scope (cross-workspace).",
+          ),
+        scope: z
+          .enum(["workspace", "user", "project"])
+          .catch("workspace")
+          .describe(
+            "List scope: 'workspace' (shared team memories), 'user' (your private memories), or 'project' (cross-workspace)",
           ),
         user_id: slugSchema.describe(
           "User identifier (e.g., 'alice'). Required for access control.",

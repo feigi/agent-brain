@@ -43,7 +43,7 @@ describe("Memory search integration tests", () => {
     const result = await service.search(
       "database",
       "test-project",
-      "project",
+      "workspace",
       "alice",
       undefined,
       -1, // negative threshold ensures mock embeddings with any cosine similarity pass through
@@ -72,7 +72,7 @@ describe("Memory search integration tests", () => {
     const result = await service.search(
       "search content",
       "test-project",
-      "project",
+      "workspace",
       "alice",
       2,
       -1, // negative threshold ensures mock embeddings with any cosine similarity pass through
@@ -95,7 +95,7 @@ describe("Memory search integration tests", () => {
     const result = await service.search(
       "archived memory search",
       "test-project",
-      "project",
+      "workspace",
       "alice",
     );
 
@@ -115,7 +115,7 @@ describe("Memory search integration tests", () => {
     const result = await service.search(
       "completely unrelated query xyz",
       "test-project",
-      "project",
+      "workspace",
       "alice",
       undefined,
       0.99,
@@ -131,7 +131,7 @@ describe("Memory search integration tests", () => {
       project_id: "test-project",
       content: "Project-specific deployment configuration notes",
       type: "fact",
-      scope: "project",
+      scope: "workspace",
       author: "alice",
     });
     // Create a user-scoped memory
@@ -154,7 +154,7 @@ describe("Memory search integration tests", () => {
 
     expect(result.data.length).toBe(2);
     const scopes = result.data.map((m) => m.scope);
-    expect(scopes).toContain("project");
+    expect(scopes).toContain("workspace");
     expect(scopes).toContain("user");
     // All results have relevance field
     for (const memory of result.data) {
@@ -190,7 +190,7 @@ describe("Memory search integration tests", () => {
     const result = await service.search(
       "relevance scores",
       "test-project",
-      "project",
+      "workspace",
       "alice",
       undefined,
       -1, // negative threshold ensures mock embeddings with any cosine similarity pass through

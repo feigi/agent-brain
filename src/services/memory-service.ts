@@ -42,9 +42,9 @@ export class MemoryService {
     private readonly sessionLifecycleRepo?: SessionRepository,
   ) {}
 
-  // D-11: Project=shared, User=owner only
+  // D-11: Workspace/Project=shared, User=owner only
   private canAccess(memory: Memory, userId: string): boolean {
-    if (memory.scope === "project") return true;
+    if (memory.scope === "workspace" || memory.scope === "project") return true;
     return memory.author === userId;
   }
 
@@ -66,6 +66,13 @@ export class MemoryService {
     input: MemoryCreate,
   ): Promise<Envelope<Memory | CreateSkipResult>> {
     const start = Date.now();
+
+    // Guard 0 -- Project-scope restriction: cannot be created autonomously
+    if (input.scope === "project" && input.source === "agent-auto") {
+      throw new ValidationError(
+        "Project-scoped memories require user confirmation and cannot be created autonomously (source: 'agent-auto').",
+      );
+    }
 
     // Phase 4: Guard 1 -- Session validation (D-19)
     // Autonomous writes (agent-auto or session-review) require session_id
@@ -113,7 +120,10 @@ export class MemoryService {
         : input.content);
 
     // D-34: Ensure project exists (auto-create on first mention)
-    await this.projectRepo.findOrCreate(input.project_id);
+    // Skip for project-scoped memories without project_id
+    if (input.project_id) {
+      await this.projectRepo.findOrCreate(input.project_id);
+    }
 
     // D-19: Embed title + content concatenated
     const embeddingInput = `${title}\n\n${input.content}`;
@@ -128,10 +138,11 @@ export class MemoryService {
     }
 
     // Phase 4: Guard 3 -- Semantic duplicate detection (D-14, D-15, D-16, D-17)
+    const effectiveScope = input.scope ?? "workspace";
     const duplicates = await this.memoryRepo.findDuplicates({
       embedding,
-      projectId: input.project_id,
-      scope: input.scope ?? "project",
+      projectId: input.project_id ?? "",
+      scope: effectiveScope,
       userId: input.author,
       threshold: config.duplicateThreshold,
     });
@@ -139,7 +150,7 @@ export class MemoryService {
     if (duplicates.length > 0) {
       const dupInfo = duplicates[0];
       const message =
-        dupInfo.scope !== (input.scope ?? "project")
+        dupInfo.scope !== effectiveScope
           ? `This already exists as shared knowledge (memory ${dupInfo.id}).`
           : `A similar memory already exists (memory ${dupInfo.id}, ${Math.round(dupInfo.relevance * 100)}% similar). Consider updating it instead.`;
       return {
@@ -163,11 +174,11 @@ export class MemoryService {
 
     const memoryData: Memory & { embedding: number[] } = {
       id,
-      project_id: input.project_id,
+      project_id: input.project_id ?? (null as unknown as string),
       content: input.content,
       title,
       type: input.type,
-      scope: input.scope ?? "project",
+      scope: effectiveScope,
       tags: input.tags ?? null,
       author: input.author,
       source: input.source ?? null,
@@ -254,13 +265,13 @@ export class MemoryService {
 
     // D-72: Capability booleans
     const isOwner = memory.author === userId;
-    const isProject = memory.scope === "project";
+    const isShared = memory.scope === "workspace" || memory.scope === "project";
     const capabilities = {
       can_edit: this.canAccess(memory, userId),
       can_archive: this.canAccess(memory, userId),
       can_verify: this.canAccess(memory, userId),
       // D-56: no self-comment; user-scoped memories can't have comments (owner blocks self-comment)
-      can_comment: isProject && !isOwner,
+      can_comment: isShared && !isOwner,
     };
 
     const timing = Date.now() - start;
@@ -471,7 +482,7 @@ export class MemoryService {
   async search(
     query: string,
     project_id: string,
-    scope: "project" | "user" | "both",
+    scope: "workspace" | "user" | "both",
     user_id: string,
     limit?: number,
     min_similarity?: number,

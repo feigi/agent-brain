@@ -191,17 +191,27 @@ export class DrizzleMemoryRepository implements MemoryRepository {
 
     const conditions: SQL[] = [isNull(memories.archived_at)];
 
-    // SCOP-01: project scope queries project_id
+    // SCOP-01: workspace scope queries project_id
     // SCOP-02: user scope queries author + scope column
-    // SCOP-03: cross-scope ('both') uses OR for project + user memories
-    if (options.scope === "project") {
-      conditions.push(eq(memories.project_id, options.project_id));
+    // SCOP-03: cross-scope ('both') uses OR for workspace + user memories
+    // All search modes also include project-scoped memories (cross-workspace)
+    if (options.scope === "workspace") {
+      conditions.push(
+        or(
+          eq(memories.project_id, options.project_id),
+          eq(memories.scope, "project"),
+        )!,
+      );
     } else if (options.scope === "user") {
       if (!options.user_id) {
         throw new Error("user_id is required for user-scoped search");
       }
-      conditions.push(eq(memories.author, options.user_id));
-      conditions.push(eq(memories.scope, "user"));
+      conditions.push(
+        or(
+          and(eq(memories.author, options.user_id), eq(memories.scope, "user")),
+          eq(memories.scope, "project"),
+        )!,
+      );
     } else {
       // scope === 'both' (D-10: single SQL query with OR)
       if (!options.user_id) {
@@ -209,8 +219,12 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       }
       conditions.push(
         or(
-          eq(memories.project_id, options.project_id),
+          and(
+            eq(memories.project_id, options.project_id),
+            eq(memories.scope, "workspace"),
+          ),
           and(eq(memories.author, options.user_id), eq(memories.scope, "user")),
+          eq(memories.scope, "project"),
         )!,
       );
     }
@@ -253,8 +267,11 @@ export class DrizzleMemoryRepository implements MemoryRepository {
     const conditions: SQL[] = [isNull(memories.archived_at)];
 
     // SCOP-01, SCOP-04: Scope-based filtering
-    if (options.scope === "project") {
-      conditions.push(eq(memories.project_id, options.project_id));
+    if (options.scope === "workspace") {
+      conditions.push(eq(memories.project_id, options.project_id!));
+    } else if (options.scope === "project") {
+      // Cross-workspace project scope -- no project_id filter
+      conditions.push(eq(memories.scope, "project"));
     } else {
       if (!options.user_id) {
         throw new Error("user_id is required for user-scoped list");
@@ -408,6 +425,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
               eq(memories.author, options.user_id),
               eq(memories.scope, "user"),
             ),
+            eq(memories.scope, "project"),
           )!,
         ),
       )
@@ -448,9 +466,10 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       conditions.push(sql`${memories.author} != ${options.user_id}`);
     }
 
-    // Scope enforcement: only project memories + requesting user's own user-scoped memories
+    // Scope enforcement: workspace + project memories + requesting user's own user-scoped memories
     conditions.push(
       or(
+        eq(memories.scope, "workspace"),
         eq(memories.scope, "project"),
         and(eq(memories.scope, "user"), eq(memories.author, options.user_id)),
       )!,
@@ -470,7 +489,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
   async findDuplicates(options: {
     embedding: number[];
     projectId: string;
-    scope: "project" | "user";
+    scope: "workspace" | "user" | "project";
     userId: string;
     threshold: number;
   }): Promise<
@@ -481,10 +500,13 @@ export class DrizzleMemoryRepository implements MemoryRepository {
 
     const conditions: SQL[] = [isNull(memories.archived_at)];
 
-    if (options.scope === "project") {
+    if (options.scope === "workspace") {
       conditions.push(eq(memories.project_id, options.projectId));
+    } else if (options.scope === "project") {
+      // Project-scoped dedup checks all project-scoped memories (no project_id filter)
+      conditions.push(eq(memories.scope, "project"));
     } else {
-      // D-16: User memories check against BOTH user AND project scope
+      // D-16: User memories check against BOTH user AND workspace scope
       conditions.push(
         or(
           eq(memories.project_id, options.projectId),

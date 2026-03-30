@@ -19,13 +19,13 @@ describe("Memory scoping integration tests", () => {
     await closeDb();
   });
 
-  it("project-scoped memory not visible in other project (SCOP-01, SCOP-04)", async () => {
+  it("workspace-scoped memory not visible in other workspace (SCOP-01, SCOP-04)", async () => {
     // Create memory in project-a
     await service.create({
       project_id: "project-a",
       content: "Secret project-a knowledge about deployment pipelines",
       type: "fact",
-      scope: "project",
+      scope: "workspace",
       author: "alice",
     });
 
@@ -33,7 +33,7 @@ describe("Memory scoping integration tests", () => {
     const result = await service.search(
       "deployment pipelines",
       "project-b",
-      "project",
+      "workspace",
       "alice",
     );
 

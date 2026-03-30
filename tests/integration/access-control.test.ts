@@ -29,7 +29,7 @@ describe("Access Control", () => {
         content: "Alice's note",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
       assertMemory(alice.data);
 
@@ -39,7 +39,7 @@ describe("Access Control", () => {
         content: "Bob's note",
         type: "fact",
         author: "bob",
-        scope: "project",
+        scope: "workspace",
       });
       assertMemory(bob.data);
 
@@ -58,7 +58,7 @@ describe("Access Control", () => {
         content: "Original",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
       assertMemory(memory);
       // Bob updates Alice's project memory
@@ -77,7 +77,7 @@ describe("Access Control", () => {
         content: "To archive",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
       assertMemory(memory);
       const result = await service.archive(memory.id, "bob");
@@ -163,7 +163,7 @@ describe("Access Control", () => {
         content: "Original",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
       assertMemory(memory);
       const { data: comment } = await service.addComment(
@@ -183,7 +183,7 @@ describe("Access Control", () => {
         content: "Fact to verify",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
       assertMemory(memory);
       const verified = await service.verify(memory.id, "bob");
@@ -225,7 +225,7 @@ describe("Access Control", () => {
         content: "Old fact",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
       const result = await service.listStale("test-project", "bob", 0);
       expect(result.data.length).toBeGreaterThanOrEqual(1);
@@ -263,7 +263,7 @@ describe("Access Control", () => {
         content: "Note",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
       assertMemory(memory);
       expect(memory.comment_count).toBe(0);
@@ -275,7 +275,7 @@ describe("Access Control", () => {
         content: "Note",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
       assertMemory(memory);
       await service.addComment(memory.id, "bob", "Comment 1");

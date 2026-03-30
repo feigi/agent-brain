@@ -28,7 +28,7 @@ describe("Comments", () => {
         content: "Original",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
       assertMemory(memory);
       const result = await service.addComment(memory.id, "bob", "My comment");
@@ -44,7 +44,7 @@ describe("Comments", () => {
         content: "Note",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
       assertMemory(memory);
       const c1 = await service.addComment(memory.id, "bob", "First");
@@ -62,7 +62,7 @@ describe("Comments", () => {
         content: "Original content",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
       assertMemory(memory);
       await service.addComment(memory.id, "bob", "A comment");
@@ -76,7 +76,7 @@ describe("Comments", () => {
         content: "Note",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
       assertMemory(memory);
       const versionBefore = memory.version;
@@ -91,7 +91,7 @@ describe("Comments", () => {
         content: "Note",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
       assertMemory(memory);
       const createdAt = memory.updated_at;
@@ -114,7 +114,7 @@ describe("Comments", () => {
         content: "My note",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
       assertMemory(memory);
       await expect(
@@ -128,7 +128,7 @@ describe("Comments", () => {
         content: "My note",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
       assertMemory(memory);
       try {
@@ -148,7 +148,7 @@ describe("Comments", () => {
         content: "To archive",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
       assertMemory(memory);
       await service.archive(memory.id, "alice");
@@ -166,7 +166,7 @@ describe("Comments", () => {
         content: "Note",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
       assertMemory(memory);
       const result = await service.getWithComments(memory.id, "bob");
@@ -182,7 +182,7 @@ describe("Comments", () => {
         content: "Note",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
       assertMemory(memory);
       const result = await service.getWithComments(memory.id, "alice");
@@ -229,7 +229,7 @@ describe("Comments", () => {
         content: "Note",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
       assertMemory(memory);
       await service.addComment(memory.id, "bob", "First comment");
@@ -254,7 +254,7 @@ describe("Comments", () => {
         content: "Note",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
       // The tool layer validates via contentSchema, but test at service level if service also validates
       // If service doesn't validate (tool layer does), this test may pass -- that's ok,
