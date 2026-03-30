@@ -5,6 +5,7 @@
 # memory_session_start via MCP tools. This hook just warms the server connection.
 
 INPUT=$(cat)
+AGENT_BRAIN_URL="${AGENT_BRAIN_URL:-http://localhost:19898}"
 CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
 
 USER_ID=$(whoami)
@@ -12,12 +13,12 @@ PROJECT_ID=$(basename "$CWD")
 SESSION_KEY="${COPILOT_SESSION_ID:-$(date +%Y%m%d%H%M%S)}"
 
 # Check server health — fail gracefully if server is down
-if ! curl -sf http://localhost:19898/health >/dev/null 2>&1; then
+if ! curl -sf "${AGENT_BRAIN_URL}/health" >/dev/null 2>&1; then
   exit 0
 fi
 
 # Pre-warm: call session start API so the server is ready
-RESPONSE=$(curl -s -X POST http://localhost:19898/api/tools/memory_session_start \
+RESPONSE=$(curl -s -X POST "${AGENT_BRAIN_URL}/api/tools/memory_session_start" \
   -H 'Content-Type: application/json' \
   -d "{\"project_id\":\"${PROJECT_ID}\",\"user_id\":\"${USER_ID}\",\"limit\":10}")
 

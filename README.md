@@ -188,6 +188,8 @@ Merge the entries from `hooks/claude/settings-snippet.json` into your `~/.claude
 | **PostToolUse** `memory-nudge.sh`          | Periodically reminds Claude to save notable decisions or conventions via `additionalContext`         |
 | **Stop** `memory-session-review.sh`        | Prompts Claude to reflect and save learnings before ending a session                                 |
 
+The hooks connect to Agent Brain at `http://localhost:19898` by default. Set the `AGENT_BRAIN_URL` environment variable to override (e.g. `export AGENT_BRAIN_URL=http://my-server:3000`).
+
 **Step 3: Add instructions to your CLAUDE.md**
 
 Create or edit `~/.claude/CLAUDE.md` (global) and paste this snippet. It tells Claude Code to use agent-brain instead of the built-in file-based memory:
@@ -273,6 +275,8 @@ chmod +x .github/hooks/memory-*.sh
 | **sessionStart** `memory-session-start.sh` | Pre-warms the Agent Brain session via REST API |
 | **postToolUse** `memory-nudge.sh`          | Counter-based tool usage audit log             |
 | **sessionEnd** `memory-session-end.sh`     | Cleans up temp files from the session          |
+
+The hooks connect to Agent Brain at `http://localhost:19898` by default. Set the `AGENT_BRAIN_URL` environment variable to override.
 
 > **Note:** Unlike Claude Code, Copilot CLI hooks cannot inject context or block the session end. The agent relies on custom instructions in `.github/copilot-instructions.md` (included in this repo) to call `memory_session_start` at session start and review memories before stopping.
 

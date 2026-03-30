@@ -122,7 +122,7 @@ fi
 
 - GitHub Copilot CLI (v0.0.422+ for personal hooks support)
 - `jq` installed (`brew install jq` on macOS, `apt install jq` on Linux)
-- Agent Brain server running on `http://localhost:19898`
+- Agent Brain server running (default `http://localhost:19898`, override with `AGENT_BRAIN_URL` env var)
 
 ### Key Differences from Claude Code
 
