@@ -1,8 +1,8 @@
 # Loop Summary
 
 **Status:** Completed successfully
-**Iterations:** 2
-**Duration:** 8m 17s
+**Iterations:** 16
+**Duration:** 1h 0m 0s
 
 ## Tasks
 
@@ -14,4 +14,4 @@ _No events recorded._
 
 ## Final Commit
 
-8b8dfb7: Revert "docs: simplify quickstart to not assume local installation"
+fe11c2f: fix: use budgetResult.exceeded and logger.warn in budget response
