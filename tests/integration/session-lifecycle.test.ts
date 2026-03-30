@@ -4,7 +4,6 @@ import {
   truncateAll,
   closeDb,
 } from "../helpers.js";
-import { ValidationError } from "../../src/utils/errors.js";
 import { config } from "../../src/config.js";
 import type { MemoryService } from "../../src/services/memory-service.js";
 
@@ -149,27 +148,29 @@ describe("Session lifecycle and write budget integration tests", () => {
     expect(secondAutoResult.meta.budget?.used).toBe(2);
   });
 
-  it("autonomous write without session_id is rejected (AUTO-03)", async () => {
-    await expect(
-      service.create({
-        project_id: "test-project",
-        content: "This write has no session_id and should throw",
-        type: "fact",
-        author: "alice",
-        source: "agent-auto",
-        // intentionally no session_id
-      }),
-    ).rejects.toThrow(ValidationError);
+  it("autonomous write without session_id succeeds without budget tracking (AUTO-03)", async () => {
+    const autoResult = await service.create({
+      project_id: "test-project",
+      content: "agent-auto write without session_id",
+      type: "fact",
+      author: "alice",
+      source: "agent-auto",
+      // intentionally no session_id
+    });
 
-    await expect(
-      service.create({
-        project_id: "test-project",
-        content: "session-review write also needs session_id",
-        type: "fact",
-        author: "alice",
-        source: "session-review",
-      }),
-    ).rejects.toThrow("session_id is required");
+    expect(autoResult.data).toHaveProperty("id");
+    expect(autoResult.meta.budget).toBeUndefined();
+
+    const reviewResult = await service.create({
+      project_id: "test-project",
+      content: "session-review write without session_id",
+      type: "fact",
+      author: "alice",
+      source: "session-review",
+    });
+
+    expect(reviewResult.data).toHaveProperty("id");
+    expect(reviewResult.meta.budget).toBeUndefined();
   });
 
   it("different sessions have independent budgets", async () => {

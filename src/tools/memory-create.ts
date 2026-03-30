@@ -12,7 +12,7 @@ export function registerMemoryCreate(
     "memory_create",
     {
       description:
-        'Save a new memory to the knowledge base. user_id is required for all operations and enforces scope-based access control. Autonomous writes (source \'agent-auto\' or \'session-review\') require session_id from memory_session_start. Example: memory_create({ project_id: "my-project", content: "Always run migrations before deploying", type: "decision", user_id: "alice" })',
+        'Save a new memory to the knowledge base. user_id is required for all operations and enforces scope-based access control. Include session_id from memory_session_start for budget tracking (optional). Example: memory_create({ project_id: "my-project", content: "Always run migrations before deploying", type: "decision", user_id: "alice" })',
       inputSchema: {
         project_id: slugSchema
           .optional()

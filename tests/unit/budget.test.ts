@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryService } from "../../src/services/memory-service.js";
-import { ValidationError } from "../../src/utils/errors.js";
 import type { Memory } from "../../src/types/memory.js";
 import type {
   MemoryRepository,
@@ -226,7 +225,7 @@ describe("Budget enforcement in memory_create", () => {
     expect(sessionLifecycleRepo.getBudget).not.toHaveBeenCalled();
   });
 
-  it("autonomous write without session_id throws ValidationError", async () => {
+  it("autonomous write without session_id succeeds without budget tracking", async () => {
     const service = new MemoryService(
       memoryRepo,
       projectRepo,
@@ -236,26 +235,17 @@ describe("Budget enforcement in memory_create", () => {
       sessionLifecycleRepo,
     );
 
-    await expect(
-      service.create({
-        project_id: "test-project",
-        content: "This should throw because no session_id",
-        type: "fact",
-        author: "alice",
-        source: "agent-auto",
-        // no session_id
-      }),
-    ).rejects.toThrow(ValidationError);
+    const result = await service.create({
+      project_id: "test-project",
+      content: "Agent-auto write without session_id",
+      type: "fact",
+      author: "alice",
+      source: "agent-auto",
+    });
 
-    await expect(
-      service.create({
-        project_id: "test-project",
-        content: "This should throw because no session_id",
-        type: "fact",
-        author: "alice",
-        source: "agent-auto",
-      }),
-    ).rejects.toThrow("session_id is required");
+    expect(result.data).toHaveProperty("id");
+    expect(result.meta.budget).toBeUndefined();
+    expect(sessionLifecycleRepo.getBudget).not.toHaveBeenCalled();
   });
 
   it("manual write without session_id succeeds", async () => {

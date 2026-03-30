@@ -4,6 +4,7 @@
 
 INPUT=$(cat)
 CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
+CLIENT_SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // .sessionId // ""')
 
 USER_ID=$(whoami)
 PROJECT_ID=$(basename "$CWD")
@@ -19,6 +20,14 @@ RESPONSE=$(curl -s -X POST http://localhost:19898/api/tools/memory_session_start
 
 if [ -z "$RESPONSE" ]; then
   exit 0
+fi
+
+# Stash agent-brain session_id for the stop hook to read
+if [ -n "$CLIENT_SESSION_ID" ]; then
+  AB_SESSION_ID=$(echo "$RESPONSE" | jq -r '.meta.session_id // ""')
+  if [ -n "$AB_SESSION_ID" ]; then
+    echo "$AB_SESSION_ID" > "/tmp/agent-brain-sid-${CLIENT_SESSION_ID}"
+  fi
 fi
 
 MEMORIES_ESCAPED=$(echo "$RESPONSE" | jq -Rs '.')

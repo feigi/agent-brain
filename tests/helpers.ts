@@ -18,15 +18,13 @@ import {
   sessionTracking,
   sessions,
 } from "../src/db/schema.js";
+import { TEST_DB_URL } from "./global-setup.js";
 
 let db: Database;
 
 export function getTestDb(): Database {
   if (!db) {
-    const url =
-      process.env.DATABASE_URL ??
-      "postgresql://agentic:agentic@localhost:5432/agent_brain";
-    db = createDb(url);
+    db = createDb(TEST_DB_URL);
   }
   return db;
 }

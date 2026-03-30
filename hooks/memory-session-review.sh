@@ -75,11 +75,24 @@ if [ "$HAS_WORK" = "false" ]; then
   exit 0
 fi
 
+# Read the agent-brain session_id stashed by the start hook
+AB_SESSION_ID=$(cat "/tmp/agent-brain-sid-${SESSION_ID}" 2>/dev/null || echo "")
+rm -f "/tmp/agent-brain-sid-${SESSION_ID}" 2>/dev/null
+
 # Real work detected — block and request review
-cat <<'REVIEW'
+if [ -n "$AB_SESSION_ID" ]; then
+  cat <<EOF
 {
   "decision": "block",
-  "reason": "Session-end memory review: save key learnings/decisions via memory_create (source: 'session-review'), or say 'Nothing to save' if trivial session."
+  "reason": "Session-end memory review: save key learnings/decisions via memory_create (source: 'session-review', session_id: '${AB_SESSION_ID}'). Or say 'Nothing to save' if trivial session."
+}
+EOF
+else
+  cat <<'REVIEW'
+{
+  "decision": "block",
+  "reason": "Session-end memory review: save key learnings/decisions via memory_create (source: 'session-review'). Or say 'Nothing to save' if trivial session."
 }
 REVIEW
+fi
 exit 0

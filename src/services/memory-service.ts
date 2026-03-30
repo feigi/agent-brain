@@ -74,15 +74,10 @@ export class MemoryService {
       );
     }
 
-    // Phase 4: Guard 1 -- Session validation (D-19)
-    // Autonomous writes (agent-auto or session-review) require session_id
+    // Phase 4: Autonomous source flag (used for budget check + increment below)
+    // session_id is optional — budget tracking is best-effort, not a hard gate
     const isAutonomous =
       input.source === "agent-auto" || input.source === "session-review";
-    if (isAutonomous && !input.session_id) {
-      throw new ValidationError(
-        "session_id is required for autonomous writes (source: 'agent-auto' or 'session-review').",
-      );
-    }
 
     // Phase 4: Guard 2 -- Budget check (D-10, D-12, D-13)
     // Manual writes (source: 'manual') bypass budget checks entirely
