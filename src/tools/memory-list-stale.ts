@@ -25,9 +25,11 @@ export function registerMemoryListStale(
     "memory_list_stale",
     {
       description:
-        'List memories that haven\'t been verified within a threshold. Helps identify knowledge that may be outdated. user_id is required -- only workspace/project-scoped memories and your own user-scoped memories are returned. Example: memory_list_stale({ project_id: "my-project", user_id: "alice", threshold_days: 30 })',
+        'List memories that haven\'t been verified within a threshold. Helps identify knowledge that may be outdated. user_id is required -- only workspace/project-scoped memories and your own user-scoped memories are returned. Example: memory_list_stale({ workspace_id: "my-project", user_id: "alice", threshold_days: 30 })',
       inputSchema: {
-        project_id: slugSchema.describe("Project slug (e.g., 'my-project')"),
+        workspace_id: slugSchema.describe(
+          "Workspace slug (e.g., 'my-project')",
+        ),
         user_id: slugSchema.describe(
           "User identifier (e.g., 'alice'). Required for scope-based access control.",
         ),
@@ -53,7 +55,7 @@ export function registerMemoryListStale(
     async (params) => {
       return withErrorHandling(async () => {
         const result = await memoryService.listStale(
-          params.project_id,
+          params.workspace_id,
           params.user_id,
           params.threshold_days,
           params.limit,

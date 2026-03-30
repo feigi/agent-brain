@@ -15,9 +15,11 @@ export function registerMemorySessionStart(
         "Load relevant memories at session start. Searches both project and user scopes. " +
         "user_id is required to load your private memories alongside shared project memories. " +
         "Provide context for relevance-ranked results, or omit for recent memories. " +
-        'Example: memory_session_start({ project_id: "my-project", user_id: "alice" })',
+        'Example: memory_session_start({ workspace_id: "my-project", user_id: "alice" })',
       inputSchema: {
-        project_id: slugSchema.describe("Project slug (e.g., 'my-project')"),
+        workspace_id: slugSchema.describe(
+          "Workspace slug (e.g., 'my-project')",
+        ),
         user_id: slugSchema.describe(
           "User identifier (e.g., 'alice'). Required to load user-scoped memories.",
         ),
@@ -39,7 +41,7 @@ export function registerMemorySessionStart(
     async (params) => {
       return withErrorHandling(async () => {
         const result = await memoryService.sessionStart(
-          params.project_id,
+          params.workspace_id,
           params.user_id,
           params.context,
           params.limit,

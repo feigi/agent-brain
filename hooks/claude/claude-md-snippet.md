@@ -9,7 +9,7 @@ This user uses **agent-brain** (MCP server) as their sole memory system across a
 ### Identity Parameters
 
 - **`user_id`**: The OS username, i.e. the output of `whoami`. This is the user's identity across all memory tools.
-- **`project_id`**: The repository directory name (e.g., `agent-brain` for `/Users/chris/dev/agent-brain`).
+- **`workspace_id`**: The repository directory name (e.g., `agent-brain` for `/Users/chris/dev/agent-brain`).
 
 ### When to Call `memory_search`
 

@@ -234,19 +234,29 @@ is at `hooks/copilot/instructions-snippet.md`.
 
 #### Session Start + Guard Flag
 
-The `memory-session-start.sh` hook fires when a new session begins. It:
+The `memory-session-start.sh` hook fires when a new Copilot CLI session begins (and on each
+subsequent turn). It:
 
-1. Creates a guard flag file `/tmp/copilot-guard-{cwd_hash}` marking that `memory_session_start` has not yet been called
-2. Pre-warms the Agent Brain server via its REST API
+1. Checks for an init-done marker (`/tmp/copilot-init-done-{cwd_hash}`) — if present and not
+   stale (< 12 hours), the guard flag is **not** recreated, so tools work without requiring
+   `memory_session_start` again
+2. If no init-done marker exists (first turn of a new session), creates a guard flag file
+   `/tmp/copilot-guard-{cwd_hash}` that blocks all tools until `memory_session_start` is called
+3. Pre-warms the Agent Brain server via its REST API
 
 #### Pre-Tool-Use Guard (hard enforcement)
 
 The `memory-session-guard.sh` hook fires before **every** tool call. It:
 
 1. Checks for the guard flag
-2. If the flag exists and the tool is `memory_session_start` → **deletes the guard flag** and allows the call
-3. If the flag exists and the tool is anything else → returns `permissionDecision: deny` with a clear reason message
+2. If the flag exists and the tool is `memory_session_start` → **deletes the guard flag**, creates
+   the init-done marker, and allows the call
+3. If the flag exists and the tool is anything else → returns `permissionDecision: deny` with a
+   clear reason message
 4. The agent sees the denial and **must** call `memory_session_start` to unblock itself
+
+Once `memory_session_start` is called, the init-done marker prevents the guard from being
+recreated on subsequent turns within the same session.
 
 This is the only Copilot CLI hook output the agent receives, making it the enforcement layer.
 The flag is cleared in preToolUse (rather than postToolUse) because Copilot CLI may not reliably
@@ -261,7 +271,8 @@ cleanup mechanism when `memory_session_start` is detected. The primary cleanup h
 #### Session End
 
 The `memory-session-end.sh` hook fires when the session ends. It cleans up temp files (session
-ID, nudge counter) created during the session.
+ID, nudge counter, guard flag, init-done marker) created during the session. Removing the
+init-done marker ensures the next session will require `memory_session_start` again.
 
 ---
 

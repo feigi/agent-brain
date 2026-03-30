@@ -17,9 +17,12 @@ if [ ! -f "$GUARD_FLAG" ]; then
   exit 0
 fi
 
-# memory_session_start itself must always be allowed — and it clears the guard flag
+# memory_session_start itself must always be allowed — and it clears the guard flag.
+# Also set an init-done marker so the sessionStart hook won't recreate the guard on
+# subsequent turns within the same session.
 if echo "$TOOL_NAME" | grep -qi "memory_session_start"; then
   rm -f "$GUARD_FLAG"
+  touch "/tmp/copilot-init-done-${CWD_HASH}"
   exit 0
 fi
 

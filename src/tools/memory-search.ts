@@ -12,10 +12,10 @@ export function registerMemorySearch(
     "memory_search",
     {
       description:
-        'Search memories by semantic similarity. Returns ranked results with relevance scores. user_id is required for all searches to enforce scope-based access control. Example: memory_search({ project_id: "my-project", query: "database migration patterns", user_id: "alice" })',
+        'Search memories by semantic similarity. Returns ranked results with relevance scores. user_id is required for all searches to enforce scope-based access control. Example: memory_search({ workspace_id: "my-project", query: "database migration patterns", user_id: "alice" })',
       inputSchema: {
-        project_id: slugSchema.describe(
-          "Project slug to search within (e.g., 'my-project')",
+        workspace_id: slugSchema.describe(
+          "Workspace slug to search within (e.g., 'my-project')",
         ),
         query: z.string().describe("Natural language search query"),
         scope: z
@@ -46,7 +46,7 @@ export function registerMemorySearch(
       return withErrorHandling(async () => {
         const result = await memoryService.search(
           params.query,
-          params.project_id,
+          params.workspace_id,
           params.scope,
           params.user_id,
           params.limit,

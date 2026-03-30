@@ -14,9 +14,9 @@ export function registerMemoryListRecent(
       description:
         "List memories created or updated after a given timestamp. Useful for team activity awareness. " +
         "Each result includes a change_type indicating whether it was created, updated, or commented. " +
-        'Example: memory_list_recent({ project_id: "my-project", user_id: "alice", since: "2026-03-20T00:00:00Z" })',
+        'Example: memory_list_recent({ workspace_id: "my-project", user_id: "alice", since: "2026-03-20T00:00:00Z" })',
       inputSchema: {
-        project_id: slugSchema.describe("Project slug"),
+        workspace_id: slugSchema.describe("Workspace slug"),
         user_id: slugSchema.describe(
           "User identifier (required for scope-based privacy)",
         ),
@@ -43,7 +43,7 @@ export function registerMemoryListRecent(
       return withErrorHandling(async () => {
         const sinceDate = new Date(params.since);
         const result = await memoryService.listRecentActivity(
-          params.project_id,
+          params.workspace_id,
           params.user_id,
           sinceDate,
           params.limit,

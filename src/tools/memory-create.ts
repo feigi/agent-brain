@@ -12,12 +12,12 @@ export function registerMemoryCreate(
     "memory_create",
     {
       description:
-        'Save a new memory to the knowledge base. user_id is required for all operations and enforces scope-based access control. Include session_id from memory_session_start for budget tracking (optional). Example: memory_create({ project_id: "my-project", content: "Always run migrations before deploying", type: "decision", user_id: "alice" })',
+        'Save a new memory to the knowledge base. user_id is required for all operations and enforces scope-based access control. Include session_id from memory_session_start for budget tracking (optional). Example: memory_create({ workspace_id: "my-project", content: "Always run migrations before deploying", type: "decision", user_id: "alice" })',
       inputSchema: {
-        project_id: slugSchema
+        workspace_id: slugSchema
           .optional()
           .describe(
-            "Project slug (e.g., 'my-project'). Required for workspace/user scope. Optional for project scope (cross-workspace).",
+            "Workspace slug (e.g., 'my-project'). Required for workspace/user scope. Optional for project scope (cross-workspace).",
           ),
         content: contentSchema.describe(
           "Memory content text. Must not be empty. Soft limit ~4000 chars.",
@@ -69,7 +69,7 @@ export function registerMemoryCreate(
     async (params) => {
       return withErrorHandling(async () => {
         const result = await memoryService.create({
-          project_id: params.project_id,
+          project_id: params.workspace_id,
           content: params.content,
           title: params.title,
           type: params.type,

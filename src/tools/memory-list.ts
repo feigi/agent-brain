@@ -25,12 +25,12 @@ export function registerMemoryList(
     "memory_list",
     {
       description:
-        'Browse memories with filtering, sorting, and pagination. user_id is required for access control. Use for browsing by type or tags. For semantic search, use memory_search instead. Example: memory_list({ project_id: "my-project", user_id: "alice", type: "decision" })',
+        'Browse memories with filtering, sorting, and pagination. user_id is required for access control. Use for browsing by type or tags. For semantic search, use memory_search instead. Example: memory_list({ workspace_id: "my-project", user_id: "alice", type: "decision" })',
       inputSchema: {
-        project_id: slugSchema
+        workspace_id: slugSchema
           .optional()
           .describe(
-            "Project slug (e.g., 'my-project'). Required for workspace/user scope. Optional for project scope (cross-workspace).",
+            "Workspace slug (e.g., 'my-project'). Required for workspace/user scope. Optional for project scope (cross-workspace).",
           ),
         scope: z
           .enum(["workspace", "user", "project"])
@@ -79,7 +79,7 @@ export function registerMemoryList(
     async (params) => {
       return withErrorHandling(async () => {
         const result = await memoryService.list({
-          project_id: params.project_id,
+          project_id: params.workspace_id,
           scope: params.scope,
           user_id: params.user_id,
           type: params.type,
