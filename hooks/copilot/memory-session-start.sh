@@ -11,7 +11,7 @@ AGENT_BRAIN_URL="${AGENT_BRAIN_URL:-http://localhost:19898}"
 CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
 
 USER_ID=$(whoami)
-PROJECT_ID=$(basename "$CWD")
+WORKSPACE_ID=$(basename "$CWD")
 SESSION_KEY="${COPILOT_SESSION_ID:-$(date +%Y%m%d%H%M%S)}"
 
 # Create guard flag so preToolUse hook blocks all tools until memory_session_start is called
@@ -35,7 +35,7 @@ fi
 # Pre-warm: call session start API so the server is ready
 RESPONSE=$(curl -s -X POST "${AGENT_BRAIN_URL}/api/tools/memory_session_start" \
   -H 'Content-Type: application/json' \
-  -d "{\"project_id\":\"${PROJECT_ID}\",\"user_id\":\"${USER_ID}\",\"limit\":10}")
+  -d "{\"workspace_id\":\"${WORKSPACE_ID}\",\"user_id\":\"${USER_ID}\",\"limit\":10}")
 
 if [ -z "$RESPONSE" ]; then
   exit 0

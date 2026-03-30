@@ -8,7 +8,7 @@ CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
 CLIENT_SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // .sessionId // ""')
 
 USER_ID=$(whoami)
-PROJECT_ID=$(basename "$CWD")
+WORKSPACE_ID=$(basename "$CWD")
 
 # Check server health — fail gracefully if server is down
 if ! curl -sf "${AGENT_BRAIN_URL}/health" >/dev/null 2>&1; then
@@ -17,7 +17,7 @@ fi
 
 RESPONSE=$(curl -s -X POST "${AGENT_BRAIN_URL}/api/tools/memory_session_start" \
   -H 'Content-Type: application/json' \
-  -d "{\"project_id\":\"${PROJECT_ID}\",\"user_id\":\"${USER_ID}\",\"limit\":10}")
+  -d "{\"workspace_id\":\"${WORKSPACE_ID}\",\"user_id\":\"${USER_ID}\",\"limit\":10}")
 
 if [ -z "$RESPONSE" ]; then
   exit 0
