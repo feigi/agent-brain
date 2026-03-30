@@ -4,21 +4,21 @@
     "sessionStart": [
       {
         "type": "command",
-        "bash": "./.github/hooks/copilot-session-start.sh",
+        "bash": "./.github/hooks/memory-session-start.sh",
         "timeoutSec": 10
       }
     ],
     "postToolUse": [
       {
         "type": "command",
-        "bash": "./.github/hooks/copilot-nudge.sh",
+        "bash": "./.github/hooks/memory-nudge.sh",
         "timeoutSec": 5
       }
     ],
     "sessionEnd": [
       {
         "type": "command",
-        "bash": "./.github/hooks/copilot-session-end.sh",
+        "bash": "./.github/hooks/memory-session-end.sh",
         "timeoutSec": 5
       }
     ]

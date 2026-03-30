@@ -11,13 +11,13 @@ hook setup.
 
 ### Included Templates
 
-| File                       | Purpose                                                       |
-| -------------------------- | ------------------------------------------------------------- |
-| `memory-session-start.sh`  | SessionStart hook that loads memories at session start        |
-| `memory-guard.sh`          | PreToolUse hook that blocks writes to Claude Code auto-memory |
-| `memory-nudge.sh`          | PostToolUse hook that periodically reminds to save memories   |
-| `memory-session-review.sh` | Stop hook that triggers memory review before Claude exits     |
-| `settings-snippet.json`    | Hook configuration to merge into `.claude/settings.json`      |
+| File                              | Purpose                                                       |
+| --------------------------------- | ------------------------------------------------------------- |
+| `claude/memory-session-start.sh`  | SessionStart hook that loads memories at session start        |
+| `claude/memory-guard.sh`          | PreToolUse hook that blocks writes to Claude Code auto-memory |
+| `claude/memory-nudge.sh`          | PostToolUse hook that periodically reminds to save memories   |
+| `claude/memory-session-review.sh` | Stop hook that triggers memory review before Claude exits     |
+| `claude/settings-snippet.json`    | Hook configuration to merge into `.claude/settings.json`      |
 
 ### Prerequisites
 
@@ -32,10 +32,10 @@ hook setup.
 
 ```bash
 mkdir -p ~/.claude/hooks
-cp hooks/memory-session-start.sh ~/.claude/hooks/
-cp hooks/memory-guard.sh ~/.claude/hooks/
-cp hooks/memory-nudge.sh ~/.claude/hooks/
-cp hooks/memory-session-review.sh ~/.claude/hooks/
+cp hooks/claude/memory-session-start.sh ~/.claude/hooks/
+cp hooks/claude/memory-guard.sh ~/.claude/hooks/
+cp hooks/claude/memory-nudge.sh ~/.claude/hooks/
+cp hooks/claude/memory-session-review.sh ~/.claude/hooks/
 ```
 
 #### Step 2: Make them executable
@@ -47,7 +47,7 @@ chmod +x ~/.claude/hooks/memory-*.sh
 #### Step 3: Add the Stop hook configuration
 
 Open (or create) `.claude/settings.json` in your project and add the Stop hook configuration
-from `settings-snippet.json`. Your settings file should contain:
+from `hooks/claude/settings-snippet.json`. Your settings file should contain:
 
 ```json
 {
@@ -110,10 +110,13 @@ fi
 
 ### Included Templates
 
-| File                       | Purpose                                                          |
-| -------------------------- | ---------------------------------------------------------------- |
-| `copilot-hooks.json`       | Hook configuration template for `.github/hooks/` or `~/.copilot/hooks/` |
-| `copilot-mcp-snippet.json` | MCP server configuration to merge into `~/.copilot/mcp-config.json`     |
+| File                              | Purpose                                                                 |
+| --------------------------------- | ----------------------------------------------------------------------- |
+| `copilot/hooks.json`              | Hook configuration template for `.github/hooks/` or `~/.copilot/hooks/` |
+| `copilot/mcp-snippet.json`        | MCP server configuration to merge into `~/.copilot/mcp-config.json`     |
+| `copilot/memory-session-start.sh` | sessionStart hook that pre-warms the Agent Brain session                |
+| `copilot/memory-nudge.sh`         | postToolUse hook that logs tool usage per session                       |
+| `copilot/memory-session-end.sh`   | sessionEnd hook that cleans up temp files                               |
 
 ### Prerequisites
 
@@ -125,12 +128,12 @@ fi
 
 Copilot CLI hooks have important limitations compared to Claude Code hooks:
 
-| Capability                    | Claude Code          | Copilot CLI         |
-| ----------------------------- | -------------------- | ------------------- |
-| Inject context at session start | ✅ via `additionalContext` | ❌ Output ignored |
-| Block tool execution          | ✅ via `decision: block`  | ✅ via `permissionDecision: deny` |
-| Remind agent mid-session      | ✅ via `additionalContext` | ❌ Output ignored |
-| Block session end for review  | ✅ via `decision: block`  | ❌ Output ignored |
+| Capability                      | Claude Code                | Copilot CLI                       |
+| ------------------------------- | -------------------------- | --------------------------------- |
+| Inject context at session start | ✅ via `additionalContext` | ❌ Output ignored                 |
+| Block tool execution            | ✅ via `decision: block`   | ✅ via `permissionDecision: deny` |
+| Remind agent mid-session        | ✅ via `additionalContext` | ❌ Output ignored                 |
+| Block session end for review    | ✅ via `decision: block`   | ❌ Output ignored                 |
 
 Because of these limitations, **custom instructions are more important** for Copilot CLI than for
 Claude Code. The `.github/copilot-instructions.md` file (included in this repo) tells the agent
@@ -141,7 +144,7 @@ each session and reviewing memories before stopping.
 
 #### Step 1: Add the MCP server
 
-Merge the contents of `copilot-mcp-snippet.json` into your `~/.copilot/mcp-config.json`:
+Merge the contents of `hooks/copilot/mcp-snippet.json` into your `~/.copilot/mcp-config.json`:
 
 ```json
 {
@@ -162,11 +165,11 @@ Copy the hook scripts and configuration into your project's `.github/hooks/` dir
 
 ```bash
 mkdir -p .github/hooks
-cp hooks/copilot-hooks.json .github/hooks/hooks.json
-cp hooks/copilot-session-start.sh .github/hooks/
-cp hooks/copilot-session-end.sh .github/hooks/
-cp hooks/copilot-nudge.sh .github/hooks/
-chmod +x .github/hooks/copilot-*.sh
+cp hooks/copilot/hooks.json .github/hooks/hooks.json
+cp hooks/copilot/memory-session-start.sh .github/hooks/
+cp hooks/copilot/memory-nudge.sh .github/hooks/
+cp hooks/copilot/memory-session-end.sh .github/hooks/
+chmod +x .github/hooks/memory-*.sh
 ```
 
 Copilot CLI automatically loads hooks from `.github/hooks/` in your working directory.
@@ -175,11 +178,11 @@ Copilot CLI automatically loads hooks from `.github/hooks/` in your working dire
 
 ```bash
 mkdir -p ~/.copilot/hooks
-cp hooks/copilot-hooks.json ~/.copilot/hooks/hooks.json
-cp hooks/copilot-session-start.sh ~/.copilot/hooks/
-cp hooks/copilot-session-end.sh ~/.copilot/hooks/
-cp hooks/copilot-nudge.sh ~/.copilot/hooks/
-chmod +x ~/.copilot/hooks/copilot-*.sh
+cp hooks/copilot/hooks.json ~/.copilot/hooks/hooks.json
+cp hooks/copilot/memory-session-start.sh ~/.copilot/hooks/
+cp hooks/copilot/memory-nudge.sh ~/.copilot/hooks/
+cp hooks/copilot/memory-session-end.sh ~/.copilot/hooks/
+chmod +x ~/.copilot/hooks/memory-*.sh
 ```
 
 #### Step 3: Add custom instructions
@@ -193,7 +196,7 @@ Copilot CLI also reads `CLAUDE.md` and `AGENTS.md` from the repository root.
 
 #### Session Start
 
-The `copilot-session-start.sh` hook fires when a new Copilot CLI session begins. It calls the
+The `memory-session-start.sh` hook fires when a new Copilot CLI session begins. It calls the
 Agent Brain REST API to pre-create a session, warming the server connection. The session ID is
 stashed in `/tmp/` for the session-end hook.
 
@@ -203,13 +206,13 @@ stashed in `/tmp/` for the session-end hook.
 
 #### Tool Usage Audit
 
-The `copilot-nudge.sh` hook fires after each tool use and increments a counter in `/tmp/`. This
+The `memory-nudge.sh` hook fires after each tool use and increments a counter in `/tmp/`. This
 provides an audit trail of tool invocations per session. Unlike the Claude Code version, it
 cannot inject reminders to the agent.
 
 #### Session End
 
-The `copilot-session-end.sh` hook fires when the session ends. It cleans up temp files (session
+The `memory-session-end.sh` hook fires when the session ends. It cleans up temp files (session
 ID, nudge counter) created during the session.
 
 ---

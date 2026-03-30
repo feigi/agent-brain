@@ -120,7 +120,11 @@ EMBEDDING_PROVIDER=mock npm start   # Start with mock embeddings
 
 Mock mode uses random vectors — search results won't be semantically meaningful, but all tools work. Good for testing the MCP integration.
 
-### 4. Connect to Claude Code
+### 4. Set up with Claude Code
+
+**Step 1: Add the MCP server**
+
+Add to `~/.claude/settings.json` (global) or project `.claude/settings.json`:
 
 **Option A: npx from GitHub (no clone required)**
 
@@ -158,27 +162,23 @@ Mock mode uses random vectors — search results won't be semantically meaningfu
 }
 ```
 
-Add to `~/.claude/settings.json` (global) or project `.claude/settings.json`. For production with Titan embeddings, set `EMBEDDING_PROVIDER=titan` and ensure `AWS_REGION` and credentials are available.
+For production with Titan embeddings, set `EMBEDDING_PROVIDER=titan` and ensure `AWS_REGION` and credentials are available.
 
-### 5. Integrate with Claude Code (optional)
+**Step 2: Add hooks (optional)**
 
 Three hooks make Claude Code work seamlessly with Agent Brain: automatic memory loading at session start, a guard that prevents writes to Claude Code's built-in file-based memory, and a session-review prompt at session end.
 
 **Prerequisites:** `jq` installed (`brew install jq` on macOS).
 
-#### Step 1: Copy hook scripts
-
 ```bash
 mkdir -p ~/.claude/hooks
-cp hooks/memory-session-start.sh ~/.claude/hooks/
-cp hooks/memory-guard.sh ~/.claude/hooks/
-cp hooks/memory-session-review.sh ~/.claude/hooks/
-chmod +x ~/.claude/hooks/memory-session-start.sh ~/.claude/hooks/memory-guard.sh ~/.claude/hooks/memory-session-review.sh
+cp hooks/claude/memory-session-start.sh ~/.claude/hooks/
+cp hooks/claude/memory-guard.sh ~/.claude/hooks/
+cp hooks/claude/memory-session-review.sh ~/.claude/hooks/
+chmod +x ~/.claude/hooks/memory-*.sh
 ```
 
-#### Step 2: Add hooks to settings
-
-Merge the entries from `hooks/settings-snippet.json` into your `~/.claude/settings.json`:
+Merge the entries from `hooks/claude/settings-snippet.json` into your `~/.claude/settings.json`:
 
 | Hook                                       | Purpose                                                                                              |
 | ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
@@ -186,7 +186,7 @@ Merge the entries from `hooks/settings-snippet.json` into your `~/.claude/settin
 | **PreToolUse** `memory-guard.sh`           | Blocks Write/Edit/MultiEdit to `~/.claude/projects/*/memory/*`, redirecting to agent-brain MCP tools |
 | **Stop** `memory-session-review.sh`        | Prompts Claude to reflect and save learnings before ending a session                                 |
 
-#### Step 3: Add instructions to your CLAUDE.md
+**Step 3: Add instructions to your CLAUDE.md**
 
 Create or edit `~/.claude/CLAUDE.md` (global) and paste this snippet. It tells Claude Code to use agent-brain instead of the built-in file-based memory:
 
@@ -234,13 +234,9 @@ If the user mentions decisions, temporary changes, or gotchas that the team shou
 Always **number** memories and include **author**, **date**, **title**, **type**, and **scope**. The user may refer to memories by number (e.g. "archive memory 2", "comment on 1").
 ```
 
-### 5b. Integrate with GitHub Copilot CLI (optional)
+### 5. Set up with GitHub Copilot CLI
 
-GitHub Copilot CLI has its own hook and instruction system. The concepts are the same as Claude Code, with a few key differences: hooks live in `.github/hooks/`, MCP servers are configured in `~/.copilot/mcp-config.json`, and custom instructions come from `.github/copilot-instructions.md`.
-
-**Prerequisites:** `jq` installed (`brew install jq` on macOS), Copilot CLI v0.0.422+.
-
-#### Step 1: Add the MCP server
+**Step 1: Add the MCP server**
 
 Merge into your `~/.copilot/mcp-config.json`:
 
@@ -255,28 +251,30 @@ Merge into your `~/.copilot/mcp-config.json`:
 }
 ```
 
-#### Step 2: Add hooks
+**Step 2: Add hooks (optional)**
 
-Copy the Copilot CLI hook scripts and configuration into your project:
+**Prerequisites:** `jq` installed (`brew install jq` on macOS), Copilot CLI v0.0.422+.
+
+Copy the hook scripts and configuration into your project:
 
 ```bash
 mkdir -p .github/hooks
-cp hooks/copilot-hooks.json .github/hooks/hooks.json
-cp hooks/copilot-session-start.sh .github/hooks/
-cp hooks/copilot-session-end.sh .github/hooks/
-cp hooks/copilot-nudge.sh .github/hooks/
-chmod +x .github/hooks/copilot-*.sh
+cp hooks/copilot/hooks.json .github/hooks/hooks.json
+cp hooks/copilot/memory-session-start.sh .github/hooks/
+cp hooks/copilot/memory-nudge.sh .github/hooks/
+cp hooks/copilot/memory-session-end.sh .github/hooks/
+chmod +x .github/hooks/memory-*.sh
 ```
 
-| Hook                         | Purpose                                                                |
-| ---------------------------- | ---------------------------------------------------------------------- |
-| **sessionStart** `copilot-session-start.sh` | Pre-warms the Agent Brain session via REST API                |
-| **postToolUse** `copilot-nudge.sh`          | Counter-based tool usage audit log                            |
-| **sessionEnd** `copilot-session-end.sh`     | Cleans up temp files from the session                         |
+| Hook                                       | Purpose                                        |
+| ------------------------------------------ | ---------------------------------------------- |
+| **sessionStart** `memory-session-start.sh` | Pre-warms the Agent Brain session via REST API |
+| **postToolUse** `memory-nudge.sh`          | Counter-based tool usage audit log             |
+| **sessionEnd** `memory-session-end.sh`     | Cleans up temp files from the session          |
 
 > **Note:** Unlike Claude Code, Copilot CLI hooks cannot inject context or block the session end. The agent relies on custom instructions in `.github/copilot-instructions.md` (included in this repo) to call `memory_session_start` at session start and review memories before stopping.
 
-#### Step 3: Add custom instructions
+**Step 3: Add custom instructions**
 
 Create `.github/copilot-instructions.md` in your project root. A ready-to-use instructions file is included in this repo at [`.github/copilot-instructions.md`](.github/copilot-instructions.md). Copilot CLI also reads `CLAUDE.md` and `AGENTS.md` from the repository root.
 
