@@ -23,10 +23,11 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     healthcheck:
-      test: ["CMD", "ollama", "list"]
+      test: ["CMD-SHELL", "HTTP_PROXY= HTTPS_PROXY= http_proxy= https_proxy= ollama list"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 120s
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
