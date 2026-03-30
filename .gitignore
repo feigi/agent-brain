@@ -3,3 +3,9 @@ dist/
 .env
 *.tsbuildinfo
 .worktrees/
+.idea
+.serena
+.ralph
+ralph.yml
+.planning
+.claude
