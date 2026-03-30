@@ -8,8 +8,8 @@ import type {
 } from "../../src/repositories/types.js";
 import type { EmbeddingProvider } from "../../src/providers/embedding/types.js";
 
-// 512-dim zero vector (deterministic for all tests)
-const MOCK_EMBEDDING = new Array(512).fill(0);
+// 768-dim zero vector (deterministic for all tests)
+const MOCK_EMBEDDING = new Array(768).fill(0);
 
 function makeMemory(overrides: Partial<Memory> = {}): Memory {
   const now = new Date();
@@ -26,7 +26,7 @@ function makeMemory(overrides: Partial<Memory> = {}): Memory {
     session_id: "test-session",
     metadata: null,
     embedding_model: "mock",
-    embedding_dimensions: 512,
+    embedding_dimensions: 768,
     version: 1,
     created_at: now,
     updated_at: now,
@@ -77,7 +77,7 @@ function makeEmbeddingProvider(): EmbeddingProvider {
   return {
     embed: vi.fn().mockResolvedValue(MOCK_EMBEDDING),
     modelName: "mock",
-    dimensions: 512,
+    dimensions: 768,
   };
 }
 

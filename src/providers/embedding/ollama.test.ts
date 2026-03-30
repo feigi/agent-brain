@@ -102,10 +102,10 @@ describe("MockEmbeddingProvider with configurable dimensions", () => {
     expect(result).toHaveLength(768);
   });
 
-  it("defaults to 512 dimensions", async () => {
+  it("defaults to 768 dimensions", async () => {
     const provider = new MockEmbeddingProvider();
-    expect(provider.dimensions).toBe(512);
+    expect(provider.dimensions).toBe(768);
     const result = await provider.embed("test");
-    expect(result).toHaveLength(512);
+    expect(result).toHaveLength(768);
   });
 });

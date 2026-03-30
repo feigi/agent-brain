@@ -4,7 +4,7 @@ import type { EmbeddingProvider } from "./types.js";
 export class MockEmbeddingProvider implements EmbeddingProvider {
   readonly modelName = "mock-deterministic";
 
-  constructor(private readonly dims: number = 512) {}
+  constructor(private readonly dims: number = 768) {}
 
   get dimensions(): number {
     return this.dims;

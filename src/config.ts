@@ -8,7 +8,7 @@ export const config = {
     | "titan"
     | "mock"
     | "ollama",
-  embeddingDimensions: Number(process.env.EMBEDDING_DIMENSIONS ?? "512"),
+  embeddingDimensions: Number(process.env.EMBEDDING_DIMENSIONS ?? "768"),
   ollamaBaseUrl: process.env.OLLAMA_BASE_URL ?? "http://localhost:11434",
   ollamaModel: process.env.OLLAMA_MODEL ?? "nomic-embed-text",
   awsRegion: process.env.AWS_REGION ?? "us-east-1",

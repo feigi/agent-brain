@@ -14,7 +14,7 @@ export class TitanEmbeddingProvider implements EmbeddingProvider {
   constructor(
     region = "us-east-1",
     timeoutMs = 10_000,
-    private readonly dims = 512,
+    private readonly dims = 768,
   ) {
     this.client = new BedrockRuntimeClient({
       region,
