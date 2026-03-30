@@ -1,7 +1,12 @@
 import { spawn } from "child_process";
 
 export async function setup() {
-  await runCommand("docker", ["compose", "up", "-d", "--wait"]);
+  // Tolerate docker compose failures (e.g., port already bound by another worktree)
+  await runCommand("docker", ["compose", "up", "-d", "--wait"]).catch(() => {
+    console.error(
+      "docker compose up failed (port may be in use) -- assuming DB is already running",
+    );
+  });
   await runCommand("npx", ["drizzle-kit", "migrate"]);
 }
 

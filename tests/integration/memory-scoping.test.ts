@@ -5,6 +5,7 @@ import {
   closeDb,
   assertMemory,
 } from "../helpers.js";
+import { ValidationError } from "../../src/utils/errors.js";
 import type { MemoryService } from "../../src/services/memory-service.js";
 
 describe("Memory scoping integration tests", () => {
@@ -100,6 +101,112 @@ describe("Memory scoping integration tests", () => {
     expect(staleResult.data.length).toBeGreaterThan(0);
     const found = staleResult.data.find((m) => m.id === createdData.id);
     expect(found).toBeDefined();
+  });
+
+  it("project-scoped memory visible across all workspaces", async () => {
+    // Create a project-scoped memory (cross-workspace)
+    const result = await service.create({
+      project_id: "workspace-a",
+      content: "Always use ESM imports in this project - universal standard",
+      type: "decision",
+      scope: "project",
+      author: "alice",
+      source: "manual",
+    });
+    assertMemory(result.data);
+
+    // Search from a different workspace should find it
+    const searchResult = await service.search(
+      "ESM imports",
+      "workspace-b",
+      "workspace",
+      "bob",
+      undefined,
+      -1,
+    );
+
+    const found = searchResult.data.find((m) => m.scope === "project");
+    expect(found).toBeDefined();
+    expect(found!.content).toContain("ESM imports");
+  });
+
+  it("project-scoped memory cannot be created autonomously", async () => {
+    await expect(
+      service.create({
+        project_id: "test-project",
+        content: "Agent trying to create project-scoped memory",
+        type: "fact",
+        scope: "project",
+        author: "agent-user",
+        source: "agent-auto",
+      }),
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it("project-scoped memory can be created manually", async () => {
+    const result = await service.create({
+      project_id: "test-project",
+      content: "Manual project-scoped memory about coding standards",
+      type: "decision",
+      scope: "project",
+      author: "alice",
+      source: "manual",
+    });
+    assertMemory(result.data);
+    expect(result.data.scope).toBe("project");
+  });
+
+  it("search scope=both includes project-scoped memories", async () => {
+    // Create workspace-scoped memory
+    await service.create({
+      project_id: "test-project",
+      content: "Workspace-specific deployment configuration",
+      type: "fact",
+      scope: "workspace",
+      author: "alice",
+    });
+    // Create user-scoped memory
+    await service.create({
+      project_id: "test-project",
+      content: "User preference for dark mode terminals",
+      type: "preference",
+      scope: "user",
+      author: "alice",
+    });
+    // Create project-scoped memory
+    await service.create({
+      project_id: "test-project",
+      content: "Project-wide convention for error handling patterns",
+      type: "pattern",
+      scope: "project",
+      author: "alice",
+      source: "manual",
+    });
+
+    const result = await service.search(
+      "configuration patterns",
+      "test-project",
+      "both",
+      "alice",
+      undefined,
+      -1,
+    );
+
+    const scopes = result.data.map((m) => m.scope);
+    expect(scopes).toContain("workspace");
+    expect(scopes).toContain("user");
+    expect(scopes).toContain("project");
+  });
+
+  it("default scope is workspace when not specified", async () => {
+    const result = await service.create({
+      project_id: "test-project",
+      content: "Memory with default scope",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(result.data);
+    expect(result.data.scope).toBe("workspace");
   });
 
   it("recently verified memories excluded from list_stale", async () => {
