@@ -1,12 +1,12 @@
-## Agent Memory
+# Agent Memory
 
 This project uses agent-brain (MCP server) for shared team knowledge.
 
-### Session Start
+## Session Start
 
 **Always call `memory_session_start` at the very beginning of every session**, before doing any other work. This loads relevant team memories upfront so nothing is missed.
 
-### Session End
+## Session End
 
 When the user signals they're done (e.g. "bye", "done", "that's all"), save a memory summarising any important decisions, learnings, or context from the session before it ends.
 
@@ -18,7 +18,7 @@ When the user signals they're done (e.g. "bye", "done", "that's all"), save a me
 
 **Do NOT search for purely local actions** like editing files, installing dependencies, running local builds, linting, or formatting.
 
-### Saving Memories
+## Saving Memories
 
 The goal is that nothing valuable is lost when a conversation ends. This includes team knowledge, but also user preferences, project context, and things you learn about how this codebase works.
 
@@ -31,6 +31,6 @@ Save a memory (or suggest one) when you encounter:
 
 You don't need to ask permission for every memory — use judgment. For things that are clearly worth keeping, save directly. For anything uncertain, suggest it briefly and let the user confirm.
 
-### Presenting Memories
+## Presenting Memories
 
 Always **number** memories and include **author**, **date**, and **title**. The user may refer to memories by number (e.g. "archive memory 2", "comment on 1").
