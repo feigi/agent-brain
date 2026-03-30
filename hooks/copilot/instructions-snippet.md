@@ -37,6 +37,10 @@ Save a memory (or suggest one) when you encounter:
 
 You don't need to ask permission for every memory — use judgment. For things that are clearly worth keeping, save directly. For anything uncertain, suggest it briefly and let the user confirm.
 
+## Verifying Memories
+
+When you encounter a memory during your work and can confirm it's still accurate, call `memory_verify`. This boosts older memories that remain relevant, informs future cleanup and consolidation, and builds user confidence in the knowledge base.
+
 ## Presenting Memories
 
 Always **number** memories and include **author**, **date**, and **title**. The user may refer to memories by number (e.g. "archive memory 2", "comment on 1").
