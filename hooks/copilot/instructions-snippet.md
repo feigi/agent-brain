@@ -1,8 +1,8 @@
 # Agent Memory
 
-This project uses agent-brain (MCP server) for shared team knowledge.
+This project uses [agent-brain](https://github.com/feigi/agent-brain) (MCP server) for shared team knowledge.
 
-## REQUIRED: Session Start Check
+## REQUIRED: Session Start
 
 **STOP. Before processing any task — including plan mode, research, or simple questions:**
 Have you called `memory_session_start` this session?
@@ -12,15 +12,18 @@ Have you called `memory_session_start` this session?
 
 This applies to EVERY first message in a session, with no exceptions.
 
-## Session End
+## Identity Parameters
 
-When the user signals they're done (e.g. "bye", "done", "that's all"), save a memory summarising any important decisions, learnings, or context from the session before it ends.
+- **`user_id`**: The OS username, i.e. the output of `whoami`. This is the user's identity across all memory tools.
+- **`workspace_id`**: The repository directory name (e.g., `agent-brain` for `/Users/chris/dev/agent-brain`).
+
+## When to Call `memory_search`
 
 **Call `memory_search` before actions that affect shared systems.** This includes:
 
-1. **The user asks about notes, context, or team knowledge** -- e.g. "any notes?", "what should I know?"
-2. **Before actions that affect shared infrastructure** -- deploys, database migrations, credential rotation, etc.
-3. **Before running shared/integration tests** (e.g. E2E, load tests) -- but NOT local unit tests or builds
+1. **The user asks about notes, context, or team knowledge** — e.g. "any notes?", "what should I know?"
+2. **Before actions that affect shared infrastructure** — deploys, database migrations, credential rotation, etc.
+3. **Before running shared/integration tests** (e.g. E2E, load tests) — but NOT local unit tests or builds
 
 **Do NOT search for purely local actions** like editing files, installing dependencies, running local builds, linting, or formatting.
 
@@ -40,6 +43,17 @@ You don't need to ask permission for every memory — use judgment. For things t
 ## Verifying Memories
 
 When you encounter a memory during your work and can confirm it's still accurate, call `memory_verify`. This boosts older memories that remain relevant, informs future cleanup and consolidation, and builds user confidence in the knowledge base.
+
+## Session End
+
+When the user signals they're done (e.g. "bye", "done", "that's all"), review the session for anything worth keeping before it ends. Consider saving:
+
+- Decisions made and their rationale
+- User preferences you learned
+- Gotchas or workarounds discovered
+- Important project context that would help in a future session
+
+Skip the review if the session was trivial (e.g. a single question with no lasting context).
 
 ## Presenting Memories
 
