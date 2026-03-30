@@ -244,16 +244,19 @@ The `memory-session-start.sh` hook fires when a new session begins. It:
 The `memory-session-guard.sh` hook fires before **every** tool call. It:
 
 1. Checks for the guard flag
-2. If the flag exists and the tool is not `memory_session_start` → returns `permissionDecision: deny` with a clear reason message
-3. The agent sees the denial and **must** call `memory_session_start` to unblock itself
+2. If the flag exists and the tool is `memory_session_start` → **deletes the guard flag** and allows the call
+3. If the flag exists and the tool is anything else → returns `permissionDecision: deny` with a clear reason message
+4. The agent sees the denial and **must** call `memory_session_start` to unblock itself
 
 This is the only Copilot CLI hook output the agent receives, making it the enforcement layer.
+The flag is cleared in preToolUse (rather than postToolUse) because Copilot CLI may not reliably
+provide `cwd` in the postToolUse payload, which would cause a hash mismatch and leave the flag stuck.
 
 #### Post-Tool-Use (flag cleanup)
 
-The `memory-nudge.sh` hook fires after each tool call. When it detects that `memory_session_start`
-completed successfully, it removes the guard flag, allowing all subsequent tool calls to proceed
-normally.
+The `memory-nudge.sh` hook fires after each tool call and removes the guard flag as a secondary
+cleanup mechanism when `memory_session_start` is detected. The primary cleanup happens in
+`memory-session-guard.sh` (preToolUse).
 
 #### Session End
 
@@ -275,9 +278,9 @@ If it happens, check that your `jq` version supports the `// "false"` default sy
 **Copilot CLI: Hooks not loading:** Ensure `hooks.json` is in `.github/hooks/` (repo-level) or
 `~/.copilot/hooks/` (personal). The file must have `"version": 1` at the top level.
 
-**Copilot CLI: Guard blocks tools even after calling memory_session_start:** The guard flag is
-keyed by CWD hash. Ensure `jq` and `sha256sum` are available. On macOS, `sha256sum` comes from
-`coreutils` (`brew install coreutils`); if unavailable, the fallback key `"default"` is used.
+**Copilot CLI: Guard blocks tools even after calling memory_session_start:** Fixed in the current
+version — the guard flag is now cleared in `preToolUse` (not `postToolUse`) when `memory_session_start`
+is detected. If using an older version of the hook, re-copy it from `hooks/copilot/memory-session-guard.sh`.
 
 ## Notes
 

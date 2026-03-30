@@ -17,8 +17,9 @@ if [ ! -f "$GUARD_FLAG" ]; then
   exit 0
 fi
 
-# memory_session_start itself must always be allowed (it's what clears the flag)
+# memory_session_start itself must always be allowed — and it clears the guard flag
 if echo "$TOOL_NAME" | grep -qi "memory_session_start"; then
+  rm -f "$GUARD_FLAG"
   exit 0
 fi
 
