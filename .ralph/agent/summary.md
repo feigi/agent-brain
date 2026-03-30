@@ -1,8 +1,8 @@
 # Loop Summary
 
-**Status:** Completed successfully
-**Iterations:** 16
-**Duration:** 1h 0m 0s
+**Status:** Failed: too many consecutive failures
+**Iterations:** 5
+**Duration:** 7s
 
 ## Tasks
 
@@ -14,4 +14,4 @@ _No events recorded._
 
 ## Final Commit
 
-fe11c2f: fix: use budgetResult.exceeded and logger.warn in budget response
+ff5b9cb: refactor: remove preToolUse guard hook

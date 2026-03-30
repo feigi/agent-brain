@@ -110,14 +110,13 @@ fi
 
 ### Included Templates
 
-| File                              | Purpose                                                                       |
-| --------------------------------- | ----------------------------------------------------------------------------- |
-| `copilot/hooks.json`              | Hook configuration template for `.github/hooks/` or `~/.copilot/hooks/`       |
-| `copilot/mcp-snippet.json`        | MCP server configuration to merge into `~/.copilot/mcp-config.json`           |
-| `copilot/memory-session-start.sh` | sessionStart hook — pre-warms Agent Brain session and creates guard flag      |
-| `copilot/memory-session-guard.sh` | **preToolUse hook — blocks all tools until `memory_session_start` is called** |
-| `copilot/memory-nudge.sh`         | postToolUse hook — logs tool usage and clears guard flag on success           |
-| `copilot/memory-session-end.sh`   | sessionEnd hook that cleans up temp files                                     |
+| File                              | Purpose                                                                 |
+| --------------------------------- | ----------------------------------------------------------------------- |
+| `copilot/hooks.json`              | Hook configuration template for `.github/hooks/` or `~/.copilot/hooks/` |
+| `copilot/mcp-snippet.json`        | MCP server configuration to merge into `~/.copilot/mcp-config.json`     |
+| `copilot/memory-session-start.sh` | sessionStart hook — pre-warms Agent Brain session via REST API          |
+| `copilot/memory-nudge.sh`         | postToolUse hook — tracks tool invocation count for audit logging       |
+| `copilot/memory-session-end.sh`   | sessionEnd hook that cleans up temp files                               |
 
 ### Prerequisites
 
@@ -129,16 +128,15 @@ fi
 
 Copilot CLI hooks have important limitations compared to Claude Code hooks:
 
-| Capability                      | Claude Code                | Copilot CLI                       |
-| ------------------------------- | -------------------------- | --------------------------------- |
-| Inject context at session start | ✅ via `additionalContext` | ❌ Output ignored                 |
-| Block tool execution            | ✅ via `decision: block`   | ✅ via `permissionDecision: deny` |
-| Remind agent mid-session        | ✅ via `additionalContext` | ❌ Output ignored                 |
-| Block session end for review    | ✅ via `decision: block`   | ❌ Output ignored                 |
+| Capability                      | Claude Code                | Copilot CLI       |
+| ------------------------------- | -------------------------- | ----------------- |
+| Inject context at session start | ✅ via `additionalContext` | ❌ Output ignored |
+| Block tool execution            | ✅ via `decision: block`   | ❌ Not used       |
+| Remind agent mid-session        | ✅ via `additionalContext` | ❌ Output ignored |
+| Block session end for review    | ✅ via `decision: block`   | ❌ Output ignored |
 
-Because `preToolUse` with `permissionDecision: deny` is the **only hook output that Copilot CLI
-processes**, the `memory-session-guard.sh` hook leverages this to hard-enforce the session start
-requirement. All other hooks only perform side-effects (logging, cleanup).
+Copilot CLI hooks are used only for side-effects (pre-warming, logging, cleanup). The
+`memory_session_start` requirement is enforced via custom instructions rather than hooks.
 
 ### Installation
 
@@ -167,7 +165,6 @@ Copy the hook scripts and configuration into your project's `.github/hooks/` dir
 mkdir -p .github/hooks
 cp hooks/copilot/hooks.json .github/hooks/hooks.json
 cp hooks/copilot/memory-session-start.sh .github/hooks/
-cp hooks/copilot/memory-session-guard.sh .github/hooks/
 cp hooks/copilot/memory-nudge.sh .github/hooks/
 cp hooks/copilot/memory-session-end.sh .github/hooks/
 chmod +x .github/hooks/memory-*.sh
@@ -180,7 +177,6 @@ Copilot CLI automatically loads hooks from `.github/hooks/` in your working dire
 ```bash
 mkdir -p ~/.copilot/hooks
 cp hooks/copilot/memory-session-start.sh ~/.copilot/hooks/
-cp hooks/copilot/memory-session-guard.sh ~/.copilot/hooks/
 cp hooks/copilot/memory-nudge.sh ~/.copilot/hooks/
 cp hooks/copilot/memory-session-end.sh ~/.copilot/hooks/
 chmod +x ~/.copilot/hooks/memory-*.sh
@@ -197,13 +193,6 @@ Then create `~/.copilot/hooks/hooks.json` with absolute paths:
         "type": "command",
         "bash": "$HOME/.copilot/hooks/memory-session-start.sh",
         "timeoutSec": 10
-      }
-    ],
-    "preToolUse": [
-      {
-        "type": "command",
-        "bash": "$HOME/.copilot/hooks/memory-session-guard.sh",
-        "timeoutSec": 5
       }
     ],
     "postToolUse": [
@@ -232,47 +221,25 @@ is at `hooks/copilot/instructions-snippet.md`.
 
 ### How It Works
 
-#### Session Start + Guard Flag
+#### Session Start (pre-warm)
 
 The `memory-session-start.sh` hook fires when a new Copilot CLI session begins (and on each
-subsequent turn). It:
+subsequent turn). It pre-warms the Agent Brain server by calling the session start REST API,
+so subsequent MCP tool calls are faster. The hook also stashes the Agent Brain session ID for
+the session-end cleanup hook.
 
-1. Checks for an init-done marker (`/tmp/copilot-init-done-{cwd_hash}`) — if present and not
-   stale (< 12 hours), the guard flag is **not** recreated, so tools work without requiring
-   `memory_session_start` again
-2. If no init-done marker exists (first turn of a new session), creates a guard flag file
-   `/tmp/copilot-guard-{cwd_hash}` that blocks all tools until `memory_session_start` is called
-3. Pre-warms the Agent Brain server via its REST API
+Note: Copilot CLI ignores sessionStart output — the agent must still call `memory_session_start`
+via MCP tools. Custom instructions enforce this requirement.
 
-#### Pre-Tool-Use Guard (hard enforcement)
+#### Post-Tool-Use (audit log)
 
-The `memory-session-guard.sh` hook fires before **every** tool call. It:
-
-1. Checks for the guard flag
-2. If the flag exists and the tool is `memory_session_start` → **deletes the guard flag**, creates
-   the init-done marker, and allows the call
-3. If the flag exists and the tool is anything else → returns `permissionDecision: deny` with a
-   clear reason message
-4. The agent sees the denial and **must** call `memory_session_start` to unblock itself
-
-Once `memory_session_start` is called, the init-done marker prevents the guard from being
-recreated on subsequent turns within the same session.
-
-This is the only Copilot CLI hook output the agent receives, making it the enforcement layer.
-The flag is cleared in preToolUse (rather than postToolUse) because Copilot CLI may not reliably
-provide `cwd` in the postToolUse payload, which would cause a hash mismatch and leave the flag stuck.
-
-#### Post-Tool-Use (flag cleanup)
-
-The `memory-nudge.sh` hook fires after each tool call and removes the guard flag as a secondary
-cleanup mechanism when `memory_session_start` is detected. The primary cleanup happens in
-`memory-session-guard.sh` (preToolUse).
+The `memory-nudge.sh` hook fires after each tool call and maintains a counter of tool
+invocations in a temp file for audit logging purposes.
 
 #### Session End
 
 The `memory-session-end.sh` hook fires when the session ends. It cleans up temp files (session
-ID, nudge counter, guard flag, init-done marker) created during the session. Removing the
-init-done marker ensures the next session will require `memory_session_start` again.
+ID and nudge counter) created during the session.
 
 ---
 
@@ -288,10 +255,6 @@ If it happens, check that your `jq` version supports the `// "false"` default sy
 
 **Copilot CLI: Hooks not loading:** Ensure `hooks.json` is in `.github/hooks/` (repo-level) or
 `~/.copilot/hooks/` (personal). The file must have `"version": 1` at the top level.
-
-**Copilot CLI: Guard blocks tools even after calling memory_session_start:** Fixed in the current
-version — the guard flag is now cleared in `preToolUse` (not `postToolUse`) when `memory_session_start`
-is detected. If using an older version of the hook, re-copy it from `hooks/copilot/memory-session-guard.sh`.
 
 ## Notes
 
