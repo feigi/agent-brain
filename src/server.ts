@@ -1,9 +1,7 @@
 import "dotenv/config";
-import { randomUUID } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
-import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { config } from "./config.js";
 import { createDb } from "./db/index.js";
 import { runMigrations } from "./db/migrate.js";
@@ -114,37 +112,15 @@ async function main() {
   // Register REST routes (health + hook API)
   registerRoutes(app, memoryService);
 
-  // Session transport map
-  const transports: Record<string, StreamableHTTPServerTransport> = {};
-
-  // MCP Streamable HTTP: POST /mcp
+  // MCP Streamable HTTP: POST /mcp (stateless — no session tracking needed)
   app.post("/mcp", async (req, res) => {
-    const sessionId = req.headers["mcp-session-id"] as string | undefined;
-
     try {
-      if (sessionId && transports[sessionId]) {
-        await transports[sessionId].handleRequest(req, res, req.body);
-      } else if (!sessionId && isInitializeRequest(req.body)) {
-        const transport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: () => randomUUID(),
-          onsessioninitialized: (id) => {
-            transports[id] = transport;
-          },
-        });
-        transport.onclose = () => {
-          const sid = transport.sessionId;
-          if (sid) delete transports[sid];
-        };
-        const server = createMcpServerForSession();
-        await server.connect(transport);
-        await transport.handleRequest(req, res, req.body);
-      } else {
-        res.status(400).json({
-          jsonrpc: "2.0",
-          error: { code: -32000, message: "Bad Request: No valid session ID" },
-          id: null,
-        });
-      }
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined,
+      });
+      const server = createMcpServerForSession();
+      await server.connect(transport);
+      await transport.handleRequest(req, res, req.body);
     } catch (error) {
       logger.error("MCP request error:", error);
       if (!res.headersSent) {
@@ -157,38 +133,18 @@ async function main() {
     }
   });
 
-  // MCP Streamable HTTP: GET /mcp (SSE stream)
-  app.get("/mcp", async (req, res) => {
-    const sessionId = req.headers["mcp-session-id"] as string | undefined;
-    if (!sessionId || !transports[sessionId]) {
-      res.status(400).send("Invalid or missing session ID");
-      return;
-    }
-    try {
-      await transports[sessionId].handleRequest(req, res);
-    } catch (error) {
-      logger.error("MCP SSE error:", error);
-      if (!res.headersSent) {
-        res.status(500).send("Internal server error");
-      }
-    }
+  // SSE and session termination not needed in stateless mode
+  app.get("/mcp", (_req, res) => {
+    res
+      .status(405)
+      .set("Allow", "POST, DELETE")
+      .send("SSE not supported in stateless mode");
   });
-
-  // MCP Streamable HTTP: DELETE /mcp (session termination)
-  app.delete("/mcp", async (req, res) => {
-    const sessionId = req.headers["mcp-session-id"] as string | undefined;
-    if (!sessionId || !transports[sessionId]) {
-      res.status(400).send("Invalid or missing session ID");
-      return;
-    }
-    try {
-      await transports[sessionId].handleRequest(req, res);
-    } catch (error) {
-      logger.error("MCP session teardown error:", error);
-      if (!res.headersSent) {
-        res.status(500).send("Internal server error");
-      }
-    }
+  app.delete("/mcp", (_req, res) => {
+    res
+      .status(405)
+      .set("Allow", "POST, DELETE")
+      .send("Session termination not needed in stateless mode");
   });
 
   // Start HTTP server
@@ -199,10 +155,6 @@ async function main() {
   // Graceful shutdown
   const shutdown = async () => {
     logger.info("Shutting down...");
-    for (const sid of Object.keys(transports)) {
-      await transports[sid].close();
-      delete transports[sid];
-    }
     await db.$client.end();
     process.exit(0);
   };
