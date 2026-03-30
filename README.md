@@ -67,21 +67,28 @@ Every memory has:
 
 ### Prerequisites
 
-- Node.js 22+
-- Docker (for local Postgres)
-- AWS credentials with Bedrock access (for production embeddings; mock works locally without AWS)
+- Docker (runs everything — Postgres, Ollama, and the server itself)
+- Node.js 22+ (only needed if developing Agent Brain or running it outside Docker)
+- AWS credentials with Bedrock access (only needed when using Titan embeddings in production)
 
 ### 1. Install
 
 ```bash
 git clone https://github.com/feigi/agent-brain.git
 cd agent-brain
+```
+
+If running outside Docker (local development), also install dependencies:
+
+```bash
 npm install
 ```
 
 ### 2. Configure
 
-Copy and edit the environment file:
+For Docker-only usage, edit the environment variables directly in `docker-compose.prod.yml`.
+
+For local development, copy and edit the environment file:
 
 ```bash
 cp .env.example .env
@@ -105,13 +112,21 @@ AWS_REGION=us-east-1
 
 ### 3. Start
 
-**Local development (everything runs locally via Docker — no AWS needed):**
+**Docker — fully self-contained (no Node.js required):**
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --wait
+```
+
+This runs everything in Docker — Postgres, Ollama, and the Agent Brain server. The server is exposed at `http://localhost:19898`. Edit the environment variables in `docker-compose.prod.yml` to configure `PROJECT_ID` and other settings. First startup downloads the Ollama embedding model (~274MB).
+
+**Local development (Node.js + Docker for infrastructure):**
 
 ```bash
 npm run dev
 ```
 
-This starts Postgres + Ollama via Docker Compose (downloading `nomic-embed-text` on first run — ~274MB), runs database migrations, and starts the MCP server on stdio. No cloud credentials required.
+Starts Postgres + Ollama via Docker Compose, runs database migrations, and starts the MCP server on stdio with hot reload. Use this when you're working on Agent Brain itself.
 
 **Minimal local setup (mock embeddings — fastest, no Ollama download):**
 
