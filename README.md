@@ -13,7 +13,7 @@ Long-term memory for AI agents. Agents read relevant memories at session start, 
 │                   MCP Client                        │
 │         (Claude Code, Cursor, any agent)            │
 └───────────────────┬─────────────────────────────────┘
-                    │ stdio (JSON-RPC)
+                    │ HTTP (JSON-RPC)
 ┌───────────────────▼─────────────────────────────────┐
 │                Agent Brain MCP Server                │
 │                                                     │
@@ -126,7 +126,7 @@ This runs everything in Docker — Postgres, Ollama, and the Agent Brain server.
 npm run dev
 ```
 
-Starts Postgres + Ollama via Docker Compose, runs database migrations, and starts the MCP server on stdio with hot reload. Use this when you're working on Agent Brain itself.
+Starts Postgres + Ollama via Docker Compose, runs database migrations, and starts the MCP server on `http://localhost:19898` with hot reload. Use this when you're working on Agent Brain itself.
 
 **Minimal local setup (mock embeddings — fastest, no Ollama download):**
 
@@ -142,47 +142,17 @@ Mock mode uses random vectors — search results won't be semantically meaningfu
 
 **Step 1: Add the MCP server**
 
-Add to `~/.claude/settings.json` (global) or project `.claude/settings.json`:
-
-**Option A: npx from GitHub (no clone required)**
+Make sure Agent Brain is running (see [Start](#3-start)), then add to `~/.claude/settings.json` (global) or project `.claude/settings.json`:
 
 ```json
 {
   "mcpServers": {
     "agent-brain": {
-      "command": "npx",
-      "args": ["-y", "github:feigi/agent-brain"],
-      "env": {
-        "PROJECT_ID": "my-project",
-        "DATABASE_URL": "postgresql://agentic:agentic@localhost:5432/agent_brain",
-        "EMBEDDING_PROVIDER": "ollama",
-        "EMBEDDING_DIMENSIONS": "768"
-      }
+      "url": "http://localhost:19898/mcp"
     }
   }
 }
 ```
-
-**Option B: from a local clone**
-
-```json
-{
-  "mcpServers": {
-    "agent-brain": {
-      "command": "npx",
-      "args": ["tsx", "/path/to/agent-brain/src/server.ts"],
-      "env": {
-        "PROJECT_ID": "my-project",
-        "DATABASE_URL": "postgresql://agentic:agentic@localhost:5432/agent_brain",
-        "EMBEDDING_PROVIDER": "ollama",
-        "EMBEDDING_DIMENSIONS": "768"
-      }
-    }
-  }
-}
-```
-
-For production with Titan embeddings, set `EMBEDDING_PROVIDER=titan` and ensure `AWS_REGION` and credentials are available.
 
 **Step 2: Add hooks (optional)**
 
@@ -218,7 +188,7 @@ Create or edit `~/.claude/CLAUDE.md` (global) and paste the contents of [`hooks/
 
 **Step 1: Add the MCP server**
 
-Merge into your `~/.copilot/mcp-config.json`:
+Make sure Agent Brain is running (see [Start](#3-start)), then merge into your `~/.copilot/mcp-config.json`:
 
 ```json
 {
@@ -369,7 +339,7 @@ src/
 
 | Layer      | Technology                                    |
 | ---------- | --------------------------------------------- |
-| MCP server | `@modelcontextprotocol/sdk` (stdio transport) |
+| MCP server | `@modelcontextprotocol/sdk` (Streamable HTTP) |
 | Language   | TypeScript 5.9 + Node.js 22 LTS               |
 | Database   | PostgreSQL 17 + pgvector 0.8 (HNSW)           |
 | ORM        | Drizzle ORM 0.45                              |
