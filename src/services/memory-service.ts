@@ -207,14 +207,20 @@ export class MemoryService {
     const timing = Date.now() - start;
 
     // Phase 4: Post-insert budget increment (D-10)
-    // Increment budget after successful save for autonomous writes
-    const budgetResult =
-      isAutonomous && input.session_id && this.sessionLifecycleRepo
-        ? await this.sessionLifecycleRepo.incrementBudgetUsed(
-            input.session_id,
-            config.writeBudgetPerSession,
-          )
-        : undefined;
+    // Increment budget after successful save for autonomous writes (best-effort)
+    let budgetResult: { used: number; exceeded: boolean } | undefined;
+    if (isAutonomous && input.session_id && this.sessionLifecycleRepo) {
+      try {
+        budgetResult = await this.sessionLifecycleRepo.incrementBudgetUsed(
+          input.session_id,
+          config.writeBudgetPerSession,
+        );
+      } catch (err) {
+        console.error(
+          `[budget] Failed to increment budget for session ${input.session_id}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    }
 
     return {
       data: memory,
