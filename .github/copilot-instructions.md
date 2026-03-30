@@ -16,9 +16,18 @@ This project uses [Agentic Brain](https://github.com/feigi/agent-brain) for shar
 
 **Do NOT search for purely local actions** like editing files, installing dependencies, running local builds, linting, or formatting.
 
-### When the User Shares Important Context
+### Saving Memories
 
-If the user mentions decisions, temporary changes, or gotchas that the team should know about, suggest saving a memory with `memory_create`. Always confirm before saving.
+The goal is that nothing valuable is lost when a conversation ends. This includes team knowledge, but also user preferences, project context, and things you learn about how this codebase works.
+
+Save a memory (or suggest one) when you encounter:
+
+- A decision and its rationale (architecture, tooling, approach)
+- A user preference about how they want you to work
+- A gotcha, workaround, or non-obvious constraint
+- Important project context that would help in a future session
+
+You don't need to ask permission for every memory — use judgment. For things that are clearly worth keeping, save directly. For anything uncertain, suggest it briefly and let the user confirm.
 
 ### Presenting Memories
 
