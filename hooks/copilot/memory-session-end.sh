@@ -1,17 +1,17 @@
 #!/bin/bash
 # Copilot CLI sessionEnd Hook: Finalize agent-brain session
-# Cleans up temp files created by the session-start hook.
-# NOTE: Copilot CLI ignores sessionEnd output — this is for cleanup only.
+# NOTE: Copilot CLI fires sessionEnd on every turn, not just when the session
+# actually ends. We must NOT delete init-done here — that would force the agent
+# to re-call memory_session_start on every turn. The 12-hour expiry handles cleanup.
 
 INPUT=$(cat)
 SESSION_KEY="${COPILOT_SESSION_ID:-$(date +%Y%m%d%H%M%S)}"
 CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
 
-# Clean up guard and init-done markers so the next session requires memory_session_start again
+# Only clean up the guard flag (not init-done — that must persist across turns)
 if [ -n "$CWD" ]; then
   CWD_HASH=$(echo "$CWD" | sha256sum 2>/dev/null | cut -c1-8 || echo "default")
   rm -f "/tmp/copilot-guard-${CWD_HASH}" 2>/dev/null
-  rm -f "/tmp/copilot-init-done-${CWD_HASH}" 2>/dev/null
 fi
 
 # Clean up stashed session ID
