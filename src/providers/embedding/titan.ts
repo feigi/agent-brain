@@ -3,7 +3,9 @@ import {
   InvokeModelCommand,
 } from "@aws-sdk/client-bedrock-runtime";
 import type { EmbeddingProvider } from "./types.js";
-import { EmbeddingError } from "../../utils/errors.js";
+import { EmbeddingError, ValidationError } from "../../utils/errors.js";
+
+const VALID_DIMENSIONS = [256, 512, 1024] as const;
 
 const MAX_INPUT_CHARS = 32_000; // Safety margin for ~8192 token limit
 
@@ -16,6 +18,12 @@ export class TitanEmbeddingProvider implements EmbeddingProvider {
     timeoutMs = 10_000,
     private readonly dims = 768,
   ) {
+    if (!VALID_DIMENSIONS.includes(dims as (typeof VALID_DIMENSIONS)[number])) {
+      throw new ValidationError(
+        `Titan V2 supports dimensions ${VALID_DIMENSIONS.join(", ")} — got ${dims}. Set EMBEDDING_DIMENSIONS to a valid value.`,
+      );
+    }
+
     this.client = new BedrockRuntimeClient({
       region,
       requestHandler: { requestTimeout: timeoutMs },
