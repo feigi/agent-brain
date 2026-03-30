@@ -17,7 +17,7 @@ echo "$COUNT" > "$COUNTER_FILE"
 
 # Only fire every 20 tool calls
 if (( COUNT % 20 == 0 )); then
-  echo '{"additionalContext":"Memory check: if the user shared decisions, conventions, gotchas, or preferences worth remembering across sessions, suggest saving via memory_create. Skip if nothing notable."}'
+  echo '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"Memory check: if the user shared decisions, conventions, gotchas, or preferences worth remembering across sessions, suggest saving via memory_create. Skip if nothing notable."}}'
 fi
 
 exit 0
