@@ -3,7 +3,8 @@ import type { Memory, MemoryWithRelevance, Comment } from "../types/memory.js";
 // INFR-02: Repository interfaces -- abstract storage layer
 
 export interface ListOptions {
-  project_id?: string; // optional for project-scope listing (cross-workspace)
+  project_id: string; // deployment project (from server config)
+  workspace_id?: string; // optional for project-scope listing (cross-workspace)
   scope: "workspace" | "user" | "project";
   user_id?: string;
   type?: string;
@@ -16,7 +17,8 @@ export interface ListOptions {
 
 export interface SearchOptions {
   embedding: number[];
-  project_id: string;
+  project_id: string; // deployment project
+  workspace_id: string; // workspace to search within
   scope: "workspace" | "user" | "both"; // D-08: 'both' for cross-scope search
   user_id?: string;
   limit?: number;
@@ -24,13 +26,15 @@ export interface SearchOptions {
 }
 
 export interface RecentBothScopesOptions {
-  project_id: string;
+  project_id: string; // deployment project
+  workspace_id: string;
   user_id: string;
   limit: number;
 }
 
 export interface StaleOptions {
-  project_id: string;
+  project_id: string; // deployment project
+  workspace_id: string;
   threshold_days: number;
   limit?: number;
   cursor?: { created_at: string; id: string };
@@ -61,12 +65,14 @@ export interface MemoryRepository {
   findRecentActivity(options: RecentActivityOptions): Promise<Memory[]>;
   countTeamActivity(
     projectId: string,
+    workspaceId: string,
     userId: string,
     since: Date,
   ): Promise<TeamActivityCounts>;
   findDuplicates(options: {
     embedding: number[];
-    projectId: string | null;
+    projectId: string;
+    workspaceId: string | null;
     scope: "workspace" | "user" | "project";
     userId: string;
     threshold: number;
@@ -75,7 +81,7 @@ export interface MemoryRepository {
   >;
 }
 
-export interface ProjectRepository {
+export interface WorkspaceRepository {
   findOrCreate(slug: string): Promise<{ id: string; created_at: Date }>;
   findById(slug: string): Promise<{ id: string; created_at: Date } | null>;
 }
@@ -92,12 +98,21 @@ export interface CommentRepository {
 }
 
 export interface SessionTrackingRepository {
-  upsert(userId: string, projectId: string): Promise<Date | null>; // returns previous last_session_at or null
+  upsert(
+    userId: string,
+    projectId: string,
+    workspaceId: string,
+  ): Promise<Date | null>;
 }
 
 // Phase 4: Session lifecycle repository for autonomous write budget tracking
 export interface SessionRepository {
-  createSession(id: string, userId: string, projectId: string): Promise<void>;
+  createSession(
+    id: string,
+    userId: string,
+    projectId: string,
+    workspaceId: string,
+  ): Promise<void>;
   getBudget(sessionId: string): Promise<{ used: number; limit: number } | null>;
   incrementBudgetUsed(
     sessionId: string,
@@ -107,12 +122,14 @@ export interface SessionRepository {
     id: string;
     user_id: string;
     project_id: string;
+    workspace_id: string;
     budget_used: number;
   } | null>;
 }
 
 export interface RecentActivityOptions {
-  project_id: string;
+  project_id: string; // deployment project
+  workspace_id: string;
   user_id: string;
   since: Date;
   limit: number;

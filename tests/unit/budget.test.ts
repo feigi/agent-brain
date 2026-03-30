@@ -3,7 +3,7 @@ import { MemoryService } from "../../src/services/memory-service.js";
 import type { Memory } from "../../src/types/memory.js";
 import type {
   MemoryRepository,
-  ProjectRepository,
+  WorkspaceRepository,
   SessionRepository,
 } from "../../src/repositories/types.js";
 import type { EmbeddingProvider } from "../../src/providers/embedding/types.js";
@@ -16,6 +16,7 @@ function makeMemory(overrides: Partial<Memory> = {}): Memory {
   return {
     id: "mem-test-001",
     project_id: "test-project",
+    workspace_id: null,
     content: "Test memory content",
     title: "Test memory",
     type: "fact",
@@ -64,7 +65,7 @@ function makeMemoryRepo(
   } as MemoryRepository;
 }
 
-function makeProjectRepo(): ProjectRepository {
+function makeWorkspaceRepo(): WorkspaceRepository {
   return {
     findOrCreate: vi
       .fn()
@@ -97,13 +98,13 @@ function makeSessionLifecycleRepo(
 
 describe("Budget enforcement in memory_create", () => {
   let memoryRepo: MemoryRepository;
-  let projectRepo: ProjectRepository;
+  let workspaceRepo: WorkspaceRepository;
   let embedder: EmbeddingProvider;
   let sessionLifecycleRepo: SessionRepository;
 
   beforeEach(() => {
     memoryRepo = makeMemoryRepo();
-    projectRepo = makeProjectRepo();
+    workspaceRepo = makeWorkspaceRepo();
     embedder = makeEmbeddingProvider();
     sessionLifecycleRepo = makeSessionLifecycleRepo();
   });
@@ -112,15 +113,16 @@ describe("Budget enforcement in memory_create", () => {
     // getBudget returns used=5, limit=10 (under budget)
     const service = new MemoryService(
       memoryRepo,
-      projectRepo,
+      workspaceRepo,
       embedder,
+      "test-project",
       undefined,
       undefined,
       sessionLifecycleRepo,
     );
 
     const result = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Important insight about database queries",
       type: "fact",
       author: "alice",
@@ -137,15 +139,16 @@ describe("Budget enforcement in memory_create", () => {
   it("autonomous write with source session-review succeeds when under budget", async () => {
     const service = new MemoryService(
       memoryRepo,
-      projectRepo,
+      workspaceRepo,
       embedder,
+      "test-project",
       undefined,
       undefined,
       sessionLifecycleRepo,
     );
 
     const result = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Session learnings about test patterns",
       type: "learning",
       author: "alice",
@@ -165,15 +168,16 @@ describe("Budget enforcement in memory_create", () => {
     });
     const service = new MemoryService(
       memoryRepo,
-      projectRepo,
+      workspaceRepo,
       embedder,
+      "test-project",
       undefined,
       undefined,
       sessionLifecycleRepo,
     );
 
     const result = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "This should be soft-rejected",
       type: "fact",
       author: "alice",
@@ -203,15 +207,16 @@ describe("Budget enforcement in memory_create", () => {
     });
     const service = new MemoryService(
       memoryRepo,
-      projectRepo,
+      workspaceRepo,
       embedder,
+      "test-project",
       undefined,
       undefined,
       sessionLifecycleRepo,
     );
 
     const result = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Manually saved important context",
       type: "fact",
       author: "alice",
@@ -228,15 +233,16 @@ describe("Budget enforcement in memory_create", () => {
   it("autonomous write without session_id succeeds without budget tracking", async () => {
     const service = new MemoryService(
       memoryRepo,
-      projectRepo,
+      workspaceRepo,
       embedder,
+      "test-project",
       undefined,
       undefined,
       sessionLifecycleRepo,
     );
 
     const result = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Agent-auto write without session_id",
       type: "fact",
       author: "alice",
@@ -251,15 +257,16 @@ describe("Budget enforcement in memory_create", () => {
   it("manual write without session_id succeeds", async () => {
     const service = new MemoryService(
       memoryRepo,
-      projectRepo,
+      workspaceRepo,
       embedder,
+      "test-project",
       undefined,
       undefined,
       sessionLifecycleRepo,
     );
 
     const result = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Manual write with no session_id is fine",
       type: "fact",
       author: "alice",
@@ -281,15 +288,16 @@ describe("Budget enforcement in memory_create", () => {
     });
     const service = new MemoryService(
       memoryRepo,
-      projectRepo,
+      workspaceRepo,
       embedder,
+      "test-project",
       undefined,
       undefined,
       sessionLifecycleRepo,
     );
 
     const result = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Successful autonomous write",
       type: "fact",
       author: "alice",

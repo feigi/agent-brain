@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { createDb, type Database } from "../src/db/index.js";
 import { DrizzleMemoryRepository } from "../src/repositories/memory-repository.js";
-import { DrizzleProjectRepository } from "../src/repositories/project-repository.js";
+import { DrizzleWorkspaceRepository } from "../src/repositories/workspace-repository.js";
 import { DrizzleCommentRepository } from "../src/repositories/comment-repository.js";
 import {
   DrizzleSessionTrackingRepository,
@@ -13,7 +13,7 @@ import { MemoryService } from "../src/services/memory-service.js";
 import type { Memory, CreateSkipResult } from "../src/types/memory.js";
 import {
   memories,
-  projects,
+  workspaces,
   comments,
   sessionTracking,
   sessions,
@@ -32,14 +32,15 @@ export function getTestDb(): Database {
 export function createTestService(): MemoryService {
   const testDb = getTestDb();
   const memoryRepo = new DrizzleMemoryRepository(testDb);
-  const projectRepo = new DrizzleProjectRepository(testDb);
+  const workspaceRepo = new DrizzleWorkspaceRepository(testDb);
   const embedder = new MockEmbeddingProvider(config.embeddingDimensions);
   const commentRepo = new DrizzleCommentRepository(testDb);
   const sessionRepo = new DrizzleSessionTrackingRepository(testDb);
   return new MemoryService(
     memoryRepo,
-    projectRepo,
+    workspaceRepo,
     embedder,
+    "test-project",
     commentRepo,
     sessionRepo,
   );
@@ -49,15 +50,16 @@ export function createTestService(): MemoryService {
 export function createTestServiceWithSessions(): MemoryService {
   const testDb = getTestDb();
   const memoryRepo = new DrizzleMemoryRepository(testDb);
-  const projectRepo = new DrizzleProjectRepository(testDb);
+  const workspaceRepo = new DrizzleWorkspaceRepository(testDb);
   const embedder = new MockEmbeddingProvider(config.embeddingDimensions);
   const commentRepo = new DrizzleCommentRepository(testDb);
   const sessionTrackingRepo = new DrizzleSessionTrackingRepository(testDb);
   const sessionLifecycleRepo = new DrizzleSessionRepository(testDb);
   return new MemoryService(
     memoryRepo,
-    projectRepo,
+    workspaceRepo,
     embedder,
+    "test-project",
     commentRepo,
     sessionTrackingRepo,
     sessionLifecycleRepo,
@@ -68,10 +70,10 @@ export function createTestServiceWithSessions(): MemoryService {
 export async function truncateAll(): Promise<void> {
   const testDb = getTestDb();
   await testDb.delete(comments); // FK: references memories
-  await testDb.delete(sessions); // FK: references projects (Phase 4)
-  await testDb.delete(sessionTracking); // FK: references projects
-  await testDb.delete(memories); // FK: references projects
-  await testDb.delete(projects);
+  await testDb.delete(sessions); // FK: references workspaces (Phase 4)
+  await testDb.delete(sessionTracking); // FK: references workspaces
+  await testDb.delete(memories); // FK: references workspaces
+  await testDb.delete(workspaces);
 }
 
 /** Assert that a create result is a Memory (not a skip). Use after service.create() in tests. */

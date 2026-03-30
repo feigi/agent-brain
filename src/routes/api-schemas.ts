@@ -14,14 +14,14 @@ const scopeEnum = z.enum(["workspace", "user", "project"]);
 
 export const toolSchemas = {
   memory_session_start: z.object({
-    project_id: slugSchema,
+    workspace_id: slugSchema,
     user_id: slugSchema,
     context: z.string().optional(),
     limit: z.number().int().min(1).max(50).default(10),
   }),
 
   memory_create: z.object({
-    project_id: slugSchema.optional(),
+    workspace_id: slugSchema.optional(),
     content: contentSchema,
     title: z.string().optional(),
     type: memoryTypeEnum,
@@ -56,7 +56,7 @@ export const toolSchemas = {
 
   memory_search: z.object({
     query: z.string().min(1),
-    project_id: slugSchema,
+    workspace_id: slugSchema,
     scope: z.enum(["workspace", "user", "both"]).default("workspace"),
     user_id: slugSchema,
     limit: z.number().int().min(1).max(100).default(10),
@@ -64,7 +64,7 @@ export const toolSchemas = {
   }),
 
   memory_list: z.object({
-    project_id: slugSchema.optional(),
+    workspace_id: slugSchema.optional(),
     scope: scopeEnum.default("workspace"),
     user_id: slugSchema,
     type: memoryTypeEnum.optional(),
@@ -81,7 +81,7 @@ export const toolSchemas = {
   }),
 
   memory_list_stale: z.object({
-    project_id: slugSchema,
+    workspace_id: slugSchema,
     user_id: slugSchema,
     threshold_days: z.number().int().min(1).default(30),
     limit: z.number().int().min(1).max(100).default(20),
@@ -95,7 +95,7 @@ export const toolSchemas = {
   }),
 
   memory_list_recent: z.object({
-    project_id: slugSchema,
+    workspace_id: slugSchema,
     user_id: slugSchema,
     since: z.string().datetime(),
     limit: z.number().int().min(1).max(100).default(10),

@@ -29,7 +29,7 @@ describe("Semantic duplicate detection integration tests", () => {
 
     // Create the original memory
     const original = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content,
       type: "decision",
       author: "alice",
@@ -39,7 +39,7 @@ describe("Semantic duplicate detection integration tests", () => {
 
     // Try to create a memory with identical content
     const duplicate = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content, // exactly the same content
       type: "decision",
       author: "alice",
@@ -58,7 +58,7 @@ describe("Semantic duplicate detection integration tests", () => {
 
   it("completely different content passes dedup", async () => {
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content:
         "A completely unique insight about PostgreSQL index performance and HNSW tuning",
       type: "fact",
@@ -67,7 +67,7 @@ describe("Semantic duplicate detection integration tests", () => {
     });
 
     const result = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content:
         "A totally different observation about unit testing with vitest mocks and dependency injection",
       type: "learning",
@@ -91,7 +91,7 @@ describe("Semantic duplicate detection integration tests", () => {
 
     // Create a user-scoped memory in project-A
     await service.create({
-      project_id: "project-a",
+      workspace_id: "project-a",
       content,
       type: "fact",
       scope: "user",
@@ -102,7 +102,7 @@ describe("Semantic duplicate detection integration tests", () => {
     // Attempt to create a project-scoped memory in project-B with identical content
     // Project-B's dedup only checks project-B's memories, not project-A's
     const result = await service.create({
-      project_id: "project-b",
+      workspace_id: "project-b",
       content,
       type: "fact",
       scope: "workspace",
@@ -121,7 +121,7 @@ describe("Semantic duplicate detection integration tests", () => {
 
     // Create a project-scoped memory
     const original = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content,
       type: "architecture",
       scope: "workspace",
@@ -133,7 +133,7 @@ describe("Semantic duplicate detection integration tests", () => {
     // Try to create a user-scoped memory with identical content
     // D-16: User dedup checks BOTH user and project scope
     const result = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content, // identical content
       type: "architecture",
       scope: "user",
@@ -156,7 +156,7 @@ describe("Semantic duplicate detection integration tests", () => {
       "Critical security insight: always validate and sanitize user input on the server side";
 
     const original = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content,
       // no explicit title -- auto-generated from content
       type: "decision",
@@ -167,7 +167,7 @@ describe("Semantic duplicate detection integration tests", () => {
     expect(original.data).toHaveProperty("id");
 
     const result = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content,
       // no explicit title -- auto-generated from same content = identical embedding
       type: "decision",
@@ -197,7 +197,7 @@ describe("Semantic duplicate detection integration tests", () => {
 
     // Create original memory
     const original = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content,
       type: "fact",
       author: "alice",
@@ -214,7 +214,7 @@ describe("Semantic duplicate detection integration tests", () => {
 
     // Now create another memory with identical content -- should succeed since original is archived
     const result = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content,
       type: "fact",
       author: "alice",

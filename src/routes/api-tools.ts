@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
+import { config } from "../config.js";
 import { DomainError, ValidationError } from "../utils/errors.js";
 import { logger } from "../utils/logger.js";
 import { toolSchemas, type ToolName } from "./api-schemas.js";
@@ -48,7 +49,7 @@ export function createApiToolsRouter(memoryService: MemoryService): Router {
         case "memory_session_start": {
           const b = body as z.infer<typeof toolSchemas.memory_session_start>;
           const result = await memoryService.sessionStart(
-            b.project_id,
+            b.workspace_id,
             b.user_id,
             b.context,
             b.limit,
@@ -60,7 +61,7 @@ export function createApiToolsRouter(memoryService: MemoryService): Router {
         case "memory_create": {
           const b = body as z.infer<typeof toolSchemas.memory_create>;
           const result = await memoryService.create({
-            project_id: b.project_id,
+            workspace_id: b.workspace_id,
             content: b.content,
             title: b.title,
             type: b.type,
@@ -106,7 +107,7 @@ export function createApiToolsRouter(memoryService: MemoryService): Router {
           const b = body as z.infer<typeof toolSchemas.memory_search>;
           const result = await memoryService.search(
             b.query,
-            b.project_id,
+            b.workspace_id,
             b.scope,
             b.user_id,
             b.limit,
@@ -119,7 +120,8 @@ export function createApiToolsRouter(memoryService: MemoryService): Router {
         case "memory_list": {
           const b = body as z.infer<typeof toolSchemas.memory_list>;
           const result = await memoryService.list({
-            project_id: b.project_id,
+            project_id: config.projectId,
+            workspace_id: b.workspace_id,
             scope: b.scope,
             user_id: b.user_id,
             type: b.type,
@@ -143,7 +145,7 @@ export function createApiToolsRouter(memoryService: MemoryService): Router {
         case "memory_list_stale": {
           const b = body as z.infer<typeof toolSchemas.memory_list_stale>;
           const result = await memoryService.listStale(
-            b.project_id,
+            b.workspace_id,
             b.user_id,
             b.threshold_days,
             b.limit,
@@ -167,7 +169,7 @@ export function createApiToolsRouter(memoryService: MemoryService): Router {
         case "memory_list_recent": {
           const b = body as z.infer<typeof toolSchemas.memory_list_recent>;
           const result = await memoryService.listRecentActivity(
-            b.project_id,
+            b.workspace_id,
             b.user_id,
             new Date(b.since),
             b.limit,

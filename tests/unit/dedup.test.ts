@@ -3,7 +3,7 @@ import { MemoryService } from "../../src/services/memory-service.js";
 import type { Memory } from "../../src/types/memory.js";
 import type {
   MemoryRepository,
-  ProjectRepository,
+  WorkspaceRepository,
 } from "../../src/repositories/types.js";
 import type { EmbeddingProvider } from "../../src/providers/embedding/types.js";
 
@@ -14,6 +14,7 @@ function makeMemory(overrides: Partial<Memory> = {}): Memory {
   return {
     id: "mem-001",
     project_id: "test-project",
+    workspace_id: null,
     content: "Test content",
     title: "Test title",
     type: "fact",
@@ -61,7 +62,7 @@ function makeMemoryRepo(
   } as MemoryRepository;
 }
 
-function makeProjectRepo(): ProjectRepository {
+function makeWorkspaceRepo(): WorkspaceRepository {
   return {
     findOrCreate: vi
       .fn()
@@ -79,11 +80,11 @@ function makeEmbeddingProvider(): EmbeddingProvider {
 }
 
 describe("Duplicate detection in memory_create", () => {
-  let projectRepo: ProjectRepository;
+  let workspaceRepo: WorkspaceRepository;
   let embedder: EmbeddingProvider;
 
   beforeEach(() => {
-    projectRepo = makeProjectRepo();
+    workspaceRepo = makeWorkspaceRepo();
     embedder = makeEmbeddingProvider();
   });
 
@@ -98,10 +99,15 @@ describe("Duplicate detection in memory_create", () => {
         },
       ]),
     });
-    const service = new MemoryService(memoryRepo, projectRepo, embedder);
+    const service = new MemoryService(
+      memoryRepo,
+      workspaceRepo,
+      embedder,
+      "test-project",
+    );
 
     const result = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Content that is very similar to existing",
       type: "fact",
       author: "alice",
@@ -121,10 +127,15 @@ describe("Duplicate detection in memory_create", () => {
     const memoryRepo = makeMemoryRepo({
       findDuplicates: vi.fn().mockResolvedValue([]),
     });
-    const service = new MemoryService(memoryRepo, projectRepo, embedder);
+    const service = new MemoryService(
+      memoryRepo,
+      workspaceRepo,
+      embedder,
+      "test-project",
+    );
 
     const result = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Completely unique content that has no match",
       type: "fact",
       author: "alice",
@@ -147,10 +158,15 @@ describe("Duplicate detection in memory_create", () => {
         },
       ]),
     });
-    const service = new MemoryService(memoryRepo, projectRepo, embedder);
+    const service = new MemoryService(
+      memoryRepo,
+      workspaceRepo,
+      embedder,
+      "test-project",
+    );
 
     const result = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Manual write that matches an existing memory",
       type: "fact",
       author: "alice",
@@ -175,11 +191,16 @@ describe("Duplicate detection in memory_create", () => {
         },
       ]),
     });
-    const service = new MemoryService(memoryRepo, projectRepo, embedder);
+    const service = new MemoryService(
+      memoryRepo,
+      workspaceRepo,
+      embedder,
+      "test-project",
+    );
 
     // Trying to create a user-scoped memory
     const result = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "User memory that duplicates project scope",
       type: "fact",
       author: "alice",
@@ -204,10 +225,15 @@ describe("Duplicate detection in memory_create", () => {
         },
       ]),
     });
-    const service = new MemoryService(memoryRepo, projectRepo, embedder);
+    const service = new MemoryService(
+      memoryRepo,
+      workspaceRepo,
+      embedder,
+      "test-project",
+    );
 
     const result = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Project memory that duplicates another project memory",
       type: "fact",
       author: "alice",
@@ -234,10 +260,15 @@ describe("Duplicate detection in memory_create", () => {
         },
       ]),
     });
-    const service = new MemoryService(memoryRepo, projectRepo, embedder);
+    const service = new MemoryService(
+      memoryRepo,
+      workspaceRepo,
+      embedder,
+      "test-project",
+    );
 
     const result = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Some content",
       type: "fact",
       author: "alice",
@@ -254,10 +285,15 @@ describe("Duplicate detection in memory_create", () => {
   it("findDuplicates is called with correct embedding and scope parameters", async () => {
     const findDuplicates = vi.fn().mockResolvedValue([]);
     const memoryRepo = makeMemoryRepo({ findDuplicates });
-    const service = new MemoryService(memoryRepo, projectRepo, embedder);
+    const service = new MemoryService(
+      memoryRepo,
+      workspaceRepo,
+      embedder,
+      "test-project",
+    );
 
     await service.create({
-      project_id: "my-project",
+      workspace_id: "my-project",
       content: "Some content for scope check",
       type: "fact",
       author: "bob",
@@ -266,7 +302,7 @@ describe("Duplicate detection in memory_create", () => {
 
     expect(findDuplicates).toHaveBeenCalledWith(
       expect.objectContaining({
-        projectId: "my-project",
+        workspaceId: "my-project",
         scope: "user",
         userId: "bob",
       }),

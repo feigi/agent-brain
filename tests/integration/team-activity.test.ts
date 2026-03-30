@@ -24,7 +24,7 @@ describe("Team Activity", () => {
     it("session_start includes team_activity in meta (D-29)", async () => {
       // Create some memories before session
       await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Recent note",
         type: "fact",
         author: "alice",
@@ -50,7 +50,7 @@ describe("Team Activity", () => {
 
       // Create a memory authored by alice
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "A note for discussion",
         type: "fact",
         author: "alice",
@@ -75,7 +75,7 @@ describe("Team Activity", () => {
 
       // Create a memory after first session
       await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "New note",
         type: "fact",
         author: "bob",
@@ -91,7 +91,7 @@ describe("Team Activity", () => {
       await service.sessionStart("test-project", "alice");
 
       await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "My own note",
         type: "fact",
         author: "alice",
@@ -122,7 +122,7 @@ describe("Team Activity", () => {
       const sinceDate = new Date();
 
       await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "New note",
         type: "fact",
         author: "alice",
@@ -142,7 +142,7 @@ describe("Team Activity", () => {
 
     it("returns memories with change_type 'updated' for content changes", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Original",
         type: "fact",
         author: "alice",
@@ -173,7 +173,7 @@ describe("Team Activity", () => {
 
     it("returns memories with change_type 'commented' (D-37)", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Note",
         type: "fact",
         author: "alice",
@@ -201,14 +201,14 @@ describe("Team Activity", () => {
       const sinceDate = new Date();
 
       await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Alice's note",
         type: "fact",
         author: "alice",
         scope: "workspace",
       });
       await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Bob's note",
         type: "fact",
         author: "bob",
@@ -232,7 +232,7 @@ describe("Team Activity", () => {
       const sinceDate = new Date();
 
       await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Alice private",
         type: "fact",
         author: "alice",
@@ -258,7 +258,7 @@ describe("Team Activity", () => {
 
       for (let i = 0; i < 5; i++) {
         await service.create({
-          project_id: "test-project",
+          workspace_id: "test-project",
           content: `Note ${i}`,
           type: "fact",
           author: "alice",

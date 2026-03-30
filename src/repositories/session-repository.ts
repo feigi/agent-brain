@@ -8,7 +8,11 @@ export class DrizzleSessionTrackingRepository implements SessionTrackingReposito
   constructor(private readonly db: Database) {}
 
   // D-28: UPSERT session tracking. Returns previous last_session_at or null if first session.
-  async upsert(userId: string, projectId: string): Promise<Date | null> {
+  async upsert(
+    userId: string,
+    projectId: string,
+    workspaceId: string,
+  ): Promise<Date | null> {
     // First, get existing session timestamp
     const existing = await this.db
       .select({ last_session_at: sessionTracking.last_session_at })
@@ -16,6 +20,7 @@ export class DrizzleSessionTrackingRepository implements SessionTrackingReposito
       .where(
         and(
           eq(sessionTracking.user_id, userId),
+          eq(sessionTracking.workspace_id, workspaceId),
           eq(sessionTracking.project_id, projectId),
         ),
       )
@@ -30,10 +35,15 @@ export class DrizzleSessionTrackingRepository implements SessionTrackingReposito
       .values({
         user_id: userId,
         project_id: projectId,
+        workspace_id: workspaceId,
         last_session_at: sql`now()`,
       })
       .onConflictDoUpdate({
-        target: [sessionTracking.user_id, sessionTracking.project_id],
+        target: [
+          sessionTracking.user_id,
+          sessionTracking.workspace_id,
+          sessionTracking.project_id,
+        ],
         set: { last_session_at: sql`now()` },
       });
 
@@ -49,11 +59,13 @@ export class DrizzleSessionRepository implements SessionRepository {
     id: string,
     userId: string,
     projectId: string,
+    workspaceId: string,
   ): Promise<void> {
     await this.db.insert(sessions).values({
       id,
       user_id: userId,
       project_id: projectId,
+      workspace_id: workspaceId,
     });
   }
 
@@ -101,6 +113,7 @@ export class DrizzleSessionRepository implements SessionRepository {
     id: string;
     user_id: string;
     project_id: string;
+    workspace_id: string;
     budget_used: number;
   } | null> {
     const result = await this.db
@@ -108,6 +121,7 @@ export class DrizzleSessionRepository implements SessionRepository {
         id: sessions.id,
         user_id: sessions.user_id,
         project_id: sessions.project_id,
+        workspace_id: sessions.workspace_id,
         budget_used: sessions.budget_used,
       })
       .from(sessions)

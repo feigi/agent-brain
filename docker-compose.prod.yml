@@ -8,6 +8,7 @@ services:
     ports:
       - "19898:19898"
     environment:
+      PROJECT_ID: my-project
       DATABASE_URL: postgres://agentic:agentic@postgres:5432/agent_brain
       EMBEDDING_PROVIDER: ollama
       OLLAMA_BASE_URL: http://ollama:11434

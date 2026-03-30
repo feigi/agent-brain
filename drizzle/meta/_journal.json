@@ -36,6 +36,13 @@
       "when": 1774987200000,
       "tag": "0004_fix_embedding_dimensions",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1743343954000,
+      "tag": "0005_separate_project_workspace",
+      "breakpoints": true
     }
   ]
 }

@@ -23,15 +23,15 @@ export const memoryTypeEnum = pgEnum("memory_type", [
 ]);
 
 // D-08: Memory scope enum
-// workspace = scoped to workspace (old "project"), user = private, project = cross-workspace
+// workspace = scoped to workspace, user = private, project = cross-workspace within deployment
 export const memoryScopeEnum = pgEnum("memory_scope", [
   "workspace",
   "user",
   "project",
 ]);
 
-// D-32: Projects identified by human-readable slug
-export const projects = pgTable("projects", {
+// Workspaces identified by human-readable slug (auto-created on first use)
+export const workspaces = pgTable("workspaces", {
   id: text("id").primaryKey(), // slug string, e.g. "agent-brain"
   created_at: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -45,7 +45,8 @@ export const memories = pgTable(
   "memories",
   {
     id: text("id").primaryKey(), // nanoid (D-18)
-    project_id: text("project_id").references(() => projects.id), // D-31 -- nullable for project-scoped memories
+    project_id: text("project_id").notNull(), // deployment project (from server config)
+    workspace_id: text("workspace_id").references(() => workspaces.id), // nullable for project-scoped memories
     content: text("content").notNull(), // CORE-08: raw text
     title: text("title").notNull(), // D-03: auto-generated if omitted
     type: memoryTypeEnum("type").notNull(), // D-16, D-17: CORE-06
@@ -77,6 +78,7 @@ export const memories = pgTable(
       .using("hnsw", table.embedding.op("vector_cosine_ops"))
       .with({ m: 16, ef_construction: 64 }),
     index("memories_project_id_idx").on(table.project_id),
+    index("memories_workspace_id_idx").on(table.workspace_id),
     index("memories_author_idx").on(table.author),
     index("memories_type_idx").on(table.type),
     index("memories_created_at_idx").on(table.created_at),
@@ -107,30 +109,33 @@ export const comments = pgTable(
 export const sessions = pgTable("sessions", {
   id: text("id").primaryKey(), // nanoid session_id (D-18)
   user_id: text("user_id").notNull(),
-  project_id: text("project_id")
+  project_id: text("project_id").notNull(), // deployment project
+  workspace_id: text("workspace_id")
     .notNull()
-    .references(() => projects.id),
+    .references(() => workspaces.id),
   budget_used: integer("budget_used").notNull().default(0),
   created_at: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 });
 
-// D-28: Track last session per user per project for team activity detection
+// Track last session per user per workspace per project for team activity detection
 export const sessionTracking = pgTable(
   "session_tracking",
   {
     user_id: text("user_id").notNull(),
-    project_id: text("project_id")
+    project_id: text("project_id").notNull(), // deployment project
+    workspace_id: text("workspace_id")
       .notNull()
-      .references(() => projects.id),
+      .references(() => workspaces.id),
     last_session_at: timestamp("last_session_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
-    unique("session_tracking_user_project_idx").on(
+    unique("session_tracking_user_workspace_project_idx").on(
       table.user_id,
+      table.workspace_id,
       table.project_id,
     ),
   ],

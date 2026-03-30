@@ -35,7 +35,7 @@ describe("Session lifecycle and write budget integration tests", () => {
 
     // Step 2: Write with agent-auto and the session_id
     const createResult = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content:
         "Important database query optimization insight discovered during testing",
       type: "learning",
@@ -57,7 +57,7 @@ describe("Session lifecycle and write budget integration tests", () => {
     const sessionId = sessionResult.meta.session_id!;
 
     const createResult = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "End-of-session review: found pattern in test file organization",
       type: "pattern",
       author: "alice",
@@ -77,7 +77,7 @@ describe("Session lifecycle and write budget integration tests", () => {
     // Write up to the budget limit using distinct content to avoid dedup
     for (let i = 0; i < budgetLimit; i++) {
       const result = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: `Unique insight number ${i} about ${i > 5 ? "testing" : "architecture"} discovered at step ${i} in the process of building the system ${Date.now() + i}`,
         type: "learning",
         author: "alice",
@@ -89,7 +89,7 @@ describe("Session lifecycle and write budget integration tests", () => {
 
     // The (budgetLimit + 1)th write should be soft-rejected
     const overBudgetResult = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: `This is the ${budgetLimit + 1}th write and should be rejected by the budget guard completely`,
       type: "fact",
       author: "alice",
@@ -112,7 +112,7 @@ describe("Session lifecycle and write budget integration tests", () => {
 
     // Do one autonomous write
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content:
         "First autonomous write to establish a budget baseline for this session test",
       type: "fact",
@@ -123,7 +123,7 @@ describe("Session lifecycle and write budget integration tests", () => {
 
     // Do a manual write (should not increment budget)
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content:
         "Manual write that should not consume budget -- explicitly set by user",
       type: "decision",
@@ -134,7 +134,7 @@ describe("Session lifecycle and write budget integration tests", () => {
 
     // Do a second autonomous write -- budget should be 2 (not 3)
     const secondAutoResult = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content:
         "Second autonomous write after manual write to verify budget tracking accuracy",
       type: "learning",
@@ -150,7 +150,7 @@ describe("Session lifecycle and write budget integration tests", () => {
 
   it("autonomous write without session_id succeeds without budget tracking (AUTO-03)", async () => {
     const autoResult = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "agent-auto write without session_id",
       type: "fact",
       author: "alice",
@@ -162,7 +162,7 @@ describe("Session lifecycle and write budget integration tests", () => {
     expect(autoResult.meta.budget).toBeUndefined();
 
     const reviewResult = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "session-review write without session_id",
       type: "fact",
       author: "alice",
@@ -184,7 +184,7 @@ describe("Session lifecycle and write budget integration tests", () => {
 
     // Write to session 1
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content:
         "Session one autonomous write with unique content identifier abc123",
       type: "fact",
@@ -195,7 +195,7 @@ describe("Session lifecycle and write budget integration tests", () => {
 
     // Write to session 2 -- should have its own budget counter starting at 0
     const result = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content:
         "Session two autonomous write with unique content identifier def456",
       type: "fact",

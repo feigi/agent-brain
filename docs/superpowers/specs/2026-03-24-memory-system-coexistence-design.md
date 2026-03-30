@@ -80,7 +80,7 @@ This user uses **agent-brain** (MCP server) as their sole memory system across a
 ### Identity Parameters
 
 - **`user_id`**: The OS username, i.e. the output of `whoami`. This is the user's identity across all memory tools.
-- **`project_id`**: The repository directory name (e.g., `agent-brain` for `/Users/chris/dev/agent-brain`).
+- **`workspace_id`**: The repository directory name (e.g., `agent-brain` for `/Users/chris/dev/agent-brain`).
 
 ### When to Call `memory_search`
 
@@ -158,7 +158,7 @@ if [[ "$CWD" != */agent-brain* ]]; then
 fi
 ```
 
-No other changes needed. The hook already derives `project_id` from the directory name and `user_id` from `whoami`. For projects with no agent-brain memories, `memory_session_start` returns an empty result and the hook outputs nothing.
+No other changes needed. The hook already derives `workspace_id` from the directory name and `user_id` from `whoami`. For workspaces with no agent-brain memories, `memory_session_start` returns an empty result and the hook outputs nothing.
 
 ### Component 4: MEMORY.md Stub
 

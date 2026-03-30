@@ -23,7 +23,7 @@ describe("Memory scoping integration tests", () => {
   it("workspace-scoped memory not visible in other workspace (SCOP-01, SCOP-04)", async () => {
     // Create memory in project-a
     await service.create({
-      project_id: "project-a",
+      workspace_id: "project-a",
       content: "Secret project-a knowledge about deployment pipelines",
       type: "fact",
       scope: "workspace",
@@ -47,7 +47,7 @@ describe("Memory scoping integration tests", () => {
   it("user-scoped memory visible across projects (SCOP-02)", async () => {
     // Create user-scoped memory in project-a
     await service.create({
-      project_id: "project-a",
+      workspace_id: "project-a",
       content: "User alice prefers vim keybindings everywhere",
       type: "preference",
       scope: "user",
@@ -75,21 +75,21 @@ describe("Memory scoping integration tests", () => {
     // Creating a memory with a brand-new project_id should succeed
     // without prior project creation
     const result = await service.create({
-      project_id: "brand-new-project",
+      workspace_id: "brand-new-project",
       content: "First memory in a new project",
       type: "fact",
       author: "alice",
     });
     assertMemory(result.data);
 
-    expect(result.data.project_id).toBe("brand-new-project");
+    expect(result.data.project_id).toBe("test-project");
     expect(result.data.id).toBeDefined();
   });
 
   it("stale memories appear in list_stale", async () => {
     // Create a memory (verified_at is null by default = stale)
     const { data: createdData } = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Stale memory that has never been verified",
       type: "fact",
       author: "alice",
@@ -106,7 +106,7 @@ describe("Memory scoping integration tests", () => {
   it("project-scoped memory visible across all workspaces", async () => {
     // Create a project-scoped memory (cross-workspace)
     const result = await service.create({
-      project_id: "workspace-a",
+      workspace_id: "workspace-a",
       content: "Always use ESM imports in this project - universal standard",
       type: "decision",
       scope: "project",
@@ -133,7 +133,7 @@ describe("Memory scoping integration tests", () => {
   it("project-scoped memory cannot be created by agent-auto", async () => {
     await expect(
       service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Agent trying to create project-scoped memory",
         type: "fact",
         scope: "project",
@@ -146,7 +146,7 @@ describe("Memory scoping integration tests", () => {
   it("project-scoped memory cannot be created by session-review", async () => {
     await expect(
       service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Session review trying to create project-scoped memory",
         type: "fact",
         scope: "project",
@@ -158,7 +158,7 @@ describe("Memory scoping integration tests", () => {
 
   it("project-scoped memory can be created manually", async () => {
     const result = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Manual project-scoped memory about coding standards",
       type: "decision",
       scope: "project",
@@ -172,7 +172,7 @@ describe("Memory scoping integration tests", () => {
   it("search scope=both includes project-scoped memories", async () => {
     // Create workspace-scoped memory
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Workspace-specific deployment configuration",
       type: "fact",
       scope: "workspace",
@@ -180,7 +180,7 @@ describe("Memory scoping integration tests", () => {
     });
     // Create user-scoped memory
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "User preference for dark mode terminals",
       type: "preference",
       scope: "user",
@@ -188,7 +188,7 @@ describe("Memory scoping integration tests", () => {
     });
     // Create project-scoped memory
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Project-wide convention for error handling patterns",
       type: "pattern",
       scope: "project",
@@ -213,7 +213,7 @@ describe("Memory scoping integration tests", () => {
 
   it("default scope is workspace when not specified", async () => {
     const result = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Memory with default scope",
       type: "fact",
       author: "alice",
@@ -224,7 +224,7 @@ describe("Memory scoping integration tests", () => {
 
   it("recently verified memories excluded from list_stale", async () => {
     const { data: createdData } = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Freshly verified memory",
       type: "fact",
       author: "alice",

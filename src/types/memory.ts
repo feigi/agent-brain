@@ -8,13 +8,14 @@ export type MemoryType =
   | "architecture";
 
 // D-08: Memory scopes
-// workspace = scoped to a workspace (old "project" behavior), user = private, project = cross-workspace
+// workspace = scoped to a workspace, user = private, project = cross-workspace within deployment
 export type MemoryScope = "workspace" | "user" | "project";
 
 // Full memory object as stored (without embedding vector per D-44)
 export interface Memory {
   id: string;
-  project_id: string | null;
+  project_id: string;
+  workspace_id: string | null;
   content: string;
   title: string;
   type: MemoryType;
@@ -61,7 +62,7 @@ export interface MemoryWithChangeType extends Memory {
 
 // Input type for creating a memory
 export interface MemoryCreate {
-  project_id?: string; // optional for project-scoped memories (cross-workspace)
+  workspace_id?: string; // optional for project-scoped memories (cross-workspace)
   content: string;
   title?: string; // D-03: auto-generate from content if omitted
   type: MemoryType;

@@ -22,14 +22,14 @@ describe("memory_session_start integration tests", () => {
   it("returns relevant memories with context (RETR-04)", async () => {
     // Create project and user memories
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Database migration patterns for PostgreSQL schema evolution",
       type: "fact",
       scope: "workspace",
       author: "alice",
     });
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content:
         "Alice prefers explicit migration files over auto-generated ones",
       type: "preference",
@@ -59,14 +59,14 @@ describe("memory_session_start integration tests", () => {
   it("returns recent memories without context (RETR-04)", async () => {
     // Create memories
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "First memory created for recency test",
       type: "fact",
       scope: "workspace",
       author: "alice",
     });
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Second memory created more recently",
       type: "fact",
       scope: "workspace",
@@ -87,7 +87,7 @@ describe("memory_session_start integration tests", () => {
     // Create 5 memories
     for (let i = 1; i <= 5; i++) {
       await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: `Session start test memory number ${i}`,
         type: "fact",
         author: "alice",
@@ -108,7 +108,7 @@ describe("memory_session_start integration tests", () => {
     // Create 15 memories
     for (let i = 1; i <= 15; i++) {
       await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: `Bulk memory for default limit test ${i}`,
         type: "fact",
         author: "alice",
@@ -134,7 +134,7 @@ describe("memory_session_start integration tests", () => {
   it("includes user-scoped memories from any project (D-15)", async () => {
     // Create user memory in a different project
     await service.create({
-      project_id: "other-project",
+      workspace_id: "other-project",
       content: "User-wide preference that should appear in session start",
       type: "preference",
       scope: "user",
@@ -149,7 +149,7 @@ describe("memory_session_start integration tests", () => {
 
   it("excludes archived memories", async () => {
     const { data: createdData } = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "This will be archived and should not appear at session start",
       type: "fact",
       author: "alice",
@@ -165,7 +165,7 @@ describe("memory_session_start integration tests", () => {
 
   it("response envelope has count and timing (D-18)", async () => {
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Envelope test memory",
       type: "fact",
       author: "alice",

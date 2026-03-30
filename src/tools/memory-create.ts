@@ -69,7 +69,7 @@ export function registerMemoryCreate(
     async (params) => {
       return withErrorHandling(async () => {
         const result = await memoryService.create({
-          project_id: params.workspace_id,
+          workspace_id: params.workspace_id,
           content: params.content,
           title: params.title,
           type: params.type,

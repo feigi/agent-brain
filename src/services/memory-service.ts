@@ -12,7 +12,7 @@ import type { Envelope } from "../types/envelope.js";
 import type { EmbeddingProvider } from "../providers/embedding/types.js";
 import type {
   MemoryRepository,
-  ProjectRepository,
+  WorkspaceRepository,
   ListOptions,
   CommentRepository,
   SessionTrackingRepository,
@@ -35,8 +35,9 @@ const AUTO_TITLE_LENGTH = 80; // D-03: Auto-generate title length
 export class MemoryService {
   constructor(
     private readonly memoryRepo: MemoryRepository,
-    private readonly projectRepo: ProjectRepository,
+    private readonly workspaceRepo: WorkspaceRepository,
     private readonly embeddingProvider: EmbeddingProvider,
+    private readonly projectId: string,
     private readonly commentRepo?: CommentRepository,
     private readonly sessionRepo?: SessionTrackingRepository,
     private readonly sessionLifecycleRepo?: SessionRepository,
@@ -67,11 +68,11 @@ export class MemoryService {
   ): Promise<Envelope<Memory | CreateSkipResult>> {
     const start = Date.now();
 
-    // Guard 0a -- Require project_id for workspace/user scope
+    // Guard 0a -- Require workspace_id for workspace/user scope
     const effectiveScope = input.scope ?? "workspace";
-    if (effectiveScope !== "project" && !input.project_id) {
+    if (effectiveScope !== "project" && !input.workspace_id) {
       throw new ValidationError(
-        `project_id is required for ${effectiveScope}-scoped memories.`,
+        `workspace_id is required for ${effectiveScope}-scoped memories.`,
       );
     }
 
@@ -126,10 +127,10 @@ export class MemoryService {
         ? input.content.slice(0, AUTO_TITLE_LENGTH) + "..."
         : input.content);
 
-    // D-34: Ensure project exists (auto-create on first mention)
-    // Skip for project-scoped memories without project_id
-    if (input.project_id) {
-      await this.projectRepo.findOrCreate(input.project_id);
+    // D-34: Ensure workspace exists (auto-create on first mention)
+    // Skip for project-scoped memories without workspace_id
+    if (input.workspace_id) {
+      await this.workspaceRepo.findOrCreate(input.workspace_id);
     }
 
     // D-19: Embed title + content concatenated
@@ -147,7 +148,8 @@ export class MemoryService {
     // Phase 4: Guard 3 -- Semantic duplicate detection (D-14, D-15, D-16, D-17)
     const duplicates = await this.memoryRepo.findDuplicates({
       embedding,
-      projectId: input.project_id ?? null,
+      projectId: this.projectId,
+      workspaceId: input.workspace_id ?? null,
       scope: effectiveScope,
       userId: input.author,
       threshold: config.duplicateThreshold,
@@ -180,7 +182,8 @@ export class MemoryService {
 
     const memoryData: Memory & { embedding: number[] } = {
       id,
-      project_id: input.project_id ?? null,
+      project_id: this.projectId,
+      workspace_id: input.workspace_id ?? null,
       content: input.content,
       title,
       type: input.type,
@@ -246,6 +249,10 @@ export class MemoryService {
     if (!memory) {
       throw new NotFoundError("Memory", id);
     }
+    // Cross-project isolation: memory must belong to this deployment
+    if (memory.project_id !== this.projectId) {
+      throw new NotFoundError("Memory", id);
+    }
     // D-17: user-scoped memories return "not found" for non-owners (don't leak existence)
     if (!this.canAccess(memory, userId)) {
       throw new NotFoundError("Memory", id);
@@ -264,6 +271,11 @@ export class MemoryService {
 
     const memory = await this.memoryRepo.findById(id);
     if (!memory) throw new NotFoundError("Memory", id);
+
+    // Cross-project isolation
+    if (memory.project_id !== this.projectId) {
+      throw new NotFoundError("Memory", id);
+    }
 
     // D-17: user-scoped memories return not-found for non-owners
     if (!this.canAccess(memory, userId)) {
@@ -309,6 +321,11 @@ export class MemoryService {
     // Fetch parent memory
     const memory = await this.memoryRepo.findById(memoryId);
     if (!memory) throw new NotFoundError("Memory", memoryId);
+
+    // Cross-project isolation
+    if (memory.project_id !== this.projectId) {
+      throw new NotFoundError("Memory", memoryId);
+    }
 
     // D-55: No comments on archived memories
     if (memory.archived_at) {
@@ -365,7 +382,7 @@ export class MemoryService {
 
   // D-33 through D-40: List memories with change_type for team activity awareness
   async listRecentActivity(
-    projectId: string,
+    workspaceId: string,
     userId: string,
     since: Date,
     limit: number = 10,
@@ -374,7 +391,8 @@ export class MemoryService {
     const start = Date.now();
 
     const recentMemories = await this.memoryRepo.findRecentActivity({
-      project_id: projectId,
+      project_id: this.projectId,
+      workspace_id: workspaceId,
       user_id: userId,
       since,
       limit,
@@ -423,6 +441,10 @@ export class MemoryService {
     // Fetch first for access control check (also needed for re-embedding)
     const existing = await this.memoryRepo.findById(id);
     if (!existing) {
+      throw new NotFoundError("Memory", id);
+    }
+    // Cross-project isolation
+    if (existing.project_id !== this.projectId) {
       throw new NotFoundError("Memory", id);
     }
     this.assertCanModify(existing, userId);
@@ -480,6 +502,10 @@ export class MemoryService {
     for (const id of idArray) {
       const memory = await this.memoryRepo.findById(id);
       if (memory) {
+        // Cross-project isolation
+        if (memory.project_id !== this.projectId) {
+          throw new NotFoundError("Memory", id);
+        }
         // D-67: If memory not found, archive is idempotent -- skip check
         this.assertCanModify(memory, userId);
       }
@@ -493,7 +519,7 @@ export class MemoryService {
 
   async search(
     query: string,
-    project_id: string,
+    workspace_id: string,
     scope: "workspace" | "user" | "both",
     user_id: string,
     limit?: number,
@@ -518,7 +544,8 @@ export class MemoryService {
     const overFetchLimit = effectiveLimit * OVER_FETCH_FACTOR;
     const candidates = await this.memoryRepo.search({
       embedding,
-      project_id,
+      project_id: this.projectId,
+      workspace_id,
       scope,
       user_id,
       limit: overFetchLimit,
@@ -551,28 +578,33 @@ export class MemoryService {
   }
 
   async sessionStart(
-    projectId: string,
+    workspaceId: string,
     userId: string,
     context?: string,
     limit: number = 10,
   ): Promise<Envelope<MemoryWithRelevance[]>> {
     const start = Date.now();
 
-    // D-34: Auto-create project
-    await this.projectRepo.findOrCreate(projectId);
+    // D-34: Auto-create workspace
+    await this.workspaceRepo.findOrCreate(workspaceId);
 
     // Phase 4: Generate session_id and create session record for budget tracking (D-18)
     const sessionId = generateId();
     await this.sessionLifecycleRepo?.createSession(
       sessionId,
       userId,
-      projectId,
+      this.projectId,
+      workspaceId,
     );
 
     // D-28: Track session, get previous session timestamp
     let previousSession: Date | null = null;
     if (this.sessionRepo) {
-      previousSession = await this.sessionRepo.upsert(userId, projectId);
+      previousSession = await this.sessionRepo.upsert(
+        userId,
+        this.projectId,
+        workspaceId,
+      );
     }
 
     // D-31: First session falls back to 7 days
@@ -586,11 +618,19 @@ export class MemoryService {
       // D-14: With context, use semantic search with composite scoring
       // D-15: Always search both scopes
       // min_similarity = -1 -- session start should be maximally permissive
-      result = await this.search(context, projectId, "both", userId, limit, -1);
+      result = await this.search(
+        context,
+        workspaceId,
+        "both",
+        userId,
+        limit,
+        -1,
+      );
     } else {
       // D-14: Without context, fetch recent memories ranked by recency
       const recentMemories = await this.memoryRepo.listRecentBothScopes({
-        project_id: projectId,
+        project_id: this.projectId,
+        workspace_id: workspaceId,
         user_id: userId,
         limit,
       });
@@ -621,7 +661,8 @@ export class MemoryService {
       | undefined;
     if (this.memoryRepo.countTeamActivity) {
       const counts = await this.memoryRepo.countTeamActivity(
-        projectId,
+        this.projectId,
+        workspaceId,
         userId,
         since,
       );
@@ -669,6 +710,10 @@ export class MemoryService {
     if (!existing) {
       throw new NotFoundError("Memory", id);
     }
+    // Cross-project isolation
+    if (existing.project_id !== this.projectId) {
+      throw new NotFoundError("Memory", id);
+    }
     // D-20: project=anyone can verify, user=owner only
     if (!this.canAccess(existing, userId)) {
       throw new AuthorizationError(
@@ -686,7 +731,7 @@ export class MemoryService {
   }
 
   async listStale(
-    project_id: string,
+    workspace_id: string,
     userId: string,
     threshold_days: number,
     limit?: number,
@@ -695,7 +740,8 @@ export class MemoryService {
     const start = Date.now();
 
     const result = await this.memoryRepo.findStale({
-      project_id,
+      project_id: this.projectId,
+      workspace_id,
       threshold_days,
       limit,
       cursor,

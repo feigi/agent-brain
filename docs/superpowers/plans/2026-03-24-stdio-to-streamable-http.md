@@ -109,9 +109,9 @@ export function createApiToolsRouter(memoryService: MemoryService): Router {
     try {
       switch (toolName) {
         case "memory_session_start": {
-          const { project_id, user_id, context, limit } = req.body;
+          const { workspace_id, user_id, context, limit } = req.body;
           const result = await memoryService.sessionStart(
-            project_id,
+            workspace_id,
             user_id,
             context,
             limit ?? 10,
@@ -356,7 +356,7 @@ Run:
 ```bash
 curl -s -X POST http://localhost:19898/api/tools/memory_session_start \
   -H 'Content-Type: application/json' \
-  -d '{"project_id":"agent-brain","user_id":"chris","limit":5}'
+  -d '{"workspace_id":"agent-brain","user_id":"chris","limit":5}'
 ```
 
 Expected: JSON response with `data` and `meta` fields (the Envelope structure).
@@ -559,7 +559,7 @@ INPUT=$(cat)
 CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
 
 USER_ID=$(whoami)
-PROJECT_ID=$(basename "$CWD")
+WORKSPACE_ID=$(basename "$CWD")
 
 # Check server health — fail gracefully if server is down
 if ! curl -sf http://localhost:19898/health >/dev/null 2>&1; then
@@ -568,7 +568,7 @@ fi
 
 RESPONSE=$(curl -s -X POST http://localhost:19898/api/tools/memory_session_start \
   -H 'Content-Type: application/json' \
-  -d "{\"project_id\":\"${PROJECT_ID}\",\"user_id\":\"${USER_ID}\",\"limit\":10}")
+  -d "{\"workspace_id\":\"${WORKSPACE_ID}\",\"user_id\":\"${USER_ID}\",\"limit\":10}")
 
 if [ -z "$RESPONSE" ]; then
   exit 0
@@ -717,7 +717,7 @@ Expected: `{"status":"ok"}`
 ```bash
 curl -s -X POST http://localhost:19898/api/tools/memory_session_start \
   -H 'Content-Type: application/json' \
-  -d '{"project_id":"agent-brain","user_id":"chris","limit":5}'
+  -d '{"workspace_id":"agent-brain","user_id":"chris","limit":5}'
 ```
 
 Expected: JSON envelope with memories.

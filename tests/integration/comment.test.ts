@@ -24,7 +24,7 @@ describe("Comments", () => {
   describe("create comment", () => {
     it("adds a comment to a project memory", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Original",
         type: "fact",
         author: "alice",
@@ -40,7 +40,7 @@ describe("Comments", () => {
 
     it("returns incrementing comment_count in meta", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Note",
         type: "fact",
         author: "alice",
@@ -58,7 +58,7 @@ describe("Comments", () => {
   describe("preserves original content", () => {
     it("original memory content unchanged after comment", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Original content",
         type: "fact",
         author: "alice",
@@ -72,7 +72,7 @@ describe("Comments", () => {
 
     it("comment does not bump memory version (D-54)", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Note",
         type: "fact",
         author: "alice",
@@ -87,7 +87,7 @@ describe("Comments", () => {
 
     it("comment updates parent updated_at and last_comment_at (D-53, D-62)", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Note",
         type: "fact",
         author: "alice",
@@ -110,7 +110,7 @@ describe("Comments", () => {
   describe("self-comment blocked", () => {
     it("author cannot comment on their own project memory", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "My note",
         type: "fact",
         author: "alice",
@@ -124,7 +124,7 @@ describe("Comments", () => {
 
     it("error message mentions memory_update", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "My note",
         type: "fact",
         author: "alice",
@@ -144,7 +144,7 @@ describe("Comments", () => {
   describe("archived memory", () => {
     it("cannot comment on archived memory", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "To archive",
         type: "fact",
         author: "alice",
@@ -162,7 +162,7 @@ describe("Comments", () => {
   describe("capabilities on memory_get", () => {
     it("non-owner on project memory: can_comment true, can_edit true", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Note",
         type: "fact",
         author: "alice",
@@ -178,7 +178,7 @@ describe("Comments", () => {
 
     it("owner on project memory: can_comment false (D-56), can_edit true", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Note",
         type: "fact",
         author: "alice",
@@ -194,7 +194,7 @@ describe("Comments", () => {
 
     it("owner on user-scoped memory: all caps except can_comment", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Private",
         type: "fact",
         author: "alice",
@@ -208,7 +208,7 @@ describe("Comments", () => {
 
     it("non-owner on user-scoped memory: not found (D-17)", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Private",
         type: "fact",
         author: "alice",
@@ -225,7 +225,7 @@ describe("Comments", () => {
   describe("comments array on memory_get", () => {
     it("getWithComments returns comments sorted oldest-first (D-64)", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Note",
         type: "fact",
         author: "alice",
@@ -250,7 +250,7 @@ describe("Comments", () => {
   describe("content validation", () => {
     it("rejects empty comment content", async () => {
       await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Note",
         type: "fact",
         author: "alice",

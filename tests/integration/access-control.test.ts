@@ -25,7 +25,7 @@ describe("Access Control", () => {
     it("two users can both write and read project memories", async () => {
       // Alice creates a project memory
       const alice = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Alice's note",
         type: "fact",
         author: "alice",
@@ -35,7 +35,7 @@ describe("Access Control", () => {
 
       // Bob creates a project memory
       const bob = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Bob's note",
         type: "fact",
         author: "bob",
@@ -54,7 +54,7 @@ describe("Access Control", () => {
 
     it("any user can update a project memory", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Original",
         type: "fact",
         author: "alice",
@@ -73,7 +73,7 @@ describe("Access Control", () => {
 
     it("any user can archive a project memory", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "To archive",
         type: "fact",
         author: "alice",
@@ -89,7 +89,7 @@ describe("Access Control", () => {
   describe("user scope privacy", () => {
     it("owner can read their own user-scoped memory", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Private note",
         type: "fact",
         author: "alice",
@@ -102,7 +102,7 @@ describe("Access Control", () => {
 
     it("non-owner gets 'not found' for user-scoped memory (D-17)", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Alice private",
         type: "fact",
         author: "alice",
@@ -116,7 +116,7 @@ describe("Access Control", () => {
 
     it("non-owner cannot update user-scoped memory", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Private",
         type: "fact",
         author: "alice",
@@ -130,7 +130,7 @@ describe("Access Control", () => {
 
     it("non-owner cannot archive user-scoped memory (D-15)", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Private",
         type: "fact",
         author: "alice",
@@ -145,7 +145,7 @@ describe("Access Control", () => {
   describe("author tracking", () => {
     it("memory records the author who created it", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Note",
         type: "fact",
         author: "alice",
@@ -159,7 +159,7 @@ describe("Access Control", () => {
   describe("provenance", () => {
     it("comment records the commenter as author", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Original",
         type: "fact",
         author: "alice",
@@ -179,7 +179,7 @@ describe("Access Control", () => {
   describe("verify", () => {
     it("verify sets verified_at and verified_by (D-19)", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Fact to verify",
         type: "fact",
         author: "alice",
@@ -193,7 +193,7 @@ describe("Access Control", () => {
 
     it("non-owner cannot verify user-scoped memory (D-20)", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Private fact",
         type: "fact",
         author: "alice",
@@ -205,7 +205,7 @@ describe("Access Control", () => {
 
     it("owner can verify their own user-scoped memory", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "My fact",
         type: "fact",
         author: "alice",
@@ -221,7 +221,7 @@ describe("Access Control", () => {
   describe("stale memories with scope enforcement", () => {
     it("list_stale returns project memories for any user", async () => {
       await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Old fact",
         type: "fact",
         author: "alice",
@@ -233,14 +233,14 @@ describe("Access Control", () => {
 
     it("list_stale filters out other users' user-scoped memories (D-16)", async () => {
       await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Alice private",
         type: "fact",
         author: "alice",
         scope: "user",
       });
       await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Bob private",
         type: "fact",
         author: "bob",
@@ -259,7 +259,7 @@ describe("Access Control", () => {
   describe("comment_count field", () => {
     it("newly created memory has comment_count 0", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Note",
         type: "fact",
         author: "alice",
@@ -271,7 +271,7 @@ describe("Access Control", () => {
 
     it("memory has correct comment_count after comments added", async () => {
       const { data: memory } = await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: "Note",
         type: "fact",
         author: "alice",

@@ -1,6 +1,7 @@
 import "dotenv/config";
 
 export const config = {
+  projectId: process.env.PROJECT_ID ?? "",
   databaseUrl:
     process.env.DATABASE_URL ??
     "postgresql://agentic:agentic@localhost:5432/agent_brain",

@@ -54,7 +54,7 @@ The `/api/tools/:toolName` route maps tool names to service methods. This avoids
 ```bash
 curl -s -X POST http://localhost:19898/api/tools/memory_session_start \
   -H 'Content-Type: application/json' \
-  -d '{"project_id":"...","user_id":"...","limit":10}'
+  -d '{"workspace_id":"...","user_id":"...","limit":10}'
 ```
 
 **Security:** Localhost-only binding. No authentication for now (can add bearer token later).
@@ -130,7 +130,7 @@ The `npm run dev` script is updated to also start the HTTP server (not stdio), s
 INPUT=$(cat)
 CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
 USER_ID=$(whoami)
-PROJECT_ID=$(basename "$CWD")
+WORKSPACE_ID=$(basename "$CWD")
 
 # Check server health
 if ! curl -sf http://localhost:19898/health >/dev/null 2>&1; then
@@ -139,7 +139,7 @@ fi
 
 RESPONSE=$(curl -s -X POST http://localhost:19898/api/tools/memory_session_start \
   -H 'Content-Type: application/json' \
-  -d "{\"project_id\":\"${PROJECT_ID}\",\"user_id\":\"${USER_ID}\",\"limit\":10}")
+  -d "{\"workspace_id\":\"${WORKSPACE_ID}\",\"user_id\":\"${USER_ID}\",\"limit\":10}")
 
 if [ -z "$RESPONSE" ]; then
   exit 0

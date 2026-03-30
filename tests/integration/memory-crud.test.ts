@@ -23,7 +23,7 @@ describe("Memory CRUD integration tests", () => {
 
   it("creates a memory with all fields", async () => {
     const result = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Always use parameterized queries",
       type: "decision",
       author: "alice",
@@ -48,7 +48,7 @@ describe("Memory CRUD integration tests", () => {
       "This is a very long piece of content that exceeds eighty characters and should be truncated for the auto title generation";
 
     const result = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: longContent,
       type: "fact",
       author: "alice",
@@ -60,7 +60,7 @@ describe("Memory CRUD integration tests", () => {
 
   it("stores optional fields: source, session_id, metadata, tags", async () => {
     const result = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Test content with optional fields",
       type: "learning",
       author: "bob",
@@ -80,7 +80,7 @@ describe("Memory CRUD integration tests", () => {
 
   it("retrieves a memory by ID", async () => {
     const created = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Retrievable memory",
       type: "fact",
       author: "alice",
@@ -100,7 +100,7 @@ describe("Memory CRUD integration tests", () => {
 
   it("updates content and increments version", async () => {
     const created = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Original content",
       type: "fact",
       author: "alice",
@@ -125,7 +125,7 @@ describe("Memory CRUD integration tests", () => {
 
   it("update with re-embed: changing content triggers new embedding", async () => {
     const created = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Original content for embedding",
       type: "fact",
       author: "alice",
@@ -149,7 +149,7 @@ describe("Memory CRUD integration tests", () => {
 
   it("rejects update with wrong version (optimistic locking)", async () => {
     const created = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Version conflict test",
       type: "fact",
       author: "alice",
@@ -174,7 +174,7 @@ describe("Memory CRUD integration tests", () => {
 
   it("archives a single memory", async () => {
     const created = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Memory to archive",
       type: "fact",
       author: "alice",
@@ -192,14 +192,14 @@ describe("Memory CRUD integration tests", () => {
 
   it("archives multiple memories in bulk", async () => {
     const m1 = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Bulk archive 1",
       type: "fact",
       author: "alice",
     });
     assertMemory(m1.data);
     const m2 = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Bulk archive 2",
       type: "fact",
       author: "alice",
@@ -212,7 +212,7 @@ describe("Memory CRUD integration tests", () => {
 
   it("archive is idempotent (D-67)", async () => {
     const created = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Idempotent archive test",
       type: "fact",
       author: "alice",
@@ -228,7 +228,7 @@ describe("Memory CRUD integration tests", () => {
 
   it("verifies a memory", async () => {
     const created = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Memory to verify",
       type: "fact",
       author: "alice",
@@ -249,19 +249,19 @@ describe("Memory CRUD integration tests", () => {
 
   it("lists memories sorted by created_at desc", async () => {
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "First memory",
       type: "fact",
       author: "alice",
     });
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Second memory",
       type: "fact",
       author: "alice",
     });
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Third memory",
       type: "fact",
       author: "alice",
@@ -269,6 +269,7 @@ describe("Memory CRUD integration tests", () => {
 
     const result = await service.list({
       project_id: "test-project",
+      workspace_id: "test-project",
       scope: "workspace",
     });
 
@@ -280,19 +281,19 @@ describe("Memory CRUD integration tests", () => {
 
   it("lists memories filtered by type", async () => {
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "A decision",
       type: "decision",
       author: "alice",
     });
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "A fact",
       type: "fact",
       author: "alice",
     });
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Another decision",
       type: "decision",
       author: "alice",
@@ -300,6 +301,7 @@ describe("Memory CRUD integration tests", () => {
 
     const result = await service.list({
       project_id: "test-project",
+      workspace_id: "test-project",
       scope: "workspace",
       type: "decision",
     });
@@ -310,14 +312,14 @@ describe("Memory CRUD integration tests", () => {
 
   it("lists memories filtered by tags", async () => {
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Deploy note",
       type: "fact",
       author: "alice",
       tags: ["deploy", "ci"],
     });
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Unrelated note",
       type: "fact",
       author: "alice",
@@ -326,6 +328,7 @@ describe("Memory CRUD integration tests", () => {
 
     const result = await service.list({
       project_id: "test-project",
+      workspace_id: "test-project",
       scope: "workspace",
       tags: ["deploy"],
     });
@@ -338,7 +341,7 @@ describe("Memory CRUD integration tests", () => {
     // Create 5 memories
     for (let i = 1; i <= 5; i++) {
       await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: `Paginated memory ${i}`,
         type: "fact",
         author: "alice",
@@ -348,6 +351,7 @@ describe("Memory CRUD integration tests", () => {
     // First page: limit 2
     const page1 = await service.list({
       project_id: "test-project",
+      workspace_id: "test-project",
       scope: "workspace",
       limit: 2,
     });
@@ -359,6 +363,7 @@ describe("Memory CRUD integration tests", () => {
     const cursorParts = page1.meta.cursor!.split("|");
     const page2 = await service.list({
       project_id: "test-project",
+      workspace_id: "test-project",
       scope: "workspace",
       limit: 2,
       cursor: { created_at: cursorParts[0], id: cursorParts[1] },
@@ -370,6 +375,7 @@ describe("Memory CRUD integration tests", () => {
     const cursor2Parts = page2.meta.cursor!.split("|");
     const page3 = await service.list({
       project_id: "test-project",
+      workspace_id: "test-project",
       scope: "workspace",
       limit: 2,
       cursor: { created_at: cursor2Parts[0], id: cursor2Parts[1] },

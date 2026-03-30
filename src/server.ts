@@ -9,7 +9,7 @@ import { createDb } from "./db/index.js";
 import { runMigrations } from "./db/migrate.js";
 import { createEmbeddingProvider } from "./providers/embedding/index.js";
 import { DrizzleMemoryRepository } from "./repositories/memory-repository.js";
-import { DrizzleProjectRepository } from "./repositories/project-repository.js";
+import { DrizzleWorkspaceRepository } from "./repositories/workspace-repository.js";
 import { DrizzleCommentRepository } from "./repositories/comment-repository.js";
 import {
   DrizzleSessionTrackingRepository,
@@ -66,16 +66,24 @@ async function main() {
     `Embedding provider: ${embedder.modelName} (${embedder.dimensions}d)`,
   );
 
+  // Validate project ID
+  if (!config.projectId) {
+    logger.error("PROJECT_ID environment variable is required");
+    process.exit(1);
+  }
+  logger.info(`Project: ${config.projectId}`);
+
   // Initialize repositories and service
   const memoryRepo = new DrizzleMemoryRepository(db);
-  const projectRepo = new DrizzleProjectRepository(db);
+  const workspaceRepo = new DrizzleWorkspaceRepository(db);
   const commentRepo = new DrizzleCommentRepository(db);
   const sessionRepo = new DrizzleSessionTrackingRepository(db);
   const sessionLifecycleRepo = new DrizzleSessionRepository(db);
   const memoryService = new MemoryService(
     memoryRepo,
-    projectRepo,
+    workspaceRepo,
     embedder,
+    config.projectId,
     commentRepo,
     sessionRepo,
     sessionLifecycleRepo,

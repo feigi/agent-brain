@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
+import { config } from "../config.js";
 import { slugSchema } from "../utils/validation.js";
 import { toolResponse, withErrorHandling } from "./tool-utils.js";
 
@@ -79,7 +80,8 @@ export function registerMemoryList(
     async (params) => {
       return withErrorHandling(async () => {
         const result = await memoryService.list({
-          project_id: params.workspace_id,
+          project_id: config.projectId,
+          workspace_id: params.workspace_id,
           scope: params.scope,
           user_id: params.user_id,
           type: params.type,

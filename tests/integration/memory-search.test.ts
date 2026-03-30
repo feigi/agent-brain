@@ -22,19 +22,19 @@ describe("Memory search integration tests", () => {
   it("returns results ranked by relevance (highest first)", async () => {
     // Create memories with distinct content
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "database migration patterns and schema evolution",
       type: "fact",
       author: "alice",
     });
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "UI component styling with CSS modules and Tailwind",
       type: "fact",
       author: "alice",
     });
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "database connection pooling and query optimization",
       type: "fact",
       author: "alice",
@@ -62,7 +62,7 @@ describe("Memory search integration tests", () => {
     // Create 5 memories
     for (let i = 1; i <= 5; i++) {
       await service.create({
-        project_id: "test-project",
+        workspace_id: "test-project",
         content: `Search content item number ${i}`,
         type: "fact",
         author: "alice",
@@ -83,7 +83,7 @@ describe("Memory search integration tests", () => {
 
   it("excludes archived memories from search", async () => {
     const { data: createdData } = await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "This memory will be archived and should not appear in search",
       type: "fact",
       author: "alice",
@@ -105,7 +105,7 @@ describe("Memory search integration tests", () => {
 
   it("filters by min_relevance threshold", async () => {
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Some generic content",
       type: "fact",
       author: "alice",
@@ -128,7 +128,7 @@ describe("Memory search integration tests", () => {
   it("cross-scope search returns both project and user memories (SCOP-03)", async () => {
     // Create a project-scoped memory
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Project-specific deployment configuration notes",
       type: "fact",
       scope: "workspace",
@@ -136,7 +136,7 @@ describe("Memory search integration tests", () => {
     });
     // Create a user-scoped memory
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "User alice deployment preferences and patterns",
       type: "preference",
       scope: "user",
@@ -181,7 +181,7 @@ describe("Memory search integration tests", () => {
 
   it("search results include relevance score between 0 and 1", async () => {
     await service.create({
-      project_id: "test-project",
+      workspace_id: "test-project",
       content: "Testing relevance scores in search results",
       type: "fact",
       author: "alice",

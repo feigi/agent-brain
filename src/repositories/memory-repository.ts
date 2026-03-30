@@ -33,6 +33,7 @@ import type {
 const baseMemoryColumns = {
   id: memories.id,
   project_id: memories.project_id,
+  workspace_id: memories.workspace_id,
   content: memories.content,
   title: memories.title,
   type: memories.type,
@@ -83,6 +84,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       .values({
         id: memory.id,
         project_id: memory.project_id,
+        workspace_id: memory.workspace_id,
         content: memory.content,
         title: memory.title,
         type: memory.type,
@@ -191,14 +193,17 @@ export class DrizzleMemoryRepository implements MemoryRepository {
 
     const conditions: SQL[] = [isNull(memories.archived_at)];
 
-    // SCOP-01: workspace scope queries project_id
+    // Deployment isolation: always filter by project_id
+    conditions.push(eq(memories.project_id, options.project_id));
+
+    // SCOP-01: workspace scope queries workspace_id
     // SCOP-02: user scope queries author + scope column
     // SCOP-03: cross-scope ('both') uses OR for workspace + user memories
     // All search modes also include project-scoped memories (cross-workspace)
     if (options.scope === "workspace") {
       conditions.push(
         or(
-          eq(memories.project_id, options.project_id),
+          eq(memories.workspace_id, options.workspace_id),
           eq(memories.scope, "project"),
         )!,
       );
@@ -222,7 +227,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       conditions.push(
         or(
           and(
-            eq(memories.project_id, options.project_id),
+            eq(memories.workspace_id, options.workspace_id),
             eq(memories.scope, "workspace"),
           ),
           and(eq(memories.author, options.user_id), eq(memories.scope, "user")),
@@ -268,16 +273,19 @@ export class DrizzleMemoryRepository implements MemoryRepository {
 
     const conditions: SQL[] = [isNull(memories.archived_at)];
 
+    // Deployment isolation: always filter by project_id
+    conditions.push(eq(memories.project_id, options.project_id));
+
     // SCOP-01, SCOP-04: Scope-based filtering
     if (options.scope === "workspace") {
-      if (!options.project_id) {
+      if (!options.workspace_id) {
         throw new ValidationError(
-          "project_id is required for workspace-scoped list",
+          "workspace_id is required for workspace-scoped list",
         );
       }
-      conditions.push(eq(memories.project_id, options.project_id));
+      conditions.push(eq(memories.workspace_id, options.workspace_id));
     } else if (options.scope === "project") {
-      // Cross-workspace project scope -- no project_id filter
+      // Cross-workspace project scope -- no workspace_id filter
       conditions.push(eq(memories.scope, "project"));
     } else {
       if (!options.user_id) {
@@ -373,6 +381,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
 
     const conditions: SQL[] = [
       eq(memories.project_id, options.project_id),
+      eq(memories.workspace_id, options.workspace_id),
       isNull(memories.archived_at),
       or(
         isNull(memories.verified_at),
@@ -425,9 +434,10 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       .from(memories)
       .where(
         and(
+          eq(memories.project_id, options.project_id),
           isNull(memories.archived_at),
           or(
-            eq(memories.project_id, options.project_id),
+            eq(memories.workspace_id, options.workspace_id),
             and(
               eq(memories.author, options.user_id),
               eq(memories.scope, "user"),
@@ -472,11 +482,14 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       conditions.push(sql`${memories.author} != ${options.user_id}`);
     }
 
-    // Scope enforcement: workspace memories for this project + cross-workspace project memories + user's own
+    // Deployment isolation
+    conditions.push(eq(memories.project_id, options.project_id));
+
+    // Scope enforcement: workspace memories + cross-workspace project memories + user's own
     conditions.push(
       or(
         and(
-          eq(memories.project_id, options.project_id),
+          eq(memories.workspace_id, options.workspace_id),
           eq(memories.scope, "workspace"),
         ),
         eq(memories.scope, "project"),
@@ -497,7 +510,8 @@ export class DrizzleMemoryRepository implements MemoryRepository {
   // D-16: Scope-aware duplicate detection using cosine similarity
   async findDuplicates(options: {
     embedding: number[];
-    projectId: string | null;
+    projectId: string;
+    workspaceId: string | null;
     scope: "workspace" | "user" | "project";
     userId: string;
     threshold: number;
@@ -507,28 +521,32 @@ export class DrizzleMemoryRepository implements MemoryRepository {
     const distance = cosineDistance(memories.embedding, options.embedding);
     const similarity = sql<number>`(1 - (${distance}))`;
 
-    const conditions: SQL[] = [isNull(memories.archived_at)];
+    // Always filter by project_id for deployment isolation
+    const conditions: SQL[] = [
+      isNull(memories.archived_at),
+      eq(memories.project_id, options.projectId),
+    ];
 
     if (options.scope === "workspace") {
-      if (!options.projectId) {
+      if (!options.workspaceId) {
         throw new ValidationError(
-          "projectId is required for workspace-scoped dedup",
+          "workspaceId is required for workspace-scoped dedup",
         );
       }
-      conditions.push(eq(memories.project_id, options.projectId));
+      conditions.push(eq(memories.workspace_id, options.workspaceId));
     } else if (options.scope === "project") {
-      // Project-scoped dedup checks all project-scoped memories (no project_id filter)
+      // Project-scoped dedup checks all project-scoped memories
       conditions.push(eq(memories.scope, "project"));
     } else {
       // D-16: User memories check against BOTH user AND workspace scope
-      if (!options.projectId) {
+      if (!options.workspaceId) {
         throw new ValidationError(
-          "projectId is required for user-scoped dedup",
+          "workspaceId is required for user-scoped dedup",
         );
       }
       conditions.push(
         or(
-          eq(memories.project_id, options.projectId),
+          eq(memories.workspace_id, options.workspaceId),
           and(eq(memories.author, options.userId), eq(memories.scope, "user")),
         )!,
       );
@@ -558,6 +576,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
 
   async countTeamActivity(
     projectId: string,
+    workspaceId: string,
     userId: string,
     since: Date,
   ): Promise<TeamActivityCounts> {
@@ -569,6 +588,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
         .where(
           and(
             eq(memories.project_id, projectId),
+            eq(memories.workspace_id, workspaceId),
             isNull(memories.archived_at),
             gt(memories.created_at, since),
           ),
@@ -579,6 +599,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
         .where(
           and(
             eq(memories.project_id, projectId),
+            eq(memories.workspace_id, workspaceId),
             isNull(memories.archived_at),
             gt(memories.updated_at, since),
             lt(memories.created_at, since),
@@ -593,6 +614,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
         .where(
           and(
             eq(memories.project_id, projectId),
+            eq(memories.workspace_id, workspaceId),
             isNull(memories.archived_at),
             gt(comments.created_at, since),
           ),
