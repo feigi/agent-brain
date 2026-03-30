@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "agent-brain": {
+      "type": "http",
+      "url": "http://localhost:19898/mcp"
+    }
+  }
+}
