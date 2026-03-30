@@ -16,7 +16,7 @@ export class TitanEmbeddingProvider implements EmbeddingProvider {
   constructor(
     region = "us-east-1",
     timeoutMs = 10_000,
-    private readonly dims = 768,
+    private readonly dims = 512,
   ) {
     if (!VALID_DIMENSIONS.includes(dims as (typeof VALID_DIMENSIONS)[number])) {
       throw new ValidationError(
