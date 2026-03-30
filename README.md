@@ -166,7 +166,7 @@ For production with Titan embeddings, set `EMBEDDING_PROVIDER=titan` and ensure 
 
 **Step 2: Add hooks (optional)**
 
-Three hooks make Claude Code work seamlessly with Agent Brain: automatic memory loading at session start, a guard that prevents writes to Claude Code's built-in file-based memory, and a session-review prompt at session end.
+Four hooks make Claude Code work seamlessly with Agent Brain: automatic memory loading at session start, a guard that prevents writes to Claude Code's built-in file-based memory, periodic nudges to save memories mid-session, and a session-review prompt at session end.
 
 **Prerequisites:** `jq` installed (`brew install jq` on macOS).
 
@@ -174,6 +174,7 @@ Three hooks make Claude Code work seamlessly with Agent Brain: automatic memory 
 mkdir -p ~/.claude/hooks
 cp hooks/claude/memory-session-start.sh ~/.claude/hooks/
 cp hooks/claude/memory-guard.sh ~/.claude/hooks/
+cp hooks/claude/memory-nudge.sh ~/.claude/hooks/
 cp hooks/claude/memory-session-review.sh ~/.claude/hooks/
 chmod +x ~/.claude/hooks/memory-*.sh
 ```
@@ -184,6 +185,7 @@ Merge the entries from `hooks/claude/settings-snippet.json` into your `~/.claude
 | ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
 | **SessionStart** `memory-session-start.sh` | Loads relevant memories into the session via `additionalContext`                                     |
 | **PreToolUse** `memory-guard.sh`           | Blocks Write/Edit/MultiEdit to `~/.claude/projects/*/memory/*`, redirecting to agent-brain MCP tools |
+| **PostToolUse** `memory-nudge.sh`          | Periodically reminds Claude to save notable decisions or conventions via `additionalContext`         |
 | **Stop** `memory-session-review.sh`        | Prompts Claude to reflect and save learnings before ending a session                                 |
 
 **Step 3: Add instructions to your CLAUDE.md**
