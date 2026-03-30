@@ -36,7 +36,7 @@ describe("Memory CRUD integration tests", () => {
     expect(result.data.project_id).toBe("test-project");
     expect(result.data.author).toBe("alice");
     expect(result.data.version).toBe(1);
-    expect(result.data.scope).toBe("project"); // default
+    expect(result.data.scope).toBe("workspace"); // default
     expect(result.data.embedding_model).toBe("mock-deterministic");
     expect(result.data.embedding_dimensions).toBe(512);
     expect(result.meta.timing).toBeTypeOf("number");
@@ -268,7 +268,7 @@ describe("Memory CRUD integration tests", () => {
 
     const result = await service.list({
       project_id: "test-project",
-      scope: "project",
+      scope: "workspace",
     });
 
     expect(result.data.length).toBe(3);
@@ -299,7 +299,7 @@ describe("Memory CRUD integration tests", () => {
 
     const result = await service.list({
       project_id: "test-project",
-      scope: "project",
+      scope: "workspace",
       type: "decision",
     });
 
@@ -325,7 +325,7 @@ describe("Memory CRUD integration tests", () => {
 
     const result = await service.list({
       project_id: "test-project",
-      scope: "project",
+      scope: "workspace",
       tags: ["deploy"],
     });
 
@@ -347,7 +347,7 @@ describe("Memory CRUD integration tests", () => {
     // First page: limit 2
     const page1 = await service.list({
       project_id: "test-project",
-      scope: "project",
+      scope: "workspace",
       limit: 2,
     });
     expect(page1.data.length).toBe(2);
@@ -358,7 +358,7 @@ describe("Memory CRUD integration tests", () => {
     const cursorParts = page1.meta.cursor!.split("|");
     const page2 = await service.list({
       project_id: "test-project",
-      scope: "project",
+      scope: "workspace",
       limit: 2,
       cursor: { created_at: cursorParts[0], id: cursorParts[1] },
     });
@@ -369,7 +369,7 @@ describe("Memory CRUD integration tests", () => {
     const cursor2Parts = page2.meta.cursor!.split("|");
     const page3 = await service.list({
       project_id: "test-project",
-      scope: "project",
+      scope: "workspace",
       limit: 2,
       cursor: { created_at: cursor2Parts[0], id: cursor2Parts[1] },
     });

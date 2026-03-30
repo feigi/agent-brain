@@ -25,7 +25,7 @@ export function registerMemoryListStale(
     "memory_list_stale",
     {
       description:
-        'List memories that haven\'t been verified within a threshold. Helps identify knowledge that may be outdated. user_id is required -- only project-scoped memories and your own user-scoped memories are returned. Example: memory_list_stale({ project_id: "my-project", user_id: "alice", threshold_days: 30 })',
+        'List memories that haven\'t been verified within a threshold. Helps identify knowledge that may be outdated. user_id is required -- only workspace/project-scoped memories and your own user-scoped memories are returned. Example: memory_list_stale({ project_id: "my-project", user_id: "alice", threshold_days: 30 })',
       inputSchema: {
         project_id: slugSchema.describe("Project slug (e.g., 'my-project')"),
         user_id: slugSchema.describe(

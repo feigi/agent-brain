@@ -28,7 +28,7 @@ describe("Team Activity", () => {
         content: "Recent note",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
 
       const result = await service.sessionStart("test-project", "bob");
@@ -54,7 +54,7 @@ describe("Team Activity", () => {
         content: "A note for discussion",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
       assertMemory(memory);
 
@@ -79,7 +79,7 @@ describe("Team Activity", () => {
         content: "New note",
         type: "fact",
         author: "bob",
-        scope: "project",
+        scope: "workspace",
       });
 
       // Second session should show the new memory
@@ -95,7 +95,7 @@ describe("Team Activity", () => {
         content: "My own note",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
 
       const result = await service.sessionStart("test-project", "alice");
@@ -126,7 +126,7 @@ describe("Team Activity", () => {
         content: "New note",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
 
       const result = await service.listRecentActivity(
@@ -146,7 +146,7 @@ describe("Team Activity", () => {
         content: "Original",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
       assertMemory(memory);
 
@@ -177,7 +177,7 @@ describe("Team Activity", () => {
         content: "Note",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
       assertMemory(memory);
 
@@ -205,14 +205,14 @@ describe("Team Activity", () => {
         content: "Alice's note",
         type: "fact",
         author: "alice",
-        scope: "project",
+        scope: "workspace",
       });
       await service.create({
         project_id: "test-project",
         content: "Bob's note",
         type: "fact",
         author: "bob",
-        scope: "project",
+        scope: "workspace",
       });
 
       const result = await service.listRecentActivity(
@@ -262,7 +262,7 @@ describe("Team Activity", () => {
           content: `Note ${i}`,
           type: "fact",
           author: "alice",
-          scope: "project",
+          scope: "workspace",
         });
       }
 

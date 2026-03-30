@@ -10,7 +10,7 @@ const memoryTypeEnum = z.enum([
   "architecture",
 ]);
 
-const scopeEnum = z.enum(["project", "user"]);
+const scopeEnum = z.enum(["workspace", "user", "project"]);
 
 export const toolSchemas = {
   memory_session_start: z.object({
@@ -21,12 +21,12 @@ export const toolSchemas = {
   }),
 
   memory_create: z.object({
-    project_id: slugSchema,
+    project_id: slugSchema.optional(),
     content: contentSchema,
     title: z.string().optional(),
     type: memoryTypeEnum,
     tags: z.array(z.string()).optional(),
-    scope: scopeEnum.default("project"),
+    scope: scopeEnum.default("workspace"),
     user_id: slugSchema,
     source: z.string().optional(),
     session_id: z.string().optional(),
@@ -57,15 +57,15 @@ export const toolSchemas = {
   memory_search: z.object({
     query: z.string().min(1),
     project_id: slugSchema,
-    scope: z.enum(["project", "user", "both"]).default("project"),
+    scope: z.enum(["workspace", "user", "both"]).default("workspace"),
     user_id: slugSchema,
     limit: z.number().int().min(1).max(100).default(10),
     min_similarity: z.number().min(0).max(1).default(0.3),
   }),
 
   memory_list: z.object({
-    project_id: slugSchema,
-    scope: scopeEnum.default("project"),
+    project_id: slugSchema.optional(),
+    scope: scopeEnum.default("workspace"),
     user_id: slugSchema,
     type: memoryTypeEnum.optional(),
     tags: z.array(z.string()).optional(),

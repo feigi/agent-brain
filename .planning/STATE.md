@@ -3,14 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: v1.0 milestone complete
-stopped_at: Completed quick task 260324-3fy
-last_updated: "2026-03-24T01:30:23.656Z"
-last_activity: "2026-03-24 - Completed quick task 260324-2zs: Add Claude Code integration section to README"
-progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 16
-  completed_plans: 16
+stopped_at: Completed quick task 260329-28f
+last_updated: "2026-03-29T02:18:35.565Z"
+last_activity: "2026-03-24 - Completed quick task 260324-3sx: Merge docker compose files"
 ---
 
 # Project State
@@ -131,10 +126,11 @@ None — v1.0 milestone complete. Starting fresh for v1.1.
 | 260324-3fy | Change EMBEDDING_PROVIDER from mock to ollama in .env for local Ollama embeddings                              | 2026-03-24 | [260324-3fy-change-embedding-provider-from-mock-to-o](./quick/260324-3fy-change-embedding-provider-from-mock-to-o/) |
 | 260324-3sx | Merge docker-compose.ollama.yml into docker-compose.yml for single-file local dev                              | 2026-03-24 | [260324-3sx-merge-the-two-docker-compose-files](./quick/260324-3sx-merge-the-two-docker-compose-files/)             |
 | 260326-2e5 | Add crash handlers, route error handling, DB idle timeout fix, Docker restart policy                           | 2026-03-26 | [260326-2e5-add-crash-handlers-and-fix-connection-st](./quick/260326-2e5-add-crash-handlers-and-fix-connection-st/) |
+| 260329-28f | Rename scope project to workspace, add cross-workspace project scope                                           | 2026-03-29 | [260329-28f-rename-scope-project-to-workspace-add-cr](./quick/260329-28f-rename-scope-project-to-workspace-add-cr/) |
 
 ## Session Continuity
 
-Last session: 2026-03-26T00:45:28Z
-Last activity: 2026-03-26 - Completed quick task 260326-2e5: Add crash handlers and fix connection stability
-Stopped at: Completed quick task 260326-2e5
+Last session: 2026-03-29T02:18:35.564Z
+Last activity: 2026-03-29 - Completed quick task 260329-28f: Rename scope project to workspace, add cross-workspace project scope
+Stopped at: Completed quick task 260329-28f
 Resume file: None

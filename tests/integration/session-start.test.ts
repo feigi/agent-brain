@@ -25,7 +25,7 @@ describe("memory_session_start integration tests", () => {
       project_id: "test-project",
       content: "Database migration patterns for PostgreSQL schema evolution",
       type: "fact",
-      scope: "project",
+      scope: "workspace",
       author: "alice",
     });
     await service.create({
@@ -52,7 +52,7 @@ describe("memory_session_start integration tests", () => {
     }
     // Should include both scopes (D-15)
     const scopes = result.data.map((m) => m.scope);
-    expect(scopes).toContain("project");
+    expect(scopes).toContain("workspace");
     expect(scopes).toContain("user");
   });
 
@@ -62,14 +62,14 @@ describe("memory_session_start integration tests", () => {
       project_id: "test-project",
       content: "First memory created for recency test",
       type: "fact",
-      scope: "project",
+      scope: "workspace",
       author: "alice",
     });
     await service.create({
       project_id: "test-project",
       content: "Second memory created more recently",
       type: "fact",
-      scope: "project",
+      scope: "workspace",
       author: "alice",
     });
 
