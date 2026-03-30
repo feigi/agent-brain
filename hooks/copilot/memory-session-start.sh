@@ -1,8 +1,6 @@
 #!/bin/bash
-# Copilot CLI sessionStart Hook: Pre-warm agent-brain session and set guard flag.
+# Copilot CLI sessionStart Hook: Pre-warm agent-brain session.
 # Calls the REST API to initialize a session so subsequent MCP tool calls are faster.
-# Also creates a guard flag that blocks all tools until memory_session_start is called
-# via the preToolUse hook (memory-session-guard.sh).
 # NOTE: Copilot CLI ignores sessionStart output — the agent must still call
 # memory_session_start via MCP tools. This hook just warms the server connection.
 
@@ -13,19 +11,6 @@ CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
 USER_ID=$(whoami)
 WORKSPACE_ID=$(basename "$CWD")
 SESSION_KEY="${COPILOT_SESSION_ID:-$(date +%Y%m%d%H%M%S)}"
-
-# Create guard flag so preToolUse hook blocks all tools until memory_session_start is called
-CWD_HASH=$(echo "$CWD" | sha256sum 2>/dev/null | cut -c1-8 || echo "default")
-GUARD_FLAG="/tmp/copilot-guard-${CWD_HASH}"
-INIT_DONE="/tmp/copilot-init-done-${CWD_HASH}"
-
-# Only create the guard if memory_session_start hasn't been called yet this session.
-# The init-done marker is set by the preToolUse hook when memory_session_start succeeds,
-# and cleared by the sessionEnd hook (or expires after 12 hours as a safety net).
-if [ ! -f "$INIT_DONE" ] || [ "$(find "$INIT_DONE" -mmin +720 2>/dev/null)" ]; then
-  rm -f "$INIT_DONE" 2>/dev/null
-  touch "$GUARD_FLAG"
-fi
 
 # Check server health — fail gracefully if server is down
 if ! curl -sf "${AGENT_BRAIN_URL}/health" >/dev/null 2>&1; then
