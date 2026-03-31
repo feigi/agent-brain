@@ -50,16 +50,16 @@ Long-term memory for AI agents. Agents read relevant memories at session start, 
 
 Every memory has:
 
-| Field       | Description                                                                  |
-| ----------- | ---------------------------------------------------------------------------- |
-| `title`     | Short label for display                                                      |
-| `content`   | The actual knowledge                                                         |
-| `type`      | `fact` · `decision` · `learning` · `pattern` · `preference` · `architecture` |
-| `scope`     | `project` (shared) or `user` (private to you)                                |
-| `tags`      | Free-form labels                                                             |
-| `author`    | Who created it                                                               |
-| `source`    | `manual` · `agent-auto` · etc.                                               |
-| `embedding` | 512-dim vector for semantic search                                           |
+| Field       | Description                                                                            |
+| ----------- | -------------------------------------------------------------------------------------- |
+| `title`     | Short label for display                                                                |
+| `content`   | The actual knowledge                                                                   |
+| `type`      | `fact` · `decision` · `learning` · `pattern` · `preference` · `architecture`           |
+| `scope`     | `workspace` (shared with team) · `user` (private to you) · `project` (cross-workspace) |
+| `tags`      | Free-form labels                                                                       |
+| `author`    | Who created it                                                                         |
+| `source`    | `manual` · `agent-auto` · etc.                                                         |
+| `embedding` | 512-dim vector for semantic search                                                     |
 
 ---
 
