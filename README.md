@@ -59,7 +59,7 @@ Every memory has:
 | `tags`      | Free-form labels                                                                       |
 | `author`    | Who created it                                                                         |
 | `source`    | `manual` · `agent-auto` · etc.                                                         |
-| `embedding` | 512-dim vector for semantic search                                                     |
+| `embedding` | Vector for semantic search (dimensions depend on provider)                             |
 
 ---
 
@@ -216,6 +216,8 @@ cp hooks/copilot/memory-session-end.sh .github/hooks/
 chmod +x .github/hooks/memory-*.sh
 ```
 
+A ready-made MCP server configuration snippet is also available at [`hooks/copilot/mcp-snippet.json`](hooks/copilot/mcp-snippet.json).
+
 | Hook                                       | Purpose                                        |
 | ------------------------------------------ | ---------------------------------------------- |
 | **sessionStart** `memory-session-start.sh` | Pre-warms the Agent Brain session via REST API |
@@ -322,6 +324,7 @@ src/
 ├── db/
 │   ├── schema.ts       # Drizzle schema (tables + HNSW index)
 │   └── migrate.ts      # Auto-migration on startup
+├── routes/             # HTTP routes (health, REST API)
 ├── tools/              # One file per MCP tool
 ├── services/
 │   └── memory-service.ts  # Core business logic
@@ -360,7 +363,9 @@ src/
 | `WRITE_BUDGET_PER_SESSION` | `10`                                                      | Max memories an agent can create per session                             |
 | `DUPLICATE_THRESHOLD`      | `0.90`                                                    | Cosine similarity above which a new memory is rejected as duplicate      |
 | `RECENCY_HALF_LIFE_DAYS`   | `14`                                                      | Half-life for recency score decay in search ranking                      |
-| `EMBEDDING_DIMENSIONS`     | `512`                                                     | Vector dimensions (512 for Titan, 768 for nomic-embed-text)              |
+| `EMBEDDING_DIMENSIONS`     | `768`                                                     | Vector dimensions (512 for Titan, 768 for nomic-embed-text)              |
 | `OLLAMA_BASE_URL`          | `http://localhost:11434`                                  | Ollama API endpoint                                                      |
 | `OLLAMA_MODEL`             | `nomic-embed-text`                                        | Ollama model for embeddings                                              |
+| `HOST`                     | `127.0.0.1`                                               | Server bind address                                                      |
+| `PORT`                     | `19898`                                                   | Server port                                                              |
 | `EMBEDDING_TIMEOUT_MS`     | `10000`                                                   | Timeout for embedding API calls                                          |
