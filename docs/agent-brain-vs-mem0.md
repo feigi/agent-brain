@@ -348,3 +348,31 @@ The backend ecosystem gap -- 25+ vector stores versus pgvector alone -- is simil
 What you keep by staying on agent-brain is a system sized to its problem. The entire codebase is 3,700 lines of TypeScript with 10 production dependencies, a single PostgreSQL database, and a deployment that fits in two containers. Every behavior is visible in the source. The lifecycle machinery -- verification, staleness, write budgets, archival -- exists because the use case demands it, not because a framework provided it. The collaboration features work because they were designed for the specific multi-user model of AI coding assistants sharing project knowledge. The MCP integration is native, not bolted on.
 
 The maintenance trade-off is clear: you own everything, which means every bug is yours to fix and every feature is yours to build. But "everything" is small and focused. There is no upstream whose priorities might diverge from yours, no LLM dependency on the write path whose costs and failure modes you must absorb, and no abstraction layers hiding behavior you need to understand. The risk is stagnation -- a solo maintainer has finite time, and features that mem0's community builds in parallel (new embedding providers, new retrieval strategies) must be built one at a time. The mitigation is that the feature surface is deliberately narrow, and the gap analysis confirms that most of mem0's breadth addresses problems that do not exist in the agent memory use case.
+
+## Recommendation
+
+Continue with agent-brain. Port the history/audit trail from mem0's design. Do not adopt mem0 or build a wrapper.
+
+### Rationale
+
+The gap analysis found two categories of differences: features where agent-brain leads and features where mem0 leads. The features where agent-brain leads -- lifecycle management, MCP integration, and collaboration -- are the ones that matter for this use case. The features where mem0 leads -- backend ecosystem, LLM-driven extraction, and graph memory -- are the ones that do not.
+
+**Maintenance burden** is the deciding factor. Agent-brain is 3,700 lines of TypeScript with 10 production dependencies and a single PostgreSQL database. Every line is visible, every behavior is controllable, and the total surface area is small enough for a solo maintainer to hold in their head. Adopting mem0 replaces that with dependency on a larger Python codebase whose priorities are set by a company building a managed cloud platform. Wrapping mem0 makes it worse: you still own all of agent-brain's lifecycle and collaboration code, plus an integration layer coordinating two runtimes, two data stores, and two dependency ecosystems. Neither option reduces maintenance; both increase it.
+
+**Operational complexity** favors agent-brain decisively. The current deployment is two containers: PostgreSQL with pgvector and the application. Mem0 with MCP access requires the OpenMemory stack (its own PostgreSQL, Neo4j, a React frontend, and a FastAPI backend) or a custom MCP wrapper. Every additional service is another container to monitor, back up, and upgrade. The LLM dependency on mem0's write path adds latency, cost, and a failure mode that does not exist in agent-brain's deterministic storage.
+
+**Performance** is not a concern at current scale, but agent-brain's write path (one embedding call, one SQL insert) is inherently faster and cheaper than mem0's (two to five LLM calls plus vector store operations per write). This gap widens as memory volume grows.
+
+**Extensibility** is mem0's strongest dimension, but the breadth is surplus. Pgvector handles agent memory workloads without strain. The 25+ vector store backends solve a problem that does not exist for a single self-hosted deployment. The embedding provider gap is real but minor -- adding an OpenAI provider against agent-brain's three-method interface is an afternoon of work, not a reason to adopt an entire framework.
+
+**Community** is the one axis where mem0 has an unambiguous advantage: 87 contributors, frequent releases, and commercial backing versus a solo maintainer. The mitigation is that agent-brain's feature surface is deliberately narrow. The gap analysis confirmed that the features mem0's community builds in parallel -- more vector stores, more LLM providers, graph improvements -- address problems outside the agent memory use case. The stagnation risk is real but bounded by the scope of what needs to be built.
+
+The single feature clearly worth porting is the **history and audit trail**. Mem0's approach of recording old value, new value, event type, actor, and timestamp per change is sound. The implementation in agent-brain is straightforward: an append-only PostgreSQL table, a repository method, and wiring into the update and archive code paths. This provides rollback capability and change visibility without introducing new services or dependencies.
+
+### Next steps
+
+1. **Add a `memory_history` table** to PostgreSQL. Schema: `id`, `memory_id`, `old_content`, `new_content`, `old_title`, `new_title`, `event` (created, updated, archived, unarchived), `author`, `created_at`. Insert a row on every update and archive operation. Expose via a `memory_history` MCP tool that returns the change log for a given memory ID.
+
+2. **Add an OpenAI embedding provider.** Implement the three-method `EmbeddingProvider` interface against OpenAI's embedding API. This closes the most commonly relevant gap in provider coverage with minimal effort.
+
+3. **Revisit this decision in six months.** The use case may evolve. If agent-brain starts ingesting raw session transcripts rather than curated observations, LLM-driven extraction becomes worth building. If multi-deployment or multi-region requirements emerge, backend flexibility becomes relevant. Neither is true today.
