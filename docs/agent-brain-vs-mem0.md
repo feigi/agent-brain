@@ -226,3 +226,87 @@ Optional dependency groups are large. The `vector_stores` extra pulls in clients
 The codebase is significantly larger than agent-brain. The `mem0/` Python package alone spans dozens of modules across memory management, vector stores, graphs, LLMs, embeddings, rerankers, and configuration. The `server/` and `openmemory/` directories add two separate deployment surfaces. Schema evolution in the core uses SQLite with manual migration code in `storage.py`; OpenMemory uses Alembic.
 
 What you depend on is substantial: the LLM provider for every inferred write (latency, cost, correctness of extraction), the vector store for all persistence, optionally a graph database, and the mem0 library itself as an upstream whose release cadence and priorities you do not control. What you own is the configuration and any customizations you build on top. The library absorbs significant complexity -- backend abstraction, prompt engineering, LLM orchestration -- but that complexity is not eliminated, just relocated. When the LLM misclassifies a fact, when the update-decision prompt produces an incorrect `DELETE`, or when a vector store adapter has a bug, debugging requires understanding the full pipeline across multiple abstraction layers.
+
+## Gap Analysis
+
+The two deep dives reveal systems built around different philosophies. Agent-brain is a deterministic store where the caller controls what goes in and a composite scoring function controls what comes out. Mem0 is an LLM-mediated layer that interprets, distills, and manages memories on the caller's behalf. The gaps between them follow from that core difference. What matters is whether each gap represents a real problem for the agent memory use case: AI coding assistants storing long-term context via MCP.
+
+### Graph memory
+
+Mem0 offers an optional knowledge graph built on Neo4j (or four other graph stores). When enabled, entity and relation extraction runs alongside vector storage, producing a network of nodes and edges that can be traversed during search. Agent-brain has no graph layer at all -- memories are flat rows in PostgreSQL with no inter-memory links.
+
+The question is whether entity-relationship extraction solves a retrieval problem that vector search alone cannot. In the agent memory use case, the stored content is typically decisions, patterns, architectural notes, and project conventions -- not conversational transcripts about people, places, and events where entity graphs shine. A memory like "we use pnpm workspaces with strict hoisting" does not benefit from entity extraction; the text itself is the useful unit, and vector similarity finds it reliably from natural-language queries.
+
+Graph memory also comes at substantial cost. Mem0's graph path adds three LLM calls per write (entity extraction, relation extraction, conflict resolution), requires a separate graph database in production, and introduces a second retrieval pathway that must be merged with vector results. For a solo-maintained deployment, this means another service to operate, another failure mode to debug, and ongoing LLM costs on every write.
+
+This gap matters little in practice. The agent memory use case stores self-contained knowledge fragments, not interconnected entity networks. The complexity and operational cost of a graph layer are disproportionate to the retrieval benefit it would provide. If inter-memory relationships ever become important, lightweight approaches (tags, explicit cross-references in content, or a simple junction table) could address the need without a full graph database.
+
+### LLM-driven extraction
+
+Mem0's default write path sends user input through a fact-extraction prompt, producing distilled facts from conversational context. This is powerful when the input is a sprawling conversation and the desired output is atomic, reusable knowledge. Agent-brain stores exactly what the caller provides, with no interpretation or transformation.
+
+The tradeoff is intelligence versus control. LLM extraction can surface implicit facts that a user might not think to save explicitly. But it also introduces unpredictability: the extraction prompt might miss important nuance, hallucinate a fact that was not stated, or split a coherent thought into fragments that lose context. Mem0's deep dive notes that when the LLM misclassifies a fact or produces an incorrect DELETE, debugging requires understanding the full pipeline across multiple abstraction layers.
+
+For agent memory via MCP, the caller is itself an AI coding assistant that can formulate clean, structured memory content before calling `memory_create`. The input is not raw conversation -- it is already a distilled observation that the agent decided was worth saving. Running a second LLM pass over that input adds latency (two LLM calls minimum per write), cost, and a layer of indirection where the stored content may diverge from what was intended. Mem0 does offer `infer=False` to bypass extraction, but that mode loses deduplication and conflict resolution -- the features that make the LLM path valuable.
+
+This gap is real but cuts both ways. LLM extraction would be valuable if agent-brain needed to ingest raw session transcripts. For the current use case, where the MCP client already curates what to store, deterministic storage with cosine-similarity dedup provides adequate quality with better predictability and no per-write LLM cost. The extraction capability is worth watching if the use case evolves toward automatic session summarization.
+
+### Memory lifecycle
+
+Agent-brain has explicit lifecycle machinery: `verified_at` timestamps, a staleness threshold (default 30 days), the `memory_list_stale` tool for maintenance triage, write budgets per session to prevent autonomous agents from flooding the store, and soft archival that nulls embeddings while preserving the record. Mem0 has LLM-driven deduplication and conflict resolution during writes, plus a history table that records changes, but no verification, no staleness detection, no write budgets, and no archival distinct from deletion.
+
+Mem0's approach assumes the LLM will handle lifecycle implicitly: when new information contradicts old information, the update-decision prompt should emit an UPDATE or DELETE action. This works for factual conflicts ("user's email changed") but does not address gradual staleness -- a memory that was accurate six months ago and is now silently outdated will not be flagged unless new, contradictory information happens to arrive.
+
+Agent-brain's verification and staleness system directly addresses knowledge rot, which is a real problem in long-lived projects. Codebases evolve, architectural decisions get revisited, and conventions change. A memory that says "we deploy to ECS" is dangerous if the team moved to Kubernetes three months ago and nobody re-verified the memory. The 5% relevance boost for verified memories is small but creates a useful signal: unverified memories gradually sink in search rankings as fresher, verified content rises.
+
+Write budgets are similarly practical. Without them, an enthusiastic autonomous agent can create dozens of low-value memories in a single session, diluting search quality. Mem0 has no equivalent constraint.
+
+This gap matters significantly. Lifecycle management is not a nice-to-have for a memory system that persists across months of project work -- it is how you prevent the knowledge base from decaying into noise. Mem0 would need substantial custom work on top to match this capability.
+
+### Team collaboration
+
+Agent-brain has comment threads on memories, a no-self-comment rule that encourages cross-user review, team activity detection via `memory_list_recent` with `exclude_self`, and session-start bootstrapping that reports what changed since the user's last session. Mem0's core library has none of this. OpenMemory adds access logging and app-level ACLs, but these are observability features, not collaboration mechanisms.
+
+In the agent memory use case, "team collaboration" typically means multiple developers (each with their own AI assistant) sharing a project knowledge base. When one developer's agent records a decision, other developers' agents should be able to discover it, and there should be a way to discuss or refine shared knowledge. Agent-brain's comment system and activity feed serve this directly. Mem0's flat scoping by `user_id` means memories are siloed unless all agents use the same user ID, which eliminates per-user privacy.
+
+This gap matters for multi-developer projects but is irrelevant for solo use. Since agent-brain already serves multi-user scenarios and mem0 would require building collaboration features from scratch, this is a meaningful advantage for agent-brain in team settings.
+
+### Backend ecosystem
+
+Mem0 supports 25+ vector stores, 5 graph stores, 16+ LLM providers, 11+ embedding providers, and 5 rerankers. Agent-brain supports pgvector for storage and 3 embedding providers (Ollama, Amazon Titan, and a mock). The gap in backend flexibility is enormous.
+
+But backend flexibility matters most when you need to integrate with existing infrastructure, operate at scale across multiple environments, or avoid vendor lock-in for a component you might need to swap. For a self-hosted, single-deployment memory server, the relevant question is: does pgvector do the job? PostgreSQL with pgvector is a well-maintained, widely deployed combination. It runs in a single container, uses standard SQL tooling for backup and monitoring, and handles the working set sizes typical of agent memory (thousands to tens of thousands of memories, not millions) without breaking a sweat. HNSW indexing provides sub-millisecond approximate nearest neighbor search at these scales.
+
+The embedding provider gap is more relevant. Agent-brain's three providers cover local (Ollama), cloud (Titan), and testing (mock), but lack OpenAI, Cohere, and other popular options. Adding a new provider is straightforward (implement a three-method interface), but it is still work that mem0 has already done.
+
+This gap matters minimally for the vector store dimension -- pgvector is sufficient and adding backend options would increase maintenance burden without solving a real problem. The embedding provider gap is a minor inconvenience that can be addressed incrementally as needed. The massive backend ecosystem is a strength of mem0 for general-purpose use but is largely surplus for a focused, self-hosted deployment.
+
+### Search sophistication
+
+Mem0 offers optional rerankers (five implementations including Cohere, HuggingFace, and an LLM-based reranker) and parallel vector-plus-graph search when the graph layer is enabled. Relevance is determined by vector similarity plus optional reranker adjustment. Agent-brain uses a composite scoring function that blends similarity (80%), recency decay (15%), and verification status (5%), with 3x over-fetching and application-layer re-ranking.
+
+These represent fundamentally different retrieval philosophies. Mem0 treats search as a pure relevance problem: find the vectors closest to the query and optionally refine the ranking with a learned model. Agent-brain treats search as a relevance-plus-freshness problem: a slightly less similar memory that was verified last week should sometimes rank above a more similar memory that has not been touched in six months.
+
+For agent memory, the recency and verification signals are genuinely useful. When an AI assistant asks "how do we deploy this service?", the answer from last month is more likely correct than the answer from last year, even if the older answer has marginally higher cosine similarity. Mem0's rerankers could learn similar signals from training data, but they do not incorporate domain-specific signals like verification status, and the LLM-based reranker adds another LLM call to every search.
+
+This gap is roughly neutral. Mem0 has more options for pure-relevance ranking; agent-brain has domain-appropriate signals baked into its scoring. Neither approach is clearly superior -- they optimize for different things. A reranker could be added to agent-brain's pipeline if pure-relevance ranking ever proves insufficient, and the composite scoring function could be tuned without external dependencies.
+
+### History and audit trail
+
+Mem0 tracks full event history per memory in its SQLite history table: each change records the old value, new value, event type, actor, and timestamp. Agent-brain has a `version` integer for optimistic locking but no change history -- when a memory is updated, the previous content is overwritten.
+
+Change history is valuable for understanding how knowledge evolved and for debugging incorrect updates. If an LLM-driven update rewrites a memory incorrectly, mem0's history lets you see what changed and recover the old value. Agent-brain has no such safety net; an incorrect update is destructive (though optimistic locking prevents concurrent overwrites).
+
+However, mem0's history implementation has practical limitations. The default SQLite backend uses `:memory:` storage, meaning history is lost on restart unless explicitly configured with a file path. The storage layer is not pluggable -- it is hardcoded SQLite with no abstraction. For a production deployment, you would need to ensure the SQLite file is persisted and backed up, adding another stateful component.
+
+This gap matters moderately. Change history is a genuinely useful feature that agent-brain lacks. The implementation cost of adding a history table to agent-brain's PostgreSQL schema would be modest (an append-only table recording memory_id, old_content, new_content, event, author, timestamp), and it would benefit from PostgreSQL's existing backup and reliability infrastructure rather than requiring a separate SQLite file. This is a feature worth porting rather than a reason to adopt mem0.
+
+### MCP integration
+
+Agent-brain is MCP-native. The server exposes tools directly over Streamable HTTP, and every feature -- from session start to memory search to batch archival -- is accessible as an MCP tool. The tool design includes capability booleans (`can_edit`, `can_archive`, `can_verify`, `can_comment`) so calling agents know what actions are available.
+
+Mem0's MCP integration exists in the OpenMemory layer, which is a separate deployment with its own database, its own FastAPI backend, and a React frontend. The MCP server in OpenMemory runs on port 8765 alongside the web UI on port 3000 and Neo4j on its standard ports. This means getting MCP access to mem0 requires deploying the full OpenMemory stack, not just the core library.
+
+For the agent memory use case, MCP is not optional -- it is the integration protocol. AI coding assistants (Claude, Copilot, Cursor) connect to memory via MCP tools. Agent-brain's architecture was designed around this from the start, with tool signatures, error handling, and response formats optimized for agent consumption. Mem0's core library is a Python API designed for direct programmatic use; the MCP layer is an afterthought bolted on via OpenMemory.
+
+This gap matters substantially. Adopting mem0 for MCP-based agent memory means either deploying OpenMemory (with its additional services, database, and frontend) or building a custom MCP wrapper around the core library. Either path adds significant integration work and ongoing maintenance -- exactly the burden the decision is trying to minimize.
