@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This document compares [agent-brain](https://github.com/cdrake/agent-brain) (a custom MCP memory server) with [mem0](https://github.com/mem0ai/mem0) (an open-source memory layer for AI agents). The goal is to decide between three options:
+This document compares [agent-brain](https://github.com/feigi/agent-brain) (a custom MCP memory server) with [mem0](https://github.com/mem0ai/mem0) (an open-source memory layer for AI agents). The goal is to decide between three options:
 
 1. **Adopt mem0** -- replace agent-brain entirely.
 2. **Wrap mem0** -- use mem0 as a backend and build missing features on top.
