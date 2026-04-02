@@ -120,3 +120,109 @@ The production dependency list is deliberately small: 10 packages. The core stac
 The non-test TypeScript source totals approximately 3,700 lines across 41 files. The architecture is layered: tools (MCP interface) call a service layer, which calls repository classes, which use Drizzle to talk to PostgreSQL. There is no ORM magic, no dependency injection framework, no runtime code generation. The scoring algorithm is pure functions. The embedding providers are simple HTTP or SDK wrappers.
 
 What you own is everything. There is no upstream to absorb bug fixes or feature work. If pgvector changes its API, if the MCP SDK releases a breaking change, if a new embedding model needs a different vector format -- all of that is your maintenance burden. The tradeoff is total control: every behavior is visible in the source, every decision is yours to change, and the system does exactly what it was built to do with no surplus abstraction.
+
+## mem0
+
+### Core model
+
+A memory in mem0 is a vector-store record whose primary content is a short textual fact, not the raw user input. Each `MemoryItem` (a Pydantic model) carries an `id`, `memory` (the text), an MD5 `hash` of that text, `created_at` and `updated_at` timestamps (UTC-normalized ISO strings), and an optional `score` populated during search. Session identifiers -- `user_id`, `agent_id`, `run_id` -- are promoted to top-level fields alongside `actor_id` and `role`. Any remaining payload fields land in a `metadata` dict. There is no typed category or scope enum; organization is entirely by these session identifiers.
+
+The write path is LLM-driven by default. When `add()` is called with `infer=True` (the default), the input -- which can be a plain string, a single message dict, or a list of message dicts -- is first normalized into a conversation transcript. That transcript is sent to the configured LLM with a fact-extraction prompt (the `FACT_RETRIEVAL_PROMPT` in `mem0/configs/prompts.py`), which instructs the model to act as a "Personal Information Organizer" and return a JSON object with a `facts` array. There are separate extraction prompts for user messages (`USER_MEMORY_EXTRACTION_PROMPT`) and agent/assistant messages (`AGENT_MEMORY_EXTRACTION_PROMPT`), selected based on whether an `agent_id` is provided and whether the messages include an assistant role. A third variant, `PROCEDURAL_MEMORY_SYSTEM_PROMPT`, handles `memory_type="procedural_memory"` by generating execution summaries rather than facts.
+
+After extraction, each fact is embedded and searched against the vector store (limit 5 per fact) to find existing memories that might overlap. The retrieved candidates are deduplicated by ID, then passed along with the new facts to a second LLM call -- the update-decision call -- which uses tool/function-calling to return an array of actions. Each action carries an `event` field: `ADD` (insert a new memory), `UPDATE` (rewrite an existing one, referenced by `id`), `DELETE` (remove an existing one), or `NONE` (no change needed). The system then executes these actions against the vector store and records each change in the history database.
+
+When `infer=False`, the LLM is bypassed entirely. Each message is stored verbatim as its own memory record -- one per non-system message -- with `actor_id` and `role` captured from the message metadata. This is a direct-storage mode with no extraction, deduplication, or conflict resolution.
+
+The optional graph layer adds a knowledge-graph dimension. When a graph store is configured, `add()` runs vector and graph writes in parallel via `ThreadPoolExecutor`. The graph path makes three additional LLM calls: entity extraction (identifying entities in the text via the `EXTRACT_ENTITIES_TOOL`), relation extraction (determining relationships between entities via the `RELATIONS_TOOL`), and conflict resolution (comparing new relations against existing graph edges via `DELETE_MEMORY_TOOL_GRAPH`). Entities and relations are stored as nodes and edges in the graph database (Neo4j by default) with embeddings on each node. The graph uses `MERGE` operations with `ON CREATE SET` / `ON MATCH SET` clauses, incrementing a `mentions` counter on matched nodes. Conflicting relations are soft-deleted: the `valid` flag is set to `false` and an `invalidated_at` timestamp is recorded, preserving historical state.
+
+In total, a single `add()` call with `infer=True` and graph enabled makes at minimum five LLM calls: fact extraction, update decision, entity extraction, relation extraction, and conflict resolution. Without the graph layer, it makes two LLM calls. With `infer=False`, it makes zero.
+
+### Search and retrieval
+
+The `search()` method accepts a query string plus optional `user_id`, `agent_id`, `run_id`, custom `filters`, a `threshold`, and a `rerank` flag (default `True`). Filters support a rich operator set: comparison operators (`eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `in`, `nin`, `contains`, `icontains`) and logical combinators (`AND`, `OR`, `NOT`), processed by `_process_metadata_filters()` before being passed to the vector store.
+
+The query is embedded and dispatched to the vector store. If a graph store is configured, graph search runs concurrently. The graph search path re-uses the entity extraction LLM call to identify entities in the query, then searches the graph database using cosine similarity on node embeddings (threshold default 0.7) and traverses outbound and inbound edges where `valid IS NULL OR valid = true`. Graph results are re-ranked internally using BM25 (`rank-bm25` library).
+
+Vector search results can be re-ranked if a reranker is configured and `rerank=True`. The system catches reranking errors gracefully and falls back to the original ordering. When graph is enabled, the response includes both a `results` array (vector matches) and a `relations` array (graph edges). When it is not, only `results` is returned.
+
+There is no composite scoring formula combining recency, verification status, or other signals. Relevance is purely vector similarity (plus optional reranker adjustment). There is no built-in recency decay, no verification boost, and no staleness detection in search scoring.
+
+### LLM integration
+
+LLM calls are deeply embedded in the write and search paths. The fact-extraction prompt, update-decision prompt, entity-extraction prompt, relation-extraction prompt, and conflict-resolution prompt are all defined in `mem0/configs/prompts.py` and `mem0/graphs/tools.py`. The update-decision step uses function/tool-calling, requiring an LLM provider that supports that capability.
+
+The LLM provider is selected via configuration. The codebase ships 16+ provider implementations in `mem0/llms/`: OpenAI (standard and structured), Anthropic, Azure OpenAI (standard and structured), AWS Bedrock, Google Gemini, Groq, DeepSeek, Together, Ollama, LM Studio, vLLM, LiteLLM, LangChain, Minimax, Sarvam, and xAI. Each implements a common base interface from `mem0/llms/base.py`.
+
+Embedding providers are similarly pluggable, with 11 implementations in `mem0/embeddings/`: OpenAI, Azure OpenAI, AWS Bedrock, Google Gemini, Google Vertex AI, HuggingFace, FastEmbed, Ollama, LM Studio, Together, LangChain, plus a mock provider for testing.
+
+Reranking is optional and provided by five implementations in `mem0/reranker/`: Cohere, HuggingFace, sentence-transformers, an LLM-based reranker, and a "zero-entropy" reranker. The LLM-based reranker adds yet another LLM call to the search path.
+
+The core dependency on `openai>=1.90.0` in `pyproject.toml` means OpenAI is the implicit default, though other providers can be configured.
+
+### Deployment and operations
+
+**Minimal self-hosted deployment** requires: a vector store (Qdrant is the default, declared as a core dependency via `qdrant-client>=1.9.1`), an LLM provider (for `infer=True` writes), and an embedding provider. With the defaults, this means a Qdrant instance and OpenAI API access. History is stored in SQLite via `mem0/memory/storage.py` -- a `SQLiteManager` class that uses `sqlite3.connect()` with a configurable path (defaulting to `:memory:`, meaning history is lost on restart unless a file path is provided). The SQLite backend is not pluggable; it is hardcoded with no abstraction layer.
+
+**The `server/` directory** provides a FastAPI REST API. The `docker-compose.yaml` in that directory defines three services: the mem0 application (port 8888), PostgreSQL with pgvector (v0.5.1), and Neo4j 5.26.4 (with APOC plugin). PostgreSQL has a health check (`pg_isready`); Neo4j has a wget-based health check with a 90-second startup delay. The application container itself has no health check defined. Authentication is via a single `X-API-Key` header validated against an `ADMIN_API_KEY` environment variable using constant-time comparison.
+
+**The `openmemory/` directory** is a separate, more full-featured deployment. It includes a FastAPI backend with its own database (using Alembic for migrations), a React frontend on port 3000, and an MCP server on port 8765. The `openmemory/compose/` directory provides Docker Compose fragments for nine different vector stores (Qdrant, pgvector, Chroma, Elasticsearch, FAISS, Milvus, OpenSearch, Redis, Weaviate), letting operators pick their backend. OpenMemory adds access logging, app-level ACLs, and a web UI for memory management.
+
+There is no built-in health check endpoint in the core FastAPI server (`server/main.py`). Monitoring would need to be added externally.
+
+### Multi-user support
+
+Scoping in mem0 is based on three optional identifiers: `user_id`, `agent_id`, and `run_id`. At least one must be provided for any `add()` or `search()` call. These identifiers are stored as payload fields in the vector store and used as equality filters during search. There is no hierarchical relationship between them -- they are independent filter dimensions. A memory created with `user_id="alice"` is found by searching with `user_id="alice"`, but there is no concept of a workspace that groups users, no project-level isolation, and no cross-scope visibility rules.
+
+The core library has no authentication or authorization. The `user_id` is a parameter passed by the caller, trusted as-is. The `server/` REST API adds a single shared API key (`ADMIN_API_KEY`), not per-user authentication.
+
+OpenMemory adds a richer model. It introduces app-level ACLs (allow/deny rules controlling which apps can access which memories), access logging (every search and retrieval is recorded), and per-user memory ownership. But this is in the OpenMemory layer, not in the core `mem0` library. The core library's scoping remains flat: filter by `user_id`, `agent_id`, or `run_id`, with no enforcement of who can supply those values.
+
+### Memory lifecycle
+
+Deduplication and conflict resolution happen during the LLM-driven `add()` path. After extracting facts, the system searches for similar existing memories and asks the LLM to decide: add, update, delete, or do nothing. This means deduplication quality depends entirely on the LLM's judgment. There is no cosine-similarity threshold check -- the LLM sees the old memories and new facts and makes a free-form decision. When the LLM chooses `UPDATE`, the old memory text is replaced and recorded in history. When it chooses `DELETE`, the memory is removed and recorded with `is_deleted=1`.
+
+History is tracked in the SQLite `history` table: each row records `memory_id`, `old_memory`, `new_memory`, `event`, timestamps, `actor_id`, `role`, and `is_deleted`. A `get_history()` method on the `Memory` class returns the change log for a given memory. However, this is an append-only audit log, not a versioning system -- there is no optimistic locking, no version numbers, and no way to roll back.
+
+The core library has no concept of verification, staleness, or archival. Memories exist until they are deleted (hard delete from the vector store, soft-flagged in history). There is no `verified_at`, no staleness threshold, and no archive-without-delete.
+
+OpenMemory extends this with a state machine. The `openmemory/api/` layer adds memory states: `active`, `archived`, `paused`, and `deleted`, tracked via `MemoryState` enum and `MemoryStatusHistory` records. It also adds categories for organizational grouping and an access log for audit trails. These features exist only in the OpenMemory web application, not in the core library or the basic `server/` REST API.
+
+### Collaboration
+
+The core library has no collaboration features. There is no comment system, no team activity feed, no "what changed since my last session" query, and no multi-user awareness. Each `user_id` operates in isolation. The `agent_id` dimension allows distinguishing memories written by different agents, and `run_id` scopes to a specific execution, but there is no mechanism for users or agents to annotate, discuss, or collectively curate memories.
+
+OpenMemory's access logging and app-level ACLs provide some multi-agent coordination -- you can see which apps accessed which memories -- but this is observability, not collaboration. There is no equivalent of agent-brain's comment threads, team activity detection, or session-start context bootstrapping.
+
+### Extensibility
+
+Extensibility is mem0's strongest dimension. The backend pluggability is comprehensive:
+
+**Vector stores:** 25+ implementations in `mem0/vector_stores/`, each implementing an 11-method abstract base class (`VectorStoreBase`): `create_col`, `insert`, `search`, `get`, `update`, `delete`, `list`, `list_cols`, `delete_col`, `col_info`, and `reset`. Supported backends include Qdrant, pgvector, Chroma, Pinecone, Milvus, Weaviate, Redis, Elasticsearch, OpenSearch, FAISS, MongoDB, Cassandra, Azure AI Search, Supabase, Upstash, Valkey, Databricks, S3 Vectors, Neptune Analytics, Turbopuffer, Vertex AI Vector Search, and more.
+
+**Graph stores:** 5 implementations -- Neo4j, Memgraph, AWS Neptune, Kuzu (embedded), and Apache AGE (PostgreSQL extension).
+
+**LLM providers:** 16+ implementations covering all major commercial and open-source providers.
+
+**Embedding providers:** 11+ implementations including local options (Ollama, HuggingFace, FastEmbed, LM Studio).
+
+**Rerankers:** 5 implementations spanning API-based (Cohere), local model-based (HuggingFace, sentence-transformers), and LLM-based approaches.
+
+Custom prompts can be passed to `add()` via the `prompt` parameter, overriding the default fact-extraction prompt. The update-decision prompt (`DEFAULT_UPDATE_MEMORY_PROMPT`) and graph prompts are defined in source files and can be modified by forking, though there is no runtime configuration mechanism for those beyond the extraction prompt.
+
+Configuration is dict-based: `Memory.from_config(config_dict)` accepts a dictionary specifying the vector store, LLM, embedder, graph store, and their respective connection parameters. This makes it straightforward to swap backends without code changes.
+
+### Community
+
+As of April 2026, the repository has approximately 51,700 stars, 5,800 forks, and 87 contributors (per the GitHub API). The license is Apache-2.0. The most recent release at time of research was v1.0.10 (April 1, 2025), with releases shipping roughly every 5-10 days through early 2025 (v1.0.3 through v1.0.10 between February and April 2025). The project also maintains a CLI tool versioned separately. The issue tracker shows 231 open issues with 2,778 closed pull requests, indicating active maintenance.
+
+The project is backed by a company (Mem0.ai) that also operates a managed cloud platform. The open-source library serves as the foundation for both the self-hosted and cloud offerings. This dual model means the project has commercial incentives for continued development, but also introduces the risk that features may be prioritized for the cloud platform over the self-hosted path.
+
+### Maintenance surface
+
+The core dependency list is moderate: `qdrant-client`, `pydantic`, `openai`, `posthog`, `pytz`, `sqlalchemy`, and `protobuf` are required. The `openai` dependency is always installed even when using a different LLM provider. `posthog` is a telemetry client that phones home usage data (the code redacts sensitive config fields before capture). `sqlalchemy` is required for the history storage layer despite using raw `sqlite3` -- it is used in the OpenMemory layer.
+
+Optional dependency groups are large. The `vector_stores` extra pulls in clients for 20+ databases. The `graph` extra brings in LangChain packages, Neo4j drivers, and the `rank-bm25` library. The `llms` extra adds provider-specific SDKs. A fully-featured installation with graph and multiple backends would have a substantial transitive dependency tree.
+
+The codebase is significantly larger than agent-brain. The `mem0/` Python package alone spans dozens of modules across memory management, vector stores, graphs, LLMs, embeddings, rerankers, and configuration. The `server/` and `openmemory/` directories add two separate deployment surfaces. Schema evolution in the core uses SQLite with manual migration code in `storage.py`; OpenMemory uses Alembic.
+
+What you depend on is substantial: the LLM provider for every inferred write (latency, cost, correctness of extraction), the vector store for all persistence, optionally a graph database, and the mem0 library itself as an upstream whose release cadence and priorities you do not control. What you own is the configuration and any customizations you build on top. The library absorbs significant complexity -- backend abstraction, prompt engineering, LLM orchestration -- but that complexity is not eliminated, just relocated. When the LLM misclassifies a fact, when the update-decision prompt produces an incorrect `DELETE`, or when a vector store adapter has a bug, debugging requires understanding the full pipeline across multiple abstraction layers.
