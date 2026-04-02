@@ -34,6 +34,16 @@ Save a memory (or suggest one) when you encounter:
 
 You don't need to ask permission for every memory — use judgment. For things that are clearly worth keeping, save directly. For anything uncertain, suggest it briefly and let the user confirm.
 
+### Choosing Scope
+
+Default to the **narrowest applicable scope** to reduce blast radius:
+
+- `workspace` — shared within the current workspace (default)
+- `user` — private to the user within the current workspace
+- `project` — cross-workspace, visible everywhere
+
+If a memory appears to be a global preference (e.g. uses words like "always", "never", "everywhere", or describes a workflow rule not tied to a specific repo), **ask the user** whether it should apply globally (`project` scope) or just to the current workspace. Do not assume global scope.
+
 ### Verifying Memories
 
 When you encounter a memory during your work and can confirm it's still accurate, call `memory_verify`. This boosts older memories that remain relevant, informs future cleanup and consolidation, and builds user confidence in the knowledge base.
