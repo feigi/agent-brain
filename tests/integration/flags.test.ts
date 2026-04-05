@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
-import { getTestDb, truncateAll, closeDb } from "../helpers.js";
+import {
+  getTestDb,
+  truncateAll,
+  closeDb,
+  assertMemory,
+  createTestServiceWithFlags,
+} from "../helpers.js";
 import { DrizzleFlagRepository } from "../../src/repositories/flag-repository.js";
 import { DrizzleWorkspaceRepository } from "../../src/repositories/workspace-repository.js";
 import { DrizzleMemoryRepository } from "../../src/repositories/memory-repository.js";
@@ -10,6 +16,7 @@ import type { Flag } from "../../src/types/flag.js";
 import { FlagService } from "../../src/services/flag-service.js";
 import { DrizzleAuditRepository } from "../../src/repositories/audit-repository.js";
 import { AuditService } from "../../src/services/audit-service.js";
+import { MemoryService } from "../../src/services/memory-service.js";
 
 async function seedMemory(workspaceId: string): Promise<string> {
   const db = getTestDb();
@@ -253,5 +260,81 @@ describe("flag service", () => {
     await expect(
       flagService.resolveFlag("nonexistent", "alice", "accepted"),
     ).rejects.toThrow("not found");
+  });
+});
+
+describe("session start with flags", () => {
+  let service: MemoryService;
+  let flagRepo: DrizzleFlagRepository;
+
+  beforeEach(async () => {
+    await truncateAll();
+    const db = getTestDb();
+    flagRepo = new DrizzleFlagRepository(db);
+    const auditRepo = new DrizzleAuditRepository(db);
+    const auditService = new AuditService(auditRepo, "test-project");
+    const flagService = new FlagService(flagRepo, auditService, "test-project");
+    service = createTestServiceWithFlags(flagService, auditService);
+  });
+
+  afterAll(async () => {
+    await closeDb();
+  });
+
+  it("returns flags in session start response", async () => {
+    // Create a memory first
+    const created = await service.create({
+      workspace_id: "test-ws",
+      content: "flagged memory",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(created.data);
+
+    // Create a flag directly in the repo
+    await flagRepo.create({
+      id: generateId(),
+      project_id: "test-project",
+      memory_id: created.data.id,
+      flag_type: "verify",
+      severity: "needs_review",
+      details: { reason: "stale memory" },
+      resolved_at: null,
+      resolved_by: null,
+      created_at: new Date(),
+    });
+
+    const result = await service.sessionStart("test-ws", "alice");
+    expect(result.meta.flags).toBeDefined();
+    expect(result.meta.flags).toHaveLength(1);
+    expect(result.meta.flags![0].flag_type).toBe("verify");
+    expect(result.meta.flags![0].memory).toHaveProperty("title");
+    expect(result.meta.flags![0].memory).toHaveProperty("content");
+    expect(result.meta.flags![0].reason).toBeDefined();
+  });
+
+  it("does not return resolved flags", async () => {
+    const created = await service.create({
+      workspace_id: "test-ws",
+      content: "resolved flag memory",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(created.data);
+
+    await flagRepo.create({
+      id: generateId(),
+      project_id: "test-project",
+      memory_id: created.data.id,
+      flag_type: "duplicate",
+      severity: "needs_review",
+      details: { reason: "test" },
+      resolved_at: new Date(),
+      resolved_by: "alice",
+      created_at: new Date(),
+    });
+
+    const result = await service.sessionStart("test-ws", "alice");
+    expect(result.meta.flags ?? []).toHaveLength(0);
   });
 });

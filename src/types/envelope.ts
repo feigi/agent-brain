@@ -21,5 +21,17 @@ export interface Envelope<T> {
       limit: number;
       exceeded: boolean;
     };
+    flags?: Array<{
+      flag_id: string;
+      flag_type: string;
+      memory: { id: string; title: string; content: string; scope: string };
+      related_memory?: {
+        id: string;
+        title: string;
+        content: string;
+        scope: string;
+      } | null;
+      reason: string;
+    }>;
   };
 }

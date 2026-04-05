@@ -19,6 +19,7 @@ import type {
   SessionRepository,
 } from "../repositories/types.js";
 import type { AuditService } from "./audit-service.js";
+import type { FlagService } from "./flag-service.js";
 import {
   NotFoundError,
   EmbeddingError,
@@ -43,6 +44,7 @@ export class MemoryService {
     private readonly sessionRepo?: SessionTrackingRepository,
     private readonly sessionLifecycleRepo?: SessionRepository,
     private readonly auditService?: AuditService,
+    private readonly flagService?: FlagService,
   ) {}
 
   // D-11: Workspace/Project=shared, User=owner only
@@ -700,6 +702,61 @@ export class MemoryService {
       };
     }
 
+    // Fetch open flags for this workspace (bypass ranking)
+    let flagsData:
+      | Array<{
+          flag_id: string;
+          flag_type: string;
+          memory: { id: string; title: string; content: string; scope: string };
+          related_memory?: {
+            id: string;
+            title: string;
+            content: string;
+            scope: string;
+          } | null;
+          reason: string;
+        }>
+      | undefined;
+
+    if (this.flagService) {
+      // TODO: use config.consolidationMaxFlagsPerSession when added in Task 10
+      const openFlags = await this.flagService.getOpenFlags(workspaceId, 5);
+      if (openFlags.length > 0) {
+        const enriched = [];
+        for (const f of openFlags) {
+          const mem = await this.memoryRepo.findById(f.memory_id);
+          if (!mem) continue; // Memory was archived/deleted since flag was created
+          let relatedMem = null;
+          if (f.details.related_memory_id) {
+            const related = await this.memoryRepo.findById(
+              f.details.related_memory_id,
+            );
+            if (related) {
+              relatedMem = {
+                id: related.id,
+                title: related.title,
+                content: related.content,
+                scope: related.scope,
+              };
+            }
+          }
+          enriched.push({
+            flag_id: f.id,
+            flag_type: f.flag_type,
+            memory: {
+              id: mem.id,
+              title: mem.title,
+              content: mem.content,
+              scope: mem.scope,
+            },
+            related_memory: relatedMem,
+            reason: f.details.reason,
+          });
+        }
+        if (enriched.length > 0) flagsData = enriched;
+      }
+    }
+
     const timing = Date.now() - start;
     return {
       data: result.data,
@@ -708,6 +765,7 @@ export class MemoryService {
         timing,
         team_activity: teamActivity,
         session_id: sessionId,
+        flags: flagsData,
       },
     };
   }

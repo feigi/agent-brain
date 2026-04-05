@@ -8,6 +8,7 @@ import {
   DrizzleSessionRepository,
 } from "../src/repositories/session-repository.js";
 import { AuditService } from "../src/services/audit-service.js";
+import { FlagService } from "../src/services/flag-service.js";
 import { MockEmbeddingProvider } from "../src/providers/embedding/mock.js";
 import { config } from "../src/config.js";
 import { MemoryService } from "../src/services/memory-service.js";
@@ -88,6 +89,30 @@ export function createTestServiceWithAudit(
     sessionRepo,
     undefined, // sessionLifecycleRepo
     auditService,
+  );
+}
+
+/** Create a test service that includes FlagService for session start flag delivery */
+export function createTestServiceWithFlags(
+  flagService: FlagService,
+  auditService: AuditService,
+): MemoryService {
+  const testDb = getTestDb();
+  const memoryRepo = new DrizzleMemoryRepository(testDb);
+  const workspaceRepo = new DrizzleWorkspaceRepository(testDb);
+  const embedder = new MockEmbeddingProvider(config.embeddingDimensions);
+  const commentRepo = new DrizzleCommentRepository(testDb);
+  const sessionRepo = new DrizzleSessionTrackingRepository(testDb);
+  return new MemoryService(
+    memoryRepo,
+    workspaceRepo,
+    embedder,
+    "test-project",
+    commentRepo,
+    sessionRepo,
+    undefined, // sessionLifecycleRepo
+    auditService,
+    flagService,
   );
 }
 
