@@ -14,3 +14,4 @@ CREATE TABLE "audit_log" (
 ALTER TABLE "audit_log" ADD CONSTRAINT "audit_log_memory_id_memories_id_fk" FOREIGN KEY ("memory_id") REFERENCES "public"."memories"("id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
 CREATE INDEX "audit_log_memory_id_idx" ON "audit_log" USING btree ("memory_id");
+CREATE INDEX IF NOT EXISTS "audit_log_project_id_idx" ON "audit_log" USING btree ("project_id");
