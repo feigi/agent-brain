@@ -7,6 +7,13 @@ import {
   createTestService,
 } from "../helpers.js";
 import { DrizzleMemoryRepository } from "../../src/repositories/memory-repository.js";
+import { DrizzleFlagRepository } from "../../src/repositories/flag-repository.js";
+import { DrizzleAuditRepository } from "../../src/repositories/audit-repository.js";
+import { AuditService } from "../../src/services/audit-service.js";
+import { FlagService } from "../../src/services/flag-service.js";
+import { ConsolidationService } from "../../src/services/consolidation-service.js";
+import { memories } from "../../src/db/schema.js";
+import { eq } from "drizzle-orm";
 import type { MemoryService } from "../../src/services/memory-service.js";
 
 describe("consolidation repository support", () => {
@@ -90,5 +97,117 @@ describe("consolidation repository support", () => {
     expect(withEmbeddings[0].embedding).toBeDefined();
     expect(Array.isArray(withEmbeddings[0].embedding)).toBe(true);
     expect(withEmbeddings[0].embedding.length).toBe(768); // mock dimensions
+  });
+});
+
+describe("consolidation full run", () => {
+  let consolidationService: ConsolidationService;
+  let flagRepo: DrizzleFlagRepository;
+  let service: MemoryService;
+
+  beforeEach(async () => {
+    await truncateAll();
+    const db = getTestDb();
+    const memoryRepo = new DrizzleMemoryRepository(db);
+    flagRepo = new DrizzleFlagRepository(db);
+    const auditRepo = new DrizzleAuditRepository(db);
+    const auditService = new AuditService(auditRepo, "test-project");
+    const flagService = new FlagService(flagRepo, auditService, "test-project");
+    service = createTestService();
+    consolidationService = new ConsolidationService(
+      memoryRepo,
+      flagService,
+      auditService,
+      "test-project",
+      {
+        autoArchiveThreshold: 0.95,
+        flagThreshold: 0.9,
+        contradictionThreshold: 0.8,
+        verifyAfterDays: 30,
+      },
+    );
+  });
+
+  afterAll(async () => {
+    await closeDb();
+  });
+
+  it("runs without errors on empty database", async () => {
+    const result = await consolidationService.run();
+    expect(result.archived).toBe(0);
+    expect(result.flagged).toBe(0);
+    expect(result.errors).toBe(0);
+  });
+
+  it("runs without errors when no duplicates found", async () => {
+    await service.create({
+      workspace_id: "test-ws",
+      content: "completely unique memory about databases",
+      type: "fact",
+      author: "alice",
+    });
+    await service.create({
+      workspace_id: "test-ws",
+      content: "entirely different memory about frontend design",
+      type: "decision",
+      author: "alice",
+    });
+
+    const result = await consolidationService.run();
+    expect(result.errors).toBe(0);
+  });
+
+  it("flags verification candidates for old unverified memories", async () => {
+    const created = await service.create({
+      workspace_id: "test-ws",
+      content: "old unverified memory",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(created.data);
+
+    // Backdate the memory to make it stale
+    const db = getTestDb();
+    await db
+      .update(memories)
+      .set({
+        created_at: new Date("2025-01-01"),
+        updated_at: new Date("2025-01-01"),
+      })
+      .where(eq(memories.id, created.data.id));
+
+    const result = await consolidationService.run();
+    expect(result.flagged).toBeGreaterThanOrEqual(1);
+
+    const memoryFlags = await flagRepo.findByMemoryId(created.data.id);
+    const verifyFlag = memoryFlags.find((f) => f.flag_type === "verify");
+    expect(verifyFlag).toBeDefined();
+  });
+
+  it("does not create duplicate verify flags", async () => {
+    const created = await service.create({
+      workspace_id: "test-ws",
+      content: "stale memory",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(created.data);
+
+    const db = getTestDb();
+    await db
+      .update(memories)
+      .set({
+        created_at: new Date("2025-01-01"),
+        updated_at: new Date("2025-01-01"),
+      })
+      .where(eq(memories.id, created.data.id));
+
+    // Run twice
+    await consolidationService.run();
+    await consolidationService.run();
+
+    const memoryFlags = await flagRepo.findByMemoryId(created.data.id);
+    const verifyFlags = memoryFlags.filter((f) => f.flag_type === "verify");
+    expect(verifyFlags).toHaveLength(1);
   });
 });

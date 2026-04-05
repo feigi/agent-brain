@@ -648,7 +648,12 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       conditions.push(eq(memories.workspace_id, options.workspaceId!));
       conditions.push(eq(memories.scope, "workspace"));
     } else if (options.scope === "user") {
-      conditions.push(eq(memories.author, options.userId!));
+      if (options.userId) {
+        conditions.push(eq(memories.author, options.userId));
+      }
+      if (options.workspaceId) {
+        conditions.push(eq(memories.workspace_id, options.workspaceId));
+      }
       conditions.push(eq(memories.scope, "user"));
     } else {
       conditions.push(eq(memories.scope, "project"));
