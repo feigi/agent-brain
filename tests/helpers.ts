@@ -33,46 +33,16 @@ export function getTestDb(): Database {
   return db;
 }
 
-export function createTestService(): MemoryService {
-  const testDb = getTestDb();
-  const memoryRepo = new DrizzleMemoryRepository(testDb);
-  const workspaceRepo = new DrizzleWorkspaceRepository(testDb);
-  const embedder = new MockEmbeddingProvider(config.embeddingDimensions);
-  const commentRepo = new DrizzleCommentRepository(testDb);
-  const sessionRepo = new DrizzleSessionTrackingRepository(testDb);
-  return new MemoryService(
-    memoryRepo,
-    workspaceRepo,
-    embedder,
-    "test-project",
-    commentRepo,
-    sessionRepo,
-  );
+interface TestServiceOptions {
+  auditService?: AuditService;
+  flagService?: FlagService;
+  withSessions?: boolean;
+  maxFlagsPerSession?: number;
 }
 
-/** Create a test service that includes the Phase 4 session lifecycle repository for budget tracking */
-export function createTestServiceWithSessions(): MemoryService {
-  const testDb = getTestDb();
-  const memoryRepo = new DrizzleMemoryRepository(testDb);
-  const workspaceRepo = new DrizzleWorkspaceRepository(testDb);
-  const embedder = new MockEmbeddingProvider(config.embeddingDimensions);
-  const commentRepo = new DrizzleCommentRepository(testDb);
-  const sessionTrackingRepo = new DrizzleSessionTrackingRepository(testDb);
-  const sessionLifecycleRepo = new DrizzleSessionRepository(testDb);
-  return new MemoryService(
-    memoryRepo,
-    workspaceRepo,
-    embedder,
-    "test-project",
-    commentRepo,
-    sessionTrackingRepo,
-    sessionLifecycleRepo,
-  );
-}
-
-/** Create a test service that includes AuditService for audit logging */
-export function createTestServiceWithAudit(
-  auditService: AuditService,
+/** Configurable factory — accepts any combination of optional services */
+export function createTestServiceWith(
+  options: TestServiceOptions = {},
 ): MemoryService {
   const testDb = getTestDb();
   const memoryRepo = new DrizzleMemoryRepository(testDb);
@@ -80,6 +50,10 @@ export function createTestServiceWithAudit(
   const embedder = new MockEmbeddingProvider(config.embeddingDimensions);
   const commentRepo = new DrizzleCommentRepository(testDb);
   const sessionRepo = new DrizzleSessionTrackingRepository(testDb);
+  const sessionLifecycleRepo = options.withSessions
+    ? new DrizzleSessionRepository(testDb)
+    : undefined;
+
   return new MemoryService(
     memoryRepo,
     workspaceRepo,
@@ -87,9 +61,27 @@ export function createTestServiceWithAudit(
     "test-project",
     commentRepo,
     sessionRepo,
-    undefined, // sessionLifecycleRepo
-    auditService,
+    sessionLifecycleRepo,
+    options.auditService,
+    options.flagService,
+    options.maxFlagsPerSession,
   );
+}
+
+export function createTestService(): MemoryService {
+  return createTestServiceWith();
+}
+
+/** Create a test service that includes the Phase 4 session lifecycle repository for budget tracking */
+export function createTestServiceWithSessions(): MemoryService {
+  return createTestServiceWith({ withSessions: true });
+}
+
+/** Create a test service that includes AuditService for audit logging */
+export function createTestServiceWithAudit(
+  auditService: AuditService,
+): MemoryService {
+  return createTestServiceWith({ auditService });
 }
 
 /** Create a test service that includes FlagService for session start flag delivery */
@@ -98,24 +90,7 @@ export function createTestServiceWithFlags(
   auditService: AuditService,
   maxFlagsPerSession?: number,
 ): MemoryService {
-  const testDb = getTestDb();
-  const memoryRepo = new DrizzleMemoryRepository(testDb);
-  const workspaceRepo = new DrizzleWorkspaceRepository(testDb);
-  const embedder = new MockEmbeddingProvider(config.embeddingDimensions);
-  const commentRepo = new DrizzleCommentRepository(testDb);
-  const sessionRepo = new DrizzleSessionTrackingRepository(testDb);
-  return new MemoryService(
-    memoryRepo,
-    workspaceRepo,
-    embedder,
-    "test-project",
-    commentRepo,
-    sessionRepo,
-    undefined, // sessionLifecycleRepo
-    auditService,
-    flagService,
-    maxFlagsPerSession,
-  );
+  return createTestServiceWith({ auditService, flagService, maxFlagsPerSession });
 }
 
 /** Truncate all tables between tests (D-64) */
