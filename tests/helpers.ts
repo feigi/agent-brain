@@ -90,7 +90,11 @@ export function createTestServiceWithFlags(
   auditService: AuditService,
   maxFlagsPerSession?: number,
 ): MemoryService {
-  return createTestServiceWith({ auditService, flagService, maxFlagsPerSession });
+  return createTestServiceWith({
+    auditService,
+    flagService,
+    maxFlagsPerSession,
+  });
 }
 
 /** Truncate all tables between tests (D-64) */
