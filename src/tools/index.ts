@@ -17,7 +17,7 @@ import { registerMemoryResolveFlag } from "./memory-resolve-flag.js";
 export function registerAllTools(
   server: McpServer,
   memoryService: MemoryService,
-  flagService?: FlagService,
+  flagService: FlagService,
 ): void {
   registerMemoryCreate(server, memoryService);
   registerMemoryGet(server, memoryService);
@@ -30,7 +30,5 @@ export function registerAllTools(
   registerMemorySessionStart(server, memoryService);
   registerMemoryComment(server, memoryService);
   registerMemoryListRecent(server, memoryService);
-  if (flagService) {
-    registerMemoryResolveFlag(server, flagService);
-  }
+  registerMemoryResolveFlag(server, flagService);
 }
