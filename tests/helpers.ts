@@ -96,6 +96,7 @@ export function createTestServiceWithAudit(
 export function createTestServiceWithFlags(
   flagService: FlagService,
   auditService: AuditService,
+  maxFlagsPerSession?: number,
 ): MemoryService {
   const testDb = getTestDb();
   const memoryRepo = new DrizzleMemoryRepository(testDb);
@@ -113,6 +114,7 @@ export function createTestServiceWithFlags(
     undefined, // sessionLifecycleRepo
     auditService,
     flagService,
+    maxFlagsPerSession,
   );
 }
 
