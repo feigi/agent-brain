@@ -62,7 +62,9 @@ export class DrizzleFlagRepository implements FlagRepository {
     resolvedBy: string,
     resolution: FlagResolution,
   ): Promise<Flag | null> {
-    // For "deferred", push to back of queue by updating created_at
+    // For "deferred", push to back of the queue by updating created_at to now().
+    // This intentionally loses the original detection timestamp — an acceptable
+    // trade-off since findOpenByWorkspace orders by created_at ASC.
     if (resolution === "deferred") {
       const result = await this.db
         .update(flags)
