@@ -20,4 +20,22 @@ export const config = {
   host: process.env.HOST ?? "127.0.0.1",
   port: Number(process.env.PORT ?? "19898"),
   version: "0.1.0",
+  consolidationEnabled:
+    (process.env.CONSOLIDATION_ENABLED ?? "false") === "true",
+  consolidationCron: process.env.CONSOLIDATION_CRON ?? "0 3 * * *",
+  consolidationAutoArchiveThreshold: Number(
+    process.env.CONSOLIDATION_AUTO_ARCHIVE_THRESHOLD ?? "0.95",
+  ),
+  consolidationFlagThreshold: Number(
+    process.env.CONSOLIDATION_FLAG_THRESHOLD ?? "0.90",
+  ),
+  consolidationContradictionThreshold: Number(
+    process.env.CONSOLIDATION_CONTRADICTION_THRESHOLD ?? "0.80",
+  ),
+  consolidationVerifyAfterDays: Number(
+    process.env.CONSOLIDATION_VERIFY_AFTER_DAYS ?? "30",
+  ),
+  consolidationMaxFlagsPerSession: Number(
+    process.env.CONSOLIDATION_MAX_FLAGS_PER_SESSION ?? "5",
+  ),
 } as const;
