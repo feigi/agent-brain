@@ -45,6 +45,7 @@ export class MemoryService {
     private readonly sessionLifecycleRepo?: SessionRepository,
     private readonly auditService?: AuditService,
     private readonly flagService?: FlagService,
+    private readonly maxFlagsPerSession: number = 5,
   ) {}
 
   // D-11: Workspace/Project=shared, User=owner only
@@ -719,8 +720,10 @@ export class MemoryService {
       | undefined;
 
     if (this.flagService) {
-      // TODO: use config.consolidationMaxFlagsPerSession when added in Task 10
-      const openFlags = await this.flagService.getOpenFlags(workspaceId, 5);
+      const openFlags = await this.flagService.getOpenFlags(
+        workspaceId,
+        this.maxFlagsPerSession,
+      );
       if (openFlags.length > 0) {
         const enriched = [];
         for (const f of openFlags) {

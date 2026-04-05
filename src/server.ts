@@ -98,6 +98,7 @@ async function main() {
     sessionLifecycleRepo,
     auditService,
     flagService,
+    config.consolidationMaxFlagsPerSession,
   );
 
   // Initialize consolidation scheduler (opt-in via config)
