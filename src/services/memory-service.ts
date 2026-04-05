@@ -521,6 +521,7 @@ export class MemoryService {
     const idArray = Array.isArray(ids) ? ids : [ids];
 
     // Check access on each memory before archiving
+    const verifiedIds: string[] = [];
     for (const id of idArray) {
       const memory = await this.memoryRepo.findById(id);
       if (memory) {
@@ -530,12 +531,13 @@ export class MemoryService {
         }
         // D-67: If memory not found, archive is idempotent -- skip check
         this.assertCanModify(memory, userId);
+        verifiedIds.push(id);
       }
     }
 
     const archivedCount = await this.memoryRepo.archive(idArray);
 
-    for (const id of idArray) {
+    for (const id of verifiedIds) {
       await this.auditService?.logArchive(id, userId);
     }
 
