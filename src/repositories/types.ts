@@ -1,4 +1,5 @@
 import type { Memory, MemoryWithRelevance, Comment } from "../types/memory.js";
+import type { AuditEntry } from "../types/audit.js";
 
 // INFR-02: Repository interfaces -- abstract storage layer
 
@@ -84,6 +85,11 @@ export interface MemoryRepository {
 export interface WorkspaceRepository {
   findOrCreate(slug: string): Promise<{ id: string; created_at: Date }>;
   findById(slug: string): Promise<{ id: string; created_at: Date } | null>;
+}
+
+export interface AuditRepository {
+  create(entry: AuditEntry): Promise<void>;
+  findByMemoryId(memoryId: string): Promise<AuditEntry[]>;
 }
 
 export interface CommentRepository {
