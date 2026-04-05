@@ -574,6 +574,104 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       }));
   }
 
+  async findPairwiseSimilar(options: {
+    projectId: string;
+    workspaceId: string | null;
+    scope: "workspace" | "project";
+    threshold: number;
+  }): Promise<
+    Array<{
+      memory_a_id: string;
+      memory_b_id: string;
+      similarity: number;
+    }>
+  > {
+    const scopeFilter =
+      options.scope === "project"
+        ? sql`m1.scope = 'project' AND m2.scope = 'project'`
+        : sql`m1.workspace_id = ${options.workspaceId} AND m2.workspace_id = ${options.workspaceId} AND m1.scope = 'workspace' AND m2.scope = 'workspace'`;
+
+    const result = await this.db.execute(sql`
+      SELECT
+        m1.id AS memory_a_id,
+        m2.id AS memory_b_id,
+        1 - (m1.embedding <=> m2.embedding) AS similarity
+      FROM memories m1
+      CROSS JOIN memories m2
+      WHERE m1.id < m2.id
+        AND m1.project_id = ${options.projectId}
+        AND m2.project_id = ${options.projectId}
+        AND m1.archived_at IS NULL
+        AND m2.archived_at IS NULL
+        AND m1.embedding IS NOT NULL
+        AND m2.embedding IS NOT NULL
+        AND ${scopeFilter}
+        AND 1 - (m1.embedding <=> m2.embedding) >= ${options.threshold}
+      ORDER BY similarity DESC
+    `);
+
+    return (result as unknown as Array<Record<string, unknown>>).map((row) => ({
+      memory_a_id: row.memory_a_id as string,
+      memory_b_id: row.memory_b_id as string,
+      similarity: Number(row.similarity),
+    }));
+  }
+
+  async listDistinctWorkspaces(projectId: string): Promise<string[]> {
+    const result = await this.db
+      .selectDistinct({ workspace_id: memories.workspace_id })
+      .from(memories)
+      .where(
+        and(
+          eq(memories.project_id, projectId),
+          isNull(memories.archived_at),
+          sql`${memories.workspace_id} IS NOT NULL`,
+        ),
+      );
+    return result.map((r) => r.workspace_id!);
+  }
+
+  async listWithEmbeddings(options: {
+    projectId: string;
+    workspaceId: string | null;
+    scope: "workspace" | "user" | "project";
+    userId?: string;
+    limit: number;
+  }): Promise<Array<Memory & { embedding: number[] }>> {
+    const conditions: SQL[] = [
+      isNull(memories.archived_at),
+      eq(memories.project_id, options.projectId),
+      sql`${memories.embedding} IS NOT NULL`,
+    ];
+
+    if (options.scope === "workspace") {
+      conditions.push(eq(memories.workspace_id, options.workspaceId!));
+      conditions.push(eq(memories.scope, "workspace"));
+    } else if (options.scope === "user") {
+      conditions.push(eq(memories.author, options.userId!));
+      conditions.push(eq(memories.scope, "user"));
+    } else {
+      conditions.push(eq(memories.scope, "project"));
+    }
+
+    const result = await this.db
+      .select({
+        ...this.memoryColumns(),
+        embedding: memories.embedding,
+      })
+      .from(memories)
+      .where(and(...conditions))
+      .limit(options.limit);
+
+    return result.map((row) => {
+      const { embedding, ...memoryFields } = row;
+      return {
+        ...rowToMemory(memoryFields as Record<string, unknown>),
+        embedding: embedding as unknown as number[],
+      };
+    });
+  }
+
   async countTeamActivity(
     projectId: string,
     workspaceId: string,

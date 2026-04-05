@@ -81,6 +81,29 @@ export interface MemoryRepository {
   }): Promise<
     Array<{ id: string; title: string; relevance: number; scope: string }>
   >;
+
+  findPairwiseSimilar(options: {
+    projectId: string;
+    workspaceId: string | null;
+    scope: "workspace" | "project";
+    threshold: number;
+  }): Promise<
+    Array<{
+      memory_a_id: string;
+      memory_b_id: string;
+      similarity: number;
+    }>
+  >;
+
+  listDistinctWorkspaces(projectId: string): Promise<string[]>;
+
+  listWithEmbeddings(options: {
+    projectId: string;
+    workspaceId: string | null;
+    scope: "workspace" | "user" | "project";
+    userId?: string;
+    limit: number;
+  }): Promise<Array<Memory & { embedding: number[] }>>;
 }
 
 export interface WorkspaceRepository {
