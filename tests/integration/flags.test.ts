@@ -7,45 +7,48 @@ import { MockEmbeddingProvider } from "../../src/providers/embedding/mock.js";
 import { config } from "../../src/config.js";
 import { generateId } from "../../src/utils/id.js";
 import type { Flag } from "../../src/types/flag.js";
+import { FlagService } from "../../src/services/flag-service.js";
+import { DrizzleAuditRepository } from "../../src/repositories/audit-repository.js";
+import { AuditService } from "../../src/services/audit-service.js";
+
+async function seedMemory(workspaceId: string): Promise<string> {
+  const db = getTestDb();
+  const memoryRepo = new DrizzleMemoryRepository(db);
+  const embedder = new MockEmbeddingProvider(config.embeddingDimensions);
+  const embedding = await embedder.embed("test");
+  const id = generateId();
+  await memoryRepo.create({
+    id,
+    project_id: "test-project",
+    workspace_id: workspaceId,
+    content: "test content",
+    title: "test",
+    type: "fact",
+    scope: "workspace",
+    tags: null,
+    author: "alice",
+    source: "manual",
+    session_id: null,
+    metadata: null,
+    embedding_model: "mock",
+    embedding_dimensions: config.embeddingDimensions,
+    version: 1,
+    created_at: new Date(),
+    updated_at: new Date(),
+    verified_at: null,
+    archived_at: null,
+    verified_by: null,
+    comment_count: 0,
+    last_comment_at: null,
+    embedding,
+  });
+  return id;
+}
 
 describe("flag repository", () => {
   let flagRepo: DrizzleFlagRepository;
   let memoryId: string;
   let relatedMemoryId: string;
-
-  async function seedMemory(workspaceId: string): Promise<string> {
-    const db = getTestDb();
-    const memoryRepo = new DrizzleMemoryRepository(db);
-    const embedder = new MockEmbeddingProvider(config.embeddingDimensions);
-    const embedding = await embedder.embed("test");
-    const id = generateId();
-    await memoryRepo.create({
-      id,
-      project_id: "test-project",
-      workspace_id: workspaceId,
-      content: "test content",
-      title: "test",
-      type: "fact",
-      scope: "workspace",
-      tags: null,
-      author: "alice",
-      source: "manual",
-      session_id: null,
-      metadata: null,
-      embedding_model: "mock",
-      embedding_dimensions: config.embeddingDimensions,
-      version: 1,
-      created_at: new Date(),
-      updated_at: new Date(),
-      verified_at: null,
-      archived_at: null,
-      verified_by: null,
-      comment_count: 0,
-      last_comment_at: null,
-      embedding,
-    });
-    return id;
-  }
 
   beforeEach(async () => {
     await truncateAll();
@@ -181,5 +184,74 @@ describe("flag repository", () => {
       10,
     );
     expect(open).toHaveLength(0);
+  });
+});
+
+describe("flag service", () => {
+  let flagService: FlagService;
+  let flagRepo: DrizzleFlagRepository;
+  let memoryId: string;
+
+  beforeEach(async () => {
+    await truncateAll();
+    const db = getTestDb();
+    flagRepo = new DrizzleFlagRepository(db);
+    const auditRepo = new DrizzleAuditRepository(db);
+    const auditService = new AuditService(auditRepo, "test-project");
+    flagService = new FlagService(flagRepo, auditService, "test-project");
+    const workspaceRepo = new DrizzleWorkspaceRepository(db);
+    await workspaceRepo.findOrCreate("test-ws");
+    memoryId = await seedMemory("test-ws");
+  });
+
+  afterAll(async () => {
+    await closeDb();
+  });
+
+  it("creates a flag and logs to audit", async () => {
+    const flag = await flagService.createFlag({
+      memoryId,
+      flagType: "duplicate",
+      severity: "needs_review",
+      details: { similarity: 0.92, reason: "probable duplicate" },
+    });
+
+    expect(flag.memory_id).toBe(memoryId);
+    expect(flag.flag_type).toBe("duplicate");
+  });
+
+  it("resolves a flag", async () => {
+    const flag = await flagService.createFlag({
+      memoryId,
+      flagType: "verify",
+      severity: "needs_review",
+      details: { reason: "stale" },
+    });
+
+    const resolved = await flagService.resolveFlag(
+      flag.id,
+      "alice",
+      "dismissed",
+    );
+    expect(resolved).toBeDefined();
+    expect(resolved!.resolved_at).not.toBeNull();
+  });
+
+  it("gets open flags for workspace", async () => {
+    await flagService.createFlag({
+      memoryId,
+      flagType: "contradiction",
+      severity: "needs_review",
+      details: { reason: "test" },
+    });
+
+    const open = await flagService.getOpenFlags("test-ws", 5);
+    expect(open).toHaveLength(1);
+  });
+
+  it("throws NotFoundError for non-existent flag", async () => {
+    await expect(
+      flagService.resolveFlag("nonexistent", "alice", "accepted"),
+    ).rejects.toThrow("not found");
   });
 });
