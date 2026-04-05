@@ -172,3 +172,46 @@ export const auditLog = pgTable(
     index("audit_log_project_id_idx").on(table.project_id),
   ],
 );
+
+// Flags: consolidation-detected issues requiring review or auto-resolved
+export const flagTypeEnum = pgEnum("flag_type", [
+  "duplicate",
+  "contradiction",
+  "override",
+  "superseded",
+  "verify",
+]);
+
+export const flagSeverityEnum = pgEnum("flag_severity", [
+  "auto_resolved",
+  "needs_review",
+]);
+
+export const flags = pgTable(
+  "flags",
+  {
+    id: text("id").primaryKey(),
+    project_id: text("project_id").notNull(),
+    memory_id: text("memory_id")
+      .notNull()
+      .references(() => memories.id),
+    flag_type: flagTypeEnum("flag_type").notNull(),
+    severity: flagSeverityEnum("severity").notNull(),
+    details: jsonb("details")
+      .notNull()
+      .$type<{
+        related_memory_id?: string;
+        similarity?: number;
+        reason: string;
+      }>(),
+    resolved_at: timestamp("resolved_at", { withTimezone: true }),
+    resolved_by: text("resolved_by"),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("flags_memory_id_idx").on(table.memory_id),
+    index("flags_severity_resolved_idx").on(table.severity, table.resolved_at),
+  ],
+);

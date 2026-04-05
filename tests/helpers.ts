@@ -19,6 +19,7 @@ import {
   sessionTracking,
   sessions,
   auditLog,
+  flags,
 } from "../src/db/schema.js";
 import { TEST_DB_URL } from "./global-setup.js";
 
@@ -93,6 +94,7 @@ export function createTestServiceWithAudit(
 /** Truncate all tables between tests (D-64) */
 export async function truncateAll(): Promise<void> {
   const testDb = getTestDb();
+  await testDb.delete(flags); // FK: references memories
   await testDb.delete(auditLog); // FK: references memories
   await testDb.delete(comments); // FK: references memories
   await testDb.delete(sessions); // FK: references workspaces (Phase 4)
