@@ -79,4 +79,26 @@ Prioritize the most impactful insights -- not every observation needs to be save
 If the budget is exceeded, the server will softly reject autonomous saves. You can still
 force-save critical information by using source: 'manual' -- this bypasses the budget limit
 and signals intentional user-directed saves.
+
+### Memory Flags
+
+At session start, you may receive a \`flags\` array alongside memories. These are issues
+detected by the consolidation engine that need your attention.
+
+**When flags are present:**
+- Surface them to the user before starting the main task
+- For each flag, explain the issue and offer actions:
+  - \`duplicate\` / \`superseded\`: Offer to archive the redundant memory
+  - \`contradiction\` / \`override\`: Show both memories, ask which is correct
+  - \`verify\`: Ask the user if the memory is still accurate
+- After the user decides, call \`memory_resolve_flag\` with the appropriate resolution
+
+**During normal work:**
+- If you read a memory that has open flags, mention it to the user
+- Offer to resolve it in context if relevant to the current task
+
+**Resolutions:**
+- \`accepted\`: You acted on the flag (archived, merged, updated)
+- \`dismissed\`: False positive, no action needed
+- \`deferred\`: Skip for now, will appear in next session
 `.trim();
