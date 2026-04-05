@@ -58,3 +58,12 @@ Skip the review if the session was trivial (e.g. a single question with no lasti
 ## Presenting Memories
 
 Always **number** memories and include **author**, **date**, and **title**. The user may refer to memories by number (e.g. "archive memory 2", "comment on 1").
+
+## Memory Flags
+
+At session start, the response may include a `flags` array — issues detected by the consolidation engine. When present:
+
+- Surface flags to the user before starting the main task
+- For each flag, explain the issue and offer actions (archive, merge, update, or dismiss)
+- Call `memory_resolve_flag` after the user decides (`accepted`, `dismissed`, or `deferred`)
+- During normal work, if you encounter a flagged memory, mention its flag to the user
