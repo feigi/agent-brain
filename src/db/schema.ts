@@ -141,6 +141,7 @@ export const sessionTracking = pgTable(
   ],
 );
 
+// Audit log: tracks all memory mutations for consolidation traceability
 export const auditActionEnum = pgEnum("audit_action", [
   "created",
   "updated",
@@ -166,5 +167,8 @@ export const auditLog = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [index("audit_log_memory_id_idx").on(table.memory_id)],
+  (table) => [
+    index("audit_log_memory_id_idx").on(table.memory_id),
+    index("audit_log_project_id_idx").on(table.project_id),
+  ],
 );
