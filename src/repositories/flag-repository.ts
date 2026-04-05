@@ -1,7 +1,7 @@
 import { eq, and, isNull, desc, sql } from "drizzle-orm";
 import type { Database } from "../db/index.js";
 import { flags, memories } from "../db/schema.js";
-import type { Flag, FlagResolution } from "../types/flag.js";
+import type { Flag, FlagResolution, FlagType } from "../types/flag.js";
 import type { FlagRepository } from "./types.js";
 
 export class DrizzleFlagRepository implements FlagRepository {
@@ -103,5 +103,31 @@ export class DrizzleFlagRepository implements FlagRepository {
       .where(and(eq(flags.memory_id, memoryId), isNull(flags.resolved_at)))
       .returning({ id: flags.id });
     return result.length;
+  }
+
+  async hasOpenFlag(
+    memoryId: string,
+    flagType: FlagType,
+    relatedMemoryId?: string,
+  ): Promise<boolean> {
+    const conditions = [
+      eq(flags.memory_id, memoryId),
+      eq(flags.flag_type, sql`${flagType}::flag_type`),
+      isNull(flags.resolved_at),
+    ];
+
+    if (relatedMemoryId) {
+      conditions.push(
+        sql`${flags.details}->>'related_memory_id' = ${relatedMemoryId}`,
+      );
+    }
+
+    const result = await this.db
+      .select({ exists: sql`1` })
+      .from(flags)
+      .where(and(...conditions))
+      .limit(1);
+
+    return result.length > 0;
   }
 }

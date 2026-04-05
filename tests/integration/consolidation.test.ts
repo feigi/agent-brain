@@ -13,8 +13,9 @@ import { DrizzleAuditRepository } from "../../src/repositories/audit-repository.
 import { AuditService } from "../../src/services/audit-service.js";
 import { FlagService } from "../../src/services/flag-service.js";
 import { ConsolidationService } from "../../src/services/consolidation-service.js";
-import { memories } from "../../src/db/schema.js";
+import { memories, flags } from "../../src/db/schema.js";
 import { eq } from "drizzle-orm";
+import { generateId } from "../../src/utils/id.js";
 import type { MemoryService } from "../../src/services/memory-service.js";
 
 describe("consolidation repository support", () => {
@@ -210,6 +211,51 @@ describe("consolidation full run", () => {
     const memoryFlags = await flagRepo.findByMemoryId(created.data.id);
     const verifyFlags = memoryFlags.filter((f) => f.flag_type === "verify");
     expect(verifyFlags).toHaveLength(1);
+  });
+
+  it("does not create duplicate flags for the same memory pair", async () => {
+    // 1. Create two memories
+    const m1 = await service.create({
+      workspace_id: "test-ws",
+      content: "always use snake_case for database columns",
+      type: "decision",
+      author: "alice",
+    });
+    assertMemory(m1.data);
+    const m2 = await service.create({
+      workspace_id: "test-ws",
+      content: "always use snake_case for db columns",
+      type: "decision",
+      author: "alice",
+    });
+    assertMemory(m2.data);
+
+    // 2. Manually create a needs_review duplicate flag for this pair
+    const db = getTestDb();
+    await db.insert(flags).values({
+      id: generateId(),
+      project_id: "test-project",
+      memory_id: m2.data.id,
+      flag_type: "duplicate",
+      severity: "needs_review",
+      details: {
+        related_memory_id: m1.data.id,
+        similarity: 0.92,
+        reason: "Probable duplicate",
+      },
+    });
+
+    // 3. Run consolidation
+    await consolidationService.run();
+
+    // 4. Verify no additional duplicate flag was created for that pair
+    const memoryFlags = await flagRepo.findByMemoryId(m2.data.id);
+    const dupFlags = memoryFlags.filter(
+      (f) =>
+        f.flag_type === "duplicate" &&
+        f.details.related_memory_id === m1.data.id,
+    );
+    expect(dupFlags).toHaveLength(1);
   });
 });
 

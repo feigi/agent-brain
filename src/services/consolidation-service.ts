@@ -215,6 +215,13 @@ export class ConsolidationService {
           archivedIds.add(olderMemoryId);
           result.archived++;
         } else if (classification === "flag_duplicate") {
+          const alreadyFlagged = await this.flagService.hasOpenFlag(
+            pair.memory_b_id,
+            "duplicate",
+            pair.memory_a_id,
+          );
+          if (alreadyFlagged) continue;
+
           await this.flagService.createFlag({
             memoryId: pair.memory_b_id,
             flagType: "duplicate",
@@ -227,6 +234,13 @@ export class ConsolidationService {
           });
           result.flagged++;
         } else if (classification === "flag_contradiction") {
+          const alreadyFlagged = await this.flagService.hasOpenFlag(
+            pair.memory_b_id,
+            "contradiction",
+            pair.memory_a_id,
+          );
+          if (alreadyFlagged) continue;
+
           await this.flagService.createFlag({
             memoryId: pair.memory_b_id,
             flagType: "contradiction",
@@ -291,12 +305,18 @@ export class ConsolidationService {
             classification === "flag_superseded" ||
             classification === "flag_override"
           ) {
+            const flagType =
+              classification === "flag_superseded" ? "superseded" : "override";
+            const alreadyFlagged = await this.flagService.hasOpenFlag(
+              wsMem.id,
+              flagType,
+              dup.id,
+            );
+            if (alreadyFlagged) continue;
+
             await this.flagService.createFlag({
               memoryId: wsMem.id,
-              flagType:
-                classification === "flag_superseded"
-                  ? "superseded"
-                  : "override",
+              flagType,
               severity: "needs_review",
               details: {
                 related_memory_id: dup.id,
@@ -354,6 +374,13 @@ export class ConsolidationService {
 
         const allDups = [...wsDups, ...projDups];
         for (const dup of allDups) {
+          const alreadyFlagged = await this.flagService.hasOpenFlag(
+            userMem.id,
+            "superseded",
+            dup.id,
+          );
+          if (alreadyFlagged) continue;
+
           await this.flagService.createFlag({
             memoryId: userMem.id,
             flagType: "superseded",
@@ -391,11 +418,9 @@ export class ConsolidationService {
 
     for (const memory of staleResult.memories) {
       try {
-        const existingFlags = await this.flagService.getFlagsByMemoryId(
+        const hasOpenVerify = await this.flagService.hasOpenFlag(
           memory.id,
-        );
-        const hasOpenVerify = existingFlags.some(
-          (f) => f.flag_type === "verify" && f.resolved_at === null,
+          "verify",
         );
         if (hasOpenVerify) continue;
 
