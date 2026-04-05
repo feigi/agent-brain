@@ -5,6 +5,7 @@ import {
   closeDb,
   assertMemory,
   createTestService,
+  createTestServiceWithFlags,
 } from "../helpers.js";
 import { DrizzleMemoryRepository } from "../../src/repositories/memory-repository.js";
 import { DrizzleFlagRepository } from "../../src/repositories/flag-repository.js";
@@ -209,5 +210,88 @@ describe("consolidation full run", () => {
     const memoryFlags = await flagRepo.findByMemoryId(created.data.id);
     const verifyFlags = memoryFlags.filter((f) => f.flag_type === "verify");
     expect(verifyFlags).toHaveLength(1);
+  });
+});
+
+describe("end-to-end: create → consolidate → session start → resolve", () => {
+  let service: MemoryService;
+  let consolidationService: ConsolidationService;
+  let flagRepo: DrizzleFlagRepository;
+
+  beforeEach(async () => {
+    await truncateAll();
+    const db = getTestDb();
+    const memoryRepo = new DrizzleMemoryRepository(db);
+    flagRepo = new DrizzleFlagRepository(db);
+    const auditRepo = new DrizzleAuditRepository(db);
+    const auditService = new AuditService(auditRepo, "test-project");
+    const flagService = new FlagService(flagRepo, auditService, "test-project");
+    service = createTestServiceWithFlags(flagService, auditService);
+    consolidationService = new ConsolidationService(
+      memoryRepo,
+      flagService,
+      auditService,
+      "test-project",
+      {
+        autoArchiveThreshold: 0.95,
+        flagThreshold: 0.9,
+        contradictionThreshold: 0.8,
+        verifyAfterDays: 30,
+      },
+    );
+  });
+
+  afterAll(async () => {
+    await closeDb();
+  });
+
+  it("full lifecycle: create memories, consolidate, verify flags at session start, resolve", async () => {
+    // 1. Create a memory and backdate it to trigger verify flag
+    const created = await service.create({
+      workspace_id: "test-ws",
+      content: "important architecture decision about caching",
+      type: "decision",
+      author: "alice",
+    });
+    assertMemory(created.data);
+
+    const db = getTestDb();
+    await db
+      .update(memories)
+      .set({
+        created_at: new Date("2025-01-01"),
+        updated_at: new Date("2025-01-01"),
+      })
+      .where(eq(memories.id, created.data.id));
+
+    // 2. Run consolidation
+    const consolResult = await consolidationService.run();
+    expect(consolResult.flagged).toBeGreaterThanOrEqual(1);
+
+    // 3. Session start should include flags
+    const session = await service.sessionStart("test-ws", "alice");
+    expect(session.meta.flags).toBeDefined();
+    expect(session.meta.flags!.length).toBeGreaterThanOrEqual(1);
+
+    // Verify the flag has enriched memory data
+    const verifyFlag = session.meta.flags!.find(
+      (f) => f.flag_type === "verify",
+    );
+    expect(verifyFlag).toBeDefined();
+    expect(verifyFlag!.memory.title).toBeDefined();
+    expect(verifyFlag!.memory.content).toContain("caching");
+    expect(verifyFlag!.reason).toContain("verified");
+
+    // 4. Resolve the flag
+    const flagId = verifyFlag!.flag_id;
+    const resolved = await flagRepo.resolve(flagId, "alice", "accepted");
+    expect(resolved).toBeDefined();
+
+    // 5. Next session start should have no flags (or fewer flags)
+    const session2 = await service.sessionStart("test-ws", "alice");
+    const remainingVerifyFlags = (session2.meta.flags ?? []).filter(
+      (f) => f.flag_type === "verify" && f.flag_id === flagId,
+    );
+    expect(remainingVerifyFlags).toHaveLength(0);
   });
 });
