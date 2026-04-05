@@ -19,16 +19,17 @@ Long-term memory for AI agents. Agents read relevant memories at session start, 
 │                                                     │
 │  Tools                      Services                │
 │  ├─ memory_session_start     ├─ MemoryService        │
-│  ├─ memory_search            ├─ EmbeddingProvider    │
-│  ├─ memory_create            └─ Repositories        │
-│  ├─ memory_get                                      │
-│  ├─ memory_update            Providers              │
-│  ├─ memory_verify            ├─ Amazon Titan V2      │
-│  ├─ memory_comment           ├─ Ollama (local)       │
-│  ├─ memory_archive           └─ Mock (dev/test)      │
-│  ├─ memory_list                                     │
-│  ├─ memory_list_stale                               │
-│  └─ memory_list_recent                              │
+│  ├─ memory_search            ├─ ConsolidationService │
+│  ├─ memory_create            ├─ FlagService          │
+│  ├─ memory_get               ├─ AuditService         │
+│  ├─ memory_update            ├─ EmbeddingProvider    │
+│  ├─ memory_verify            └─ Repositories        │
+│  ├─ memory_comment                                  │
+│  ├─ memory_archive           Providers              │
+│  ├─ memory_list              ├─ Amazon Titan V2      │
+│  ├─ memory_list_stale        ├─ Ollama (local)       │
+│  ├─ memory_list_recent       └─ Mock (dev/test)      │
+│  └─ memory_resolve_flag                             │
 └───────────────────┬─────────────────────────────────┘
                     │
 ┌───────────────────▼─────────────────────────────────┐
@@ -36,7 +37,7 @@ Long-term memory for AI agents. Agents read relevant memories at session start, 
 │                                                     │
 │  workspaces   memories (+ HNSW index)               │
 │  sessions     session_tracking                      │
-│  comments                                           │
+│  comments     flags       audit_log                 │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -45,6 +46,7 @@ Long-term memory for AI agents. Agents read relevant memories at session start, 
 1. **Session start** — agent calls `memory_session_start` with the workspace, user, and what it's working on. Returns the most relevant memories ranked by semantic similarity + recency.
 2. **During session** — agent calls `memory_search` for ad-hoc lookups, or `memory_create` to save new insights. A write budget (default 10/session) prevents runaway writes.
 3. **Team collaboration** — team members call `memory_comment` to add context to existing memories, `memory_verify` to confirm still-accurate notes, and `memory_archive` to retire stale ones. `memory_list_stale` surfaces memories that haven't been verified in a while.
+4. **Consolidation** — a scheduled background job (opt-in) detects duplicate, contradictory, and stale memories. Near-exact duplicates are auto-archived; borderline cases are flagged for review. Flags are surfaced to the agent at session start so the user can resolve them.
 
 ### Memory anatomy
 
@@ -288,8 +290,39 @@ AWS_REGION=us-east-1
 | `memory_list`          | List memories with filters                                |
 | `memory_list_stale`    | Find memories that need review                            |
 | `memory_list_recent`   | Most recently created/updated memories                    |
+| `memory_resolve_flag`  | Resolve a consolidation flag (accept, dismiss, or defer)  |
 
 All tools require `workspace_id` and `user_id`. Workspaces are created automatically on first use.
+
+---
+
+## Memory consolidation
+
+Over time, agents and users create memories that overlap, contradict, or go stale. The consolidation engine detects these issues automatically.
+
+**Enable it** by setting `CONSOLIDATION_ENABLED=true`. The job runs on a cron schedule (default: 3 AM daily) and uses a PostgreSQL advisory lock to prevent concurrent runs.
+
+### What it does
+
+The engine runs two tiers of detection:
+
+1. **Content subset check** — if one memory's text is contained entirely within another (after normalization), the shorter one is auto-archived.
+2. **Embedding similarity** — pairwise cosine similarity across memories in the same scope:
+   - **≥ 0.95** — near-exact duplicate, auto-archived (non-user-scoped only)
+   - **0.90–0.95** — flagged as probable duplicate for human review
+   - **0.80–0.90** — flagged as potential contradiction for human review
+
+Cross-scope checks also run: workspace memories are compared against project-scoped memories to detect superseded or overridden content. Memories not verified in over 30 days (configurable) are flagged for re-verification.
+
+### How flags work
+
+Flags are surfaced to agents at session start (up to 5 per session, configurable). The agent presents them to the user with suggested actions:
+
+- **duplicate / superseded** — offer to archive the redundant memory
+- **contradiction / override** — show both memories, ask which is correct
+- **verify** — ask if the memory is still accurate
+
+The user resolves each flag via `memory_resolve_flag` with one of: `accepted` (acted on), `dismissed` (false positive), or `deferred` (skip for now — reappears next session).
 
 ---
 
@@ -326,8 +359,12 @@ src/
 │   └── migrate.ts      # Auto-migration on startup
 ├── routes/             # HTTP routes (health, REST API)
 ├── tools/              # One file per MCP tool
+├── scheduler/          # Cron-based consolidation job
 ├── services/
-│   └── memory-service.ts  # Core business logic
+│   ├── memory-service.ts        # Core business logic
+│   ├── consolidation-service.ts # Duplicate/contradiction detection
+│   ├── flag-service.ts          # Flag lifecycle management
+│   └── audit-service.ts         # Audit trail for archival actions
 ├── repositories/       # Data access layer (Drizzle)
 ├── providers/
 │   └── embedding/      # Titan V2, Ollama + mock implementations
@@ -354,18 +391,25 @@ src/
 
 ## Configuration reference
 
-| Variable                   | Default                                                   | Description                                                              |
-| -------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `PROJECT_ID`               | —                                                         | **Required.** Deployment-level project identifier (1 server = 1 project) |
-| `DATABASE_URL`             | `postgresql://agentic:agentic@localhost:5432/agent_brain` | Postgres connection string                                               |
-| `EMBEDDING_PROVIDER`       | `mock`                                                    | `mock`, `ollama`, or `titan`                                             |
-| `AWS_REGION`               | `us-east-1`                                               | AWS region for Bedrock                                                   |
-| `WRITE_BUDGET_PER_SESSION` | `10`                                                      | Max memories an agent can create per session                             |
-| `DUPLICATE_THRESHOLD`      | `0.90`                                                    | Cosine similarity above which a new memory is rejected as duplicate      |
-| `RECENCY_HALF_LIFE_DAYS`   | `14`                                                      | Half-life for recency score decay in search ranking                      |
-| `EMBEDDING_DIMENSIONS`     | `768`                                                     | Vector dimensions (512 for Titan, 768 for nomic-embed-text)              |
-| `OLLAMA_BASE_URL`          | `http://localhost:11434`                                  | Ollama API endpoint                                                      |
-| `OLLAMA_MODEL`             | `nomic-embed-text`                                        | Ollama model for embeddings                                              |
-| `HOST`                     | `127.0.0.1`                                               | Server bind address                                                      |
-| `PORT`                     | `19898`                                                   | Server port                                                              |
-| `EMBEDDING_TIMEOUT_MS`     | `10000`                                                   | Timeout for embedding API calls                                          |
+| Variable                                | Default                                                   | Description                                                              |
+| --------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `PROJECT_ID`                            | —                                                         | **Required.** Deployment-level project identifier (1 server = 1 project) |
+| `DATABASE_URL`                          | `postgresql://agentic:agentic@localhost:5432/agent_brain` | Postgres connection string                                               |
+| `EMBEDDING_PROVIDER`                    | `mock`                                                    | `mock`, `ollama`, or `titan`                                             |
+| `AWS_REGION`                            | `us-east-1`                                               | AWS region for Bedrock                                                   |
+| `WRITE_BUDGET_PER_SESSION`              | `10`                                                      | Max memories an agent can create per session                             |
+| `DUPLICATE_THRESHOLD`                   | `0.90`                                                    | Cosine similarity above which a new memory is rejected as duplicate      |
+| `RECENCY_HALF_LIFE_DAYS`                | `14`                                                      | Half-life for recency score decay in search ranking                      |
+| `EMBEDDING_DIMENSIONS`                  | `768`                                                     | Vector dimensions (512 for Titan, 768 for nomic-embed-text)              |
+| `OLLAMA_BASE_URL`                       | `http://localhost:11434`                                  | Ollama API endpoint                                                      |
+| `OLLAMA_MODEL`                          | `nomic-embed-text`                                        | Ollama model for embeddings                                              |
+| `HOST`                                  | `127.0.0.1`                                               | Server bind address                                                      |
+| `PORT`                                  | `19898`                                                   | Server port                                                              |
+| `EMBEDDING_TIMEOUT_MS`                  | `10000`                                                   | Timeout for embedding API calls                                          |
+| `CONSOLIDATION_ENABLED`                 | `false`                                                   | Enable the scheduled consolidation job                                   |
+| `CONSOLIDATION_CRON`                    | `0 3 * * *`                                               | Cron schedule for consolidation (default: 3 AM daily)                    |
+| `CONSOLIDATION_AUTO_ARCHIVE_THRESHOLD`  | `0.95`                                                    | Similarity above which duplicates are auto-archived                      |
+| `CONSOLIDATION_FLAG_THRESHOLD`          | `0.90`                                                    | Similarity above which pairs are flagged as probable duplicates          |
+| `CONSOLIDATION_CONTRADICTION_THRESHOLD` | `0.80`                                                    | Similarity above which pairs are flagged as potential contradictions     |
+| `CONSOLIDATION_VERIFY_AFTER_DAYS`       | `30`                                                      | Days without verification before a memory is flagged for review          |
+| `CONSOLIDATION_MAX_FLAGS_PER_SESSION`   | `5`                                                       | Max flags surfaced to agents per session start                           |
