@@ -17,6 +17,7 @@ import {
   comments,
   sessionTracking,
   sessions,
+  auditLog,
 } from "../src/db/schema.js";
 import { TEST_DB_URL } from "./global-setup.js";
 
@@ -69,6 +70,7 @@ export function createTestServiceWithSessions(): MemoryService {
 /** Truncate all tables between tests (D-64) */
 export async function truncateAll(): Promise<void> {
   const testDb = getTestDb();
+  await testDb.delete(auditLog); // FK: references memories
   await testDb.delete(comments); // FK: references memories
   await testDb.delete(sessions); // FK: references workspaces (Phase 4)
   await testDb.delete(sessionTracking); // FK: references workspaces
