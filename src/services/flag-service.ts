@@ -84,4 +84,12 @@ export class FlagService {
   async autoResolveByMemoryId(memoryId: string): Promise<number> {
     return this.flagRepo.autoResolveByMemoryId(memoryId);
   }
+
+  async hasOpenFlag(
+    memoryId: string,
+    flagType: FlagType,
+    relatedMemoryId?: string,
+  ): Promise<boolean> {
+    return this.flagRepo.hasOpenFlag(memoryId, flagType, relatedMemoryId);
+  }
 }

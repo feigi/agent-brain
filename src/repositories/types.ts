@@ -1,6 +1,6 @@
 import type { Memory, MemoryWithRelevance, Comment } from "../types/memory.js";
 import type { AuditEntry } from "../types/audit.js";
-import type { Flag, FlagResolution } from "../types/flag.js";
+import type { Flag, FlagResolution, FlagType } from "../types/flag.js";
 
 // INFR-02: Repository interfaces -- abstract storage layer
 
@@ -171,6 +171,11 @@ export interface FlagRepository {
   ): Promise<Flag | null>;
   findByMemoryId(memoryId: string): Promise<Flag[]>;
   autoResolveByMemoryId(memoryId: string): Promise<number>;
+  hasOpenFlag(
+    memoryId: string,
+    flagType: FlagType,
+    relatedMemoryId?: string,
+  ): Promise<boolean>;
 }
 
 export interface RecentActivityOptions {
