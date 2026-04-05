@@ -197,13 +197,11 @@ export const flags = pgTable(
       .references(() => memories.id),
     flag_type: flagTypeEnum("flag_type").notNull(),
     severity: flagSeverityEnum("severity").notNull(),
-    details: jsonb("details")
-      .notNull()
-      .$type<{
-        related_memory_id?: string;
-        similarity?: number;
-        reason: string;
-      }>(),
+    details: jsonb("details").notNull().$type<{
+      related_memory_id?: string;
+      similarity?: number;
+      reason: string;
+    }>(),
     resolved_at: timestamp("resolved_at", { withTimezone: true }),
     resolved_by: text("resolved_by"),
     created_at: timestamp("created_at", { withTimezone: true })
