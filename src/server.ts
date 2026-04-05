@@ -14,8 +14,10 @@ import {
   DrizzleSessionRepository,
 } from "./repositories/session-repository.js";
 import { DrizzleAuditRepository } from "./repositories/audit-repository.js";
+import { DrizzleFlagRepository } from "./repositories/flag-repository.js";
 import { MemoryService } from "./services/memory-service.js";
 import { AuditService } from "./services/audit-service.js";
+import { FlagService } from "./services/flag-service.js";
 import { registerAllTools } from "./tools/index.js";
 import { registerMemoryGuidance } from "./prompts/memory-guidance.js";
 import { registerRoutes } from "./routes/index.js";
@@ -81,6 +83,8 @@ async function main() {
   const sessionLifecycleRepo = new DrizzleSessionRepository(db);
   const auditRepo = new DrizzleAuditRepository(db);
   const auditService = new AuditService(auditRepo, config.projectId);
+  const flagRepo = new DrizzleFlagRepository(db);
+  const flagService = new FlagService(flagRepo, auditService, config.projectId);
   const memoryService = new MemoryService(
     memoryRepo,
     workspaceRepo,
@@ -90,6 +94,7 @@ async function main() {
     sessionRepo,
     sessionLifecycleRepo,
     auditService,
+    flagService,
   );
 
   // Factory: creates a fresh MCP server per session (tools + prompts registered)
@@ -98,7 +103,7 @@ async function main() {
       name: "agent-brain",
       version: config.version,
     });
-    registerAllTools(server, memoryService);
+    registerAllTools(server, memoryService, flagService);
     registerMemoryGuidance(server);
     return server;
   }
