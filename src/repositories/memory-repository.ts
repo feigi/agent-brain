@@ -591,6 +591,9 @@ export class DrizzleMemoryRepository implements MemoryRepository {
         ? sql`m1.scope = 'project' AND m2.scope = 'project'`
         : sql`m1.workspace_id = ${options.workspaceId} AND m2.workspace_id = ${options.workspaceId} AND m1.scope = 'workspace' AND m2.scope = 'workspace'`;
 
+    // Pairwise comparison using CROSS JOIN with m1.id < m2.id to avoid duplicate pairs.
+    // This performs a sequential scan — pgvector's HNSW index is not leveraged for
+    // self-joins. Acceptable for typical scope sizes (<500 active memories).
     const result = await this.db.execute(sql`
       SELECT
         m1.id AS memory_a_id,
