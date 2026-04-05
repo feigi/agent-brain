@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
-import { getTestDb, truncateAll, closeDb } from "../helpers.js";
+import {
+  getTestDb,
+  truncateAll,
+  closeDb,
+  assertMemory,
+  createTestServiceWithAudit,
+} from "../helpers.js";
 import { DrizzleAuditRepository } from "../../src/repositories/audit-repository.js";
 import { DrizzleWorkspaceRepository } from "../../src/repositories/workspace-repository.js";
 import { DrizzleMemoryRepository } from "../../src/repositories/memory-repository.js";
@@ -7,6 +13,7 @@ import { MockEmbeddingProvider } from "../../src/providers/embedding/mock.js";
 import { config } from "../../src/config.js";
 import { generateId } from "../../src/utils/id.js";
 import { AuditService } from "../../src/services/audit-service.js";
+import { MemoryService } from "../../src/services/memory-service.js";
 describe("audit repository", () => {
   let auditRepo: DrizzleAuditRepository;
   let memoryId: string;
@@ -186,5 +193,77 @@ describe("audit service", () => {
     expect(entries).toHaveLength(1);
     expect(entries[0].action).toBe("archived");
     expect(entries[0].reason).toBe("near-exact duplicate");
+  });
+});
+
+describe("memory-service audit integration", () => {
+  let service: MemoryService;
+  let auditRepo: DrizzleAuditRepository;
+
+  beforeEach(async () => {
+    await truncateAll();
+    const db = getTestDb();
+    auditRepo = new DrizzleAuditRepository(db);
+    const auditService = new AuditService(auditRepo, "test-project");
+    service = createTestServiceWithAudit(auditService);
+  });
+
+  afterAll(async () => {
+    await closeDb();
+  });
+
+  it("logs audit entry on memory_create", async () => {
+    const result = await service.create({
+      workspace_id: "test-ws",
+      content: "test memory",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(result.data);
+
+    const entries = await auditRepo.findByMemoryId(result.data.id);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].action).toBe("created");
+  });
+
+  it("logs audit entry on memory_update with diff", async () => {
+    const created = await service.create({
+      workspace_id: "test-ws",
+      content: "original content",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(created.data);
+
+    await service.update(
+      created.data.id,
+      1,
+      { content: "updated content" },
+      "alice",
+    );
+
+    const entries = await auditRepo.findByMemoryId(created.data.id);
+    expect(entries).toHaveLength(2); // created + updated
+    const updateEntry = entries.find((e) => e.action === "updated");
+    expect(updateEntry).toBeDefined();
+    expect(updateEntry!.diff).toHaveProperty("before");
+    expect(updateEntry!.diff).toHaveProperty("after");
+  });
+
+  it("logs audit entry on memory_archive", async () => {
+    const created = await service.create({
+      workspace_id: "test-ws",
+      content: "will be archived",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(created.data);
+
+    await service.archive([created.data.id], "alice");
+
+    const entries = await auditRepo.findByMemoryId(created.data.id);
+    const archiveEntry = entries.find((e) => e.action === "archived");
+    expect(archiveEntry).toBeDefined();
+    expect(archiveEntry!.actor).toBe("alice");
   });
 });

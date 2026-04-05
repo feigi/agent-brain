@@ -7,6 +7,7 @@ import {
   DrizzleSessionTrackingRepository,
   DrizzleSessionRepository,
 } from "../src/repositories/session-repository.js";
+import { AuditService } from "../src/services/audit-service.js";
 import { MockEmbeddingProvider } from "../src/providers/embedding/mock.js";
 import { config } from "../src/config.js";
 import { MemoryService } from "../src/services/memory-service.js";
@@ -64,6 +65,28 @@ export function createTestServiceWithSessions(): MemoryService {
     commentRepo,
     sessionTrackingRepo,
     sessionLifecycleRepo,
+  );
+}
+
+/** Create a test service that includes AuditService for audit logging */
+export function createTestServiceWithAudit(
+  auditService: AuditService,
+): MemoryService {
+  const testDb = getTestDb();
+  const memoryRepo = new DrizzleMemoryRepository(testDb);
+  const workspaceRepo = new DrizzleWorkspaceRepository(testDb);
+  const embedder = new MockEmbeddingProvider(config.embeddingDimensions);
+  const commentRepo = new DrizzleCommentRepository(testDb);
+  const sessionRepo = new DrizzleSessionTrackingRepository(testDb);
+  return new MemoryService(
+    memoryRepo,
+    workspaceRepo,
+    embedder,
+    "test-project",
+    commentRepo,
+    sessionRepo,
+    undefined, // sessionLifecycleRepo
+    auditService,
   );
 }
 

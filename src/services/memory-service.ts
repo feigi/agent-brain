@@ -18,6 +18,7 @@ import type {
   SessionTrackingRepository,
   SessionRepository,
 } from "../repositories/types.js";
+import type { AuditService } from "./audit-service.js";
 import {
   NotFoundError,
   EmbeddingError,
@@ -41,6 +42,7 @@ export class MemoryService {
     private readonly commentRepo?: CommentRepository,
     private readonly sessionRepo?: SessionTrackingRepository,
     private readonly sessionLifecycleRepo?: SessionRepository,
+    private readonly auditService?: AuditService,
   ) {}
 
   // D-11: Workspace/Project=shared, User=owner only
@@ -207,6 +209,7 @@ export class MemoryService {
     };
 
     const memory = await this.memoryRepo.create(memoryData);
+    await this.auditService?.logCreate(memory.id, input.author);
     const timing = Date.now() - start;
 
     // Phase 4: Post-insert budget increment (D-10)
@@ -373,6 +376,8 @@ export class MemoryService {
       content,
     });
 
+    await this.auditService?.logComment(memoryId, userId);
+
     const timing = Date.now() - start;
     return {
       data: comment,
@@ -479,10 +484,27 @@ export class MemoryService {
       };
     }
 
+    const before = {
+      content: existing.content,
+      title: existing.title,
+      type: existing.type,
+      tags: existing.tags,
+      metadata: existing.metadata,
+    };
+
     const memory = await this.memoryRepo.update(id, expectedVersion, {
       ...updates,
       ...embeddingUpdates,
     });
+
+    const after = {
+      content: memory.content,
+      title: memory.title,
+      type: memory.type,
+      tags: memory.tags,
+      metadata: memory.metadata,
+    };
+    await this.auditService?.logUpdate(id, userId, { before, after });
 
     const timing = Date.now() - start;
     return { data: memory, meta: { timing } };
@@ -512,6 +534,10 @@ export class MemoryService {
     }
 
     const archivedCount = await this.memoryRepo.archive(idArray);
+
+    for (const id of idArray) {
+      await this.auditService?.logArchive(id, userId);
+    }
 
     const timing = Date.now() - start;
     return { data: { archived_count: archivedCount }, meta: { timing } };
