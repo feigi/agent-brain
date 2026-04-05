@@ -140,3 +140,31 @@ export const sessionTracking = pgTable(
     ),
   ],
 );
+
+export const auditActionEnum = pgEnum("audit_action", [
+  "created",
+  "updated",
+  "archived",
+  "merged",
+  "flagged",
+  "commented",
+]);
+
+export const auditLog = pgTable(
+  "audit_log",
+  {
+    id: text("id").primaryKey(),
+    project_id: text("project_id").notNull(),
+    memory_id: text("memory_id")
+      .notNull()
+      .references(() => memories.id),
+    action: auditActionEnum("action").notNull(),
+    actor: text("actor").notNull(),
+    reason: text("reason"),
+    diff: jsonb("diff").$type<Record<string, unknown>>(),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("audit_log_memory_id_idx").on(table.memory_id)],
+);

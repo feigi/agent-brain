@@ -43,6 +43,13 @@
       "when": 1774987300000,
       "tag": "0005_separate_project_workspace",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1743897600000,
+      "tag": "0006_add_audit_log",
+      "breakpoints": true
     }
   ]
 }
