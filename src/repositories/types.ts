@@ -1,5 +1,6 @@
 import type { Memory, MemoryWithRelevance, Comment } from "../types/memory.js";
 import type { AuditEntry } from "../types/audit.js";
+import type { Flag, FlagResolution } from "../types/flag.js";
 
 // INFR-02: Repository interfaces -- abstract storage layer
 
@@ -131,6 +132,22 @@ export interface SessionRepository {
     workspace_id: string;
     budget_used: number;
   } | null>;
+}
+
+export interface FlagRepository {
+  create(flag: Flag): Promise<Flag>;
+  findOpenByWorkspace(
+    projectId: string,
+    workspaceId: string,
+    limit: number,
+  ): Promise<Flag[]>;
+  resolve(
+    id: string,
+    resolvedBy: string,
+    resolution: FlagResolution,
+  ): Promise<Flag | null>;
+  findByMemoryId(memoryId: string): Promise<Flag[]>;
+  autoResolveByMemoryId(memoryId: string): Promise<number>;
 }
 
 export interface RecentActivityOptions {
