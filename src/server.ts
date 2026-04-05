@@ -18,6 +18,9 @@ import { DrizzleFlagRepository } from "./repositories/flag-repository.js";
 import { MemoryService } from "./services/memory-service.js";
 import { AuditService } from "./services/audit-service.js";
 import { FlagService } from "./services/flag-service.js";
+import { ConsolidationService } from "./services/consolidation-service.js";
+import { ConsolidationJob } from "./scheduler/consolidation-job.js";
+import { ConsolidationScheduler } from "./scheduler/consolidation-scheduler.js";
 import { registerAllTools } from "./tools/index.js";
 import { registerMemoryGuidance } from "./prompts/memory-guidance.js";
 import { registerRoutes } from "./routes/index.js";
@@ -97,6 +100,30 @@ async function main() {
     flagService,
   );
 
+  // Initialize consolidation scheduler (opt-in via config)
+  let consolidationScheduler: ConsolidationScheduler | null = null;
+
+  if (config.consolidationEnabled) {
+    const consolidationService = new ConsolidationService(
+      memoryRepo,
+      flagService,
+      auditService,
+      config.projectId,
+      {
+        autoArchiveThreshold: config.consolidationAutoArchiveThreshold,
+        flagThreshold: config.consolidationFlagThreshold,
+        contradictionThreshold: config.consolidationContradictionThreshold,
+        verifyAfterDays: config.consolidationVerifyAfterDays,
+      },
+    );
+    const consolidationJob = new ConsolidationJob(consolidationService, db);
+    consolidationScheduler = new ConsolidationScheduler(
+      consolidationJob,
+      config.consolidationCron,
+    );
+    consolidationScheduler.start();
+  }
+
   // Factory: creates a fresh MCP server per session (tools + prompts registered)
   function createMcpServerForSession(): McpServer {
     const server = new McpServer({
@@ -165,6 +192,9 @@ async function main() {
   // Graceful shutdown
   const shutdown = async () => {
     logger.info("Shutting down...");
+    if (consolidationScheduler) {
+      await consolidationScheduler.stop();
+    }
     await db.$client.end();
     process.exit(0);
   };
