@@ -215,31 +215,33 @@ describe("consolidation full run", () => {
 
   it("does not create duplicate flags for the same memory pair", async () => {
     // 1. Create two memories
-    const m1 = await service.create({
+    const m1Result = await service.create({
       workspace_id: "test-ws",
       content: "always use snake_case for database columns",
       type: "decision",
       author: "alice",
     });
-    assertMemory(m1.data);
-    const m2 = await service.create({
+    assertMemory(m1Result.data);
+    const m1 = m1Result.data;
+    const m2Result = await service.create({
       workspace_id: "test-ws",
       content: "always use snake_case for db columns",
       type: "decision",
       author: "alice",
     });
-    assertMemory(m2.data);
+    assertMemory(m2Result.data);
+    const m2 = m2Result.data;
 
     // 2. Manually create a needs_review duplicate flag for this pair
     const db = getTestDb();
     await db.insert(flags).values({
       id: generateId(),
       project_id: "test-project",
-      memory_id: m2.data.id,
+      memory_id: m2.id,
       flag_type: "duplicate",
       severity: "needs_review",
       details: {
-        related_memory_id: m1.data.id,
+        related_memory_id: m1.id,
         similarity: 0.92,
         reason: "Probable duplicate",
       },
@@ -249,11 +251,10 @@ describe("consolidation full run", () => {
     await consolidationService.run();
 
     // 4. Verify no additional duplicate flag was created for that pair
-    const memoryFlags = await flagRepo.findByMemoryId(m2.data.id);
+    const memoryFlags = await flagRepo.findByMemoryId(m2.id);
     const dupFlags = memoryFlags.filter(
       (f) =>
-        f.flag_type === "duplicate" &&
-        f.details.related_memory_id === m1.data.id,
+        f.flag_type === "duplicate" && f.details.related_memory_id === m1.id,
     );
     expect(dupFlags).toHaveLength(1);
   });
