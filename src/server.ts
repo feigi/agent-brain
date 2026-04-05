@@ -13,7 +13,9 @@ import {
   DrizzleSessionTrackingRepository,
   DrizzleSessionRepository,
 } from "./repositories/session-repository.js";
+import { DrizzleAuditRepository } from "./repositories/audit-repository.js";
 import { MemoryService } from "./services/memory-service.js";
+import { AuditService } from "./services/audit-service.js";
 import { registerAllTools } from "./tools/index.js";
 import { registerMemoryGuidance } from "./prompts/memory-guidance.js";
 import { registerRoutes } from "./routes/index.js";
@@ -77,6 +79,8 @@ async function main() {
   const commentRepo = new DrizzleCommentRepository(db);
   const sessionRepo = new DrizzleSessionTrackingRepository(db);
   const sessionLifecycleRepo = new DrizzleSessionRepository(db);
+  const auditRepo = new DrizzleAuditRepository(db);
+  const auditService = new AuditService(auditRepo, config.projectId);
   const memoryService = new MemoryService(
     memoryRepo,
     workspaceRepo,
@@ -85,6 +89,7 @@ async function main() {
     commentRepo,
     sessionRepo,
     sessionLifecycleRepo,
+    auditService,
   );
 
   // Factory: creates a fresh MCP server per session (tools + prompts registered)
