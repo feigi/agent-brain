@@ -135,16 +135,18 @@ export class ConsolidationService {
     const archivedIds = new Set<string>();
 
     // Tier 1a: Content subset check (normalized substring match)
+    const normalized = active.map((m) =>
+      m.content.toLowerCase().replace(/\s+/g, " ").trim(),
+    );
+
     for (let i = 0; i < active.length; i++) {
       if (archivedIds.has(active[i].id)) continue;
-      const normI = active[i].content.toLowerCase().replace(/\s+/g, " ").trim();
       for (let j = 0; j < active.length; j++) {
         if (i === j || archivedIds.has(active[j].id)) continue;
-        const normJ = active[j].content
-          .toLowerCase()
-          .replace(/\s+/g, " ")
-          .trim();
-        if (normJ.includes(normI) && normI.length < normJ.length) {
+        if (
+          normalized[j].includes(normalized[i]) &&
+          normalized[i].length < normalized[j].length
+        ) {
           await this.memoryRepo.archive([active[i].id]);
           await this.auditService.logArchive(
             active[i].id,
