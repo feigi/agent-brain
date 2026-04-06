@@ -40,7 +40,8 @@ describe("Memory scoping integration tests", () => {
 
     // Workspace isolation: searching in project-b should not return project-a's memories
     const crossWorkspaceMatch = result.data.find(
-      (m) => m.content === "Secret project-a knowledge about deployment pipelines",
+      (m) =>
+        m.content === "Secret project-a knowledge about deployment pipelines",
     );
     expect(crossWorkspaceMatch).toBeUndefined();
   });

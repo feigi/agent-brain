@@ -427,10 +427,7 @@ export class MemoryService {
   }
 
   // D-37, D-62: Determine change_type based on timestamps
-  private getChangeType(
-    memory: Memory,
-    since: Date,
-  ): ChangeType {
+  private getChangeType(memory: Memory, since: Date): ChangeType {
     if (memory.created_at >= since) return "created";
     if (
       memory.last_comment_at &&
@@ -676,15 +673,17 @@ export class MemoryService {
       });
 
       // Apply composite scoring with similarity = 1.0 (neutral baseline)
-      const scored: MemorySummaryWithRelevance[] = recentMemories.map((memory) => ({
-        ...toSummary(memory),
-        relevance: computeRelevance(
-          1.0, // neutral similarity -- recency dominates
-          memory.created_at,
-          memory.verified_at,
-          config.recencyHalfLifeDays,
-        ),
-      }));
+      const scored: MemorySummaryWithRelevance[] = recentMemories.map(
+        (memory) => ({
+          ...toSummary(memory),
+          relevance: computeRelevance(
+            1.0, // neutral similarity -- recency dominates
+            memory.created_at,
+            memory.verified_at,
+            config.recencyHalfLifeDays,
+          ),
+        }),
+      );
       scored.sort((a, b) => b.relevance - a.relevance);
       const timing = Date.now() - start;
       result = { data: scored, meta: { count: scored.length, timing } };

@@ -101,22 +101,24 @@ async function main() {
     config.consolidationMaxFlagsPerSession,
   );
 
+  // Always create ConsolidationService (used by both scheduler and MCP tool)
+  const consolidationService = new ConsolidationService(
+    memoryRepo,
+    flagService,
+    auditService,
+    config.projectId,
+    {
+      autoArchiveThreshold: config.consolidationAutoArchiveThreshold,
+      flagThreshold: config.consolidationFlagThreshold,
+      contradictionThreshold: config.consolidationContradictionThreshold,
+      verifyAfterDays: config.consolidationVerifyAfterDays,
+    },
+  );
+
   // Initialize consolidation scheduler (opt-in via config)
   let consolidationScheduler: ConsolidationScheduler | null = null;
 
   if (config.consolidationEnabled) {
-    const consolidationService = new ConsolidationService(
-      memoryRepo,
-      flagService,
-      auditService,
-      config.projectId,
-      {
-        autoArchiveThreshold: config.consolidationAutoArchiveThreshold,
-        flagThreshold: config.consolidationFlagThreshold,
-        contradictionThreshold: config.consolidationContradictionThreshold,
-        verifyAfterDays: config.consolidationVerifyAfterDays,
-      },
-    );
     const consolidationJob = new ConsolidationJob(consolidationService, db);
     consolidationScheduler = new ConsolidationScheduler(
       consolidationJob,
@@ -131,7 +133,7 @@ async function main() {
       name: "agent-brain",
       version: config.version,
     });
-    registerAllTools(server, memoryService, flagService);
+    registerAllTools(server, memoryService, flagService, consolidationService);
     registerMemoryGuidance(server);
     return server;
   }
