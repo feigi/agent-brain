@@ -85,17 +85,21 @@ and signals intentional user-directed saves.
 At session start, you may receive a \`flags\` array alongside memories. These are issues
 detected by the consolidation engine that need your attention.
 
-**When flags are present:**
-- Surface them to the user before starting the main task
-- For each flag, explain the issue and offer actions:
-  - \`duplicate\` / \`superseded\`: Offer to archive the redundant memory
-  - \`contradiction\` / \`override\`: Show both memories, ask which is correct
-  - \`verify\`: Ask the user if the memory is still accurate
-- After the user decides, call \`memory_resolve_flag\` with the appropriate resolution
+**Auto-resolve when certainty is high:**
+- For \`verify\` flags: check the claim against the codebase (read files, grep code, check config).
+  If you can confirm accuracy with high confidence, silently call \`memory_verify\` and
+  \`memory_resolve_flag\` with \`accepted\`. No need to mention these to the user.
+- For \`duplicate\` / \`superseded\` flags: if the redundancy is obvious and unambiguous,
+  silently archive and resolve.
+
+**Recommend a course of action for the rest:**
+- For flags you cannot auto-resolve (low certainty, judgment calls, contradictions, overrides),
+  present them to the user with a specific recommendation (archive, merge, update, or dismiss)
+  and your reasoning. Don't just list options — say what you'd do and why.
+- Call \`memory_resolve_flag\` after the user confirms or overrides your recommendation.
 
 **During normal work:**
-- If you read a memory that has open flags, mention it to the user
-- Offer to resolve it in context if relevant to the current task
+- If you encounter a flagged memory, mention its flag and recommend resolution in context.
 
 **Resolutions:**
 - \`accepted\`: You acted on the flag (archived, merged, updated)

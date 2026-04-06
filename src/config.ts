@@ -29,9 +29,6 @@ export const config = {
   consolidationFlagThreshold: Number(
     process.env.CONSOLIDATION_FLAG_THRESHOLD ?? "0.90",
   ),
-  consolidationContradictionThreshold: Number(
-    process.env.CONSOLIDATION_CONTRADICTION_THRESHOLD ?? "0.80",
-  ),
   consolidationVerifyAfterDays: Number(
     process.env.CONSOLIDATION_VERIFY_AFTER_DAYS ?? "30",
   ),

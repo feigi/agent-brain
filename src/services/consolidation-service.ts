@@ -6,7 +6,6 @@ import { logger } from "../utils/logger.js";
 interface ConsolidationConfig {
   autoArchiveThreshold: number;
   flagThreshold: number;
-  contradictionThreshold: number;
   verifyAfterDays: number;
 }
 
@@ -14,8 +13,6 @@ export type ClassificationResult =
   | "auto_archive"
   | "flag_duplicate"
   | "flag_superseded"
-  | "flag_contradiction"
-  | "flag_override"
   | null;
 
 /**
@@ -28,27 +25,18 @@ export function classifyPair(
   isUserScoped: boolean,
   config: Omit<ConsolidationConfig, "verifyAfterDays">,
 ): ClassificationResult {
-  if (similarity < config.contradictionThreshold) {
+  if (similarity < config.flagThreshold) {
     return null;
   }
 
-  // High similarity — potential duplicate
-  if (similarity >= config.flagThreshold) {
-    if (scopeRelation === "cross scope") {
-      return "flag_superseded";
-    }
-    // Same scope
-    if (similarity >= config.autoArchiveThreshold && !isUserScoped) {
-      return "auto_archive";
-    }
-    return "flag_duplicate";
-  }
-
-  // Medium similarity (between contradiction and flag thresholds)
   if (scopeRelation === "cross scope") {
-    return "flag_override";
+    return "flag_superseded";
   }
-  return "flag_contradiction";
+  // Same scope
+  if (similarity >= config.autoArchiveThreshold && !isUserScoped) {
+    return "auto_archive";
+  }
+  return "flag_duplicate";
 }
 
 export interface ConsolidationResult {
@@ -174,7 +162,7 @@ export class ConsolidationService {
       projectId: this.projectId,
       workspaceId,
       scope,
-      threshold: this.config.contradictionThreshold,
+      threshold: this.config.flagThreshold,
     });
 
     for (const pair of pairs) {
@@ -233,25 +221,6 @@ export class ConsolidationService {
             },
           });
           result.flagged++;
-        } else if (classification === "flag_contradiction") {
-          const alreadyFlagged = await this.flagService.hasOpenFlag(
-            pair.memory_b_id,
-            "contradiction",
-            pair.memory_a_id,
-          );
-          if (alreadyFlagged) continue;
-
-          await this.flagService.createFlag({
-            memoryId: pair.memory_b_id,
-            flagType: "contradiction",
-            severity: "needs_review",
-            details: {
-              related_memory_id: pair.memory_a_id,
-              similarity: pair.similarity,
-              reason: `Possible contradiction (similarity ${pair.similarity.toFixed(3)})`,
-            },
-          });
-          result.flagged++;
         }
       } catch (error) {
         logger.warn(
@@ -290,45 +259,30 @@ export class ConsolidationService {
           workspaceId: null,
           scope: "project",
           userId: wsMem.author,
-          threshold: this.config.contradictionThreshold,
+          threshold: this.config.flagThreshold,
         });
 
         for (const dup of duplicates) {
-          const classification = classifyPair(
-            dup.relevance,
-            "cross scope",
-            false,
-            this.config,
+          if (dup.relevance < this.config.flagThreshold) continue;
+
+          const alreadyFlagged = await this.flagService.hasOpenFlag(
+            wsMem.id,
+            "superseded",
+            dup.id,
           );
+          if (alreadyFlagged) continue;
 
-          if (
-            classification === "flag_superseded" ||
-            classification === "flag_override"
-          ) {
-            const flagType =
-              classification === "flag_superseded" ? "superseded" : "override";
-            const alreadyFlagged = await this.flagService.hasOpenFlag(
-              wsMem.id,
-              flagType,
-              dup.id,
-            );
-            if (alreadyFlagged) continue;
-
-            await this.flagService.createFlag({
-              memoryId: wsMem.id,
-              flagType,
-              severity: "needs_review",
-              details: {
-                related_memory_id: dup.id,
-                similarity: dup.relevance,
-                reason:
-                  classification === "flag_superseded"
-                    ? `Workspace memory may duplicate project memory "${dup.title}" (similarity ${dup.relevance.toFixed(3)})`
-                    : `Workspace memory may contradict project memory "${dup.title}" (similarity ${dup.relevance.toFixed(3)})`,
-              },
-            });
-            flagged++;
-          }
+          await this.flagService.createFlag({
+            memoryId: wsMem.id,
+            flagType: "superseded",
+            severity: "needs_review",
+            details: {
+              related_memory_id: dup.id,
+              similarity: dup.relevance,
+              reason: `Workspace memory may duplicate project memory "${dup.title}" (similarity ${dup.relevance.toFixed(3)})`,
+            },
+          });
+          flagged++;
         }
       } catch (error) {
         logger.warn(`Cross-scope check failed for memory ${wsMem.id}:`, error);

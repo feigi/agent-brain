@@ -13,7 +13,7 @@ export function registerMemoryResolveFlag(
     {
       description:
         "Resolve a flag on a memory. Use after the user has reviewed a flagged issue " +
-        "(duplicate, contradiction, override, etc.) and decided on an action. " +
+        "(duplicate, superseded, verify, etc.) and decided on an action. " +
         "resolution: 'accepted' = acted on, 'dismissed' = false positive, 'deferred' = skip for now. " +
         'Example: memory_resolve_flag({ flag_id: "abc123", user_id: "alice", resolution: "accepted" })',
       inputSchema: {

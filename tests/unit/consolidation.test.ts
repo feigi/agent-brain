@@ -5,7 +5,6 @@ describe("consolidation detection", () => {
   const thresholds = {
     autoArchiveThreshold: 0.95,
     flagThreshold: 0.9,
-    contradictionThreshold: 0.8,
   };
 
   it("classifies near-exact duplicate as auto_archive", () => {
@@ -33,18 +32,18 @@ describe("consolidation detection", () => {
     expect(result).toBe("flag_duplicate");
   });
 
-  it("classifies medium similarity same-scope as flag_contradiction", () => {
+  it("returns null for medium similarity (below flag threshold)", () => {
     const result = classifyPair(0.85, "same scope", false, thresholds);
-    expect(result).toBe("flag_contradiction");
+    expect(result).toBeNull();
   });
 
-  it("classifies medium similarity cross-scope as flag_override", () => {
+  it("returns null for medium similarity cross-scope (below flag threshold)", () => {
     const result = classifyPair(0.85, "cross scope", false, thresholds);
-    expect(result).toBe("flag_override");
+    expect(result).toBeNull();
   });
 
-  it("returns null at exactly contradiction threshold minus epsilon", () => {
-    const result = classifyPair(0.79, "same scope", false, thresholds);
+  it("returns null just below flag threshold", () => {
+    const result = classifyPair(0.89, "same scope", false, thresholds);
     expect(result).toBeNull();
   });
 

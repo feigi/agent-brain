@@ -110,7 +110,6 @@ async function main() {
     {
       autoArchiveThreshold: config.consolidationAutoArchiveThreshold,
       flagThreshold: config.consolidationFlagThreshold,
-      contradictionThreshold: config.consolidationContradictionThreshold,
       verifyAfterDays: config.consolidationVerifyAfterDays,
     },
   );

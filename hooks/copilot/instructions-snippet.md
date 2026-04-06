@@ -61,9 +61,18 @@ Always **number** memories and include **author**, **date**, and **title**. The 
 
 ## Memory Flags
 
-At session start, the response may include a `flags` array — issues detected by the consolidation engine. When present:
+At session start, the response may include a `flags` array — issues detected by the consolidation engine. Handle them as follows:
 
-- Surface flags to the user before starting the main task
-- For each flag, explain the issue and offer actions (archive, merge, update, or dismiss)
-- Call `memory_resolve_flag` after the user decides (`accepted`, `dismissed`, or `deferred`)
-- During normal work, if you encounter a flagged memory, mention its flag to the user
+**Auto-resolve when certainty is high:**
+
+- For `verify` flags: check the claim against the codebase (read files, grep code, check config). If you can confirm accuracy with high confidence, silently call `memory_verify` and `memory_resolve_flag` with `accepted`. No need to mention these to the user.
+- For `duplicate` / `superseded` flags: if the redundancy is obvious and unambiguous, silently archive and resolve.
+
+**Recommend a course of action for the rest:**
+
+- For flags you cannot auto-resolve (low certainty, judgment calls, contradictions, overrides), present them to the user with a specific recommendation (archive, merge, update, or dismiss) and your reasoning. Don't just list options — say what you'd do and why.
+- Call `memory_resolve_flag` after the user confirms or overrides your recommendation.
+
+**During normal work:**
+
+- If you encounter a flagged memory, mention its flag and recommend resolution in context.

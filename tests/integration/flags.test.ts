@@ -99,9 +99,9 @@ describe("flag repository", () => {
       id: generateId(),
       project_id: "test-project",
       memory_id: memoryId,
-      flag_type: "contradiction",
+      flag_type: "superseded",
       severity: "needs_review",
-      details: { reason: "contradicts project memory" },
+      details: { reason: "superseded by project memory" },
       resolved_at: null,
       resolved_by: null,
       created_at: new Date(),
@@ -126,7 +126,7 @@ describe("flag repository", () => {
       10,
     );
     expect(open).toHaveLength(1);
-    expect(open[0].flag_type).toBe("contradiction");
+    expect(open[0].flag_type).toBe("superseded");
   });
 
   it("resolves a flag", async () => {
@@ -247,7 +247,7 @@ describe("flag service", () => {
   it("gets open flags for workspace", async () => {
     await flagService.createFlag({
       memoryId,
-      flagType: "contradiction",
+      flagType: "superseded",
       severity: "needs_review",
       details: { reason: "test" },
     });

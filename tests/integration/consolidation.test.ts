@@ -124,7 +124,6 @@ describe("consolidation full run", () => {
       {
         autoArchiveThreshold: 0.95,
         flagThreshold: 0.9,
-        contradictionThreshold: 0.8,
         verifyAfterDays: 30,
       },
     );
@@ -282,7 +281,6 @@ describe("end-to-end: create → consolidate → session start → resolve", () 
       {
         autoArchiveThreshold: 0.95,
         flagThreshold: 0.9,
-        contradictionThreshold: 0.8,
         verifyAfterDays: 30,
       },
     );
