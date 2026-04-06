@@ -38,10 +38,11 @@ describe("Memory scoping integration tests", () => {
       "alice",
     );
 
-    const crossProjectMatch = result.data.find(
-      (m) => m.project_id === "project-a",
+    // Workspace isolation: searching in project-b should not return project-a's memories
+    const crossWorkspaceMatch = result.data.find(
+      (m) => m.content === "Secret project-a knowledge about deployment pipelines",
     );
-    expect(crossProjectMatch).toBeUndefined();
+    expect(crossWorkspaceMatch).toBeUndefined();
   });
 
   it("user-scoped memory visible across projects (SCOP-02)", async () => {
