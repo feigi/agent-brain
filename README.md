@@ -46,7 +46,7 @@ Long-term memory for AI agents. Agents read relevant memories at session start, 
 1. **Session start** — agent calls `memory_session_start` with the workspace, user, and what it's working on. Returns the most relevant memories ranked by semantic similarity + recency.
 2. **During session** — agent calls `memory_search` for ad-hoc lookups, or `memory_create` to save new insights. A write budget (default 10/session) prevents runaway writes.
 3. **Team collaboration** — team members call `memory_comment` to add context to existing memories, `memory_verify` to confirm still-accurate notes, and `memory_archive` to retire stale ones. `memory_list_stale` surfaces memories that haven't been verified in a while.
-4. **Consolidation** — a scheduled background job (opt-in) detects duplicate, contradictory, and stale memories. Near-exact duplicates are auto-archived; borderline cases are flagged for review. Flags are surfaced to the agent at session start so the user can resolve them.
+4. **Consolidation** — a scheduled background job (opt-in) detects duplicate, superseded, and stale memories. Near-exact duplicates are auto-archived; borderline cases are flagged for review. Flags are surfaced to the agent at session start so the user can resolve them.
 
 ### Memory anatomy
 
@@ -299,7 +299,7 @@ All tools require `workspace_id` and `user_id`. Workspaces are created automatic
 
 ## Memory consolidation
 
-Over time, agents and users create memories that overlap, contradict, or go stale. The consolidation engine detects these issues automatically.
+Over time, agents and users create memories that overlap or go stale. The consolidation engine detects these issues automatically.
 
 **Scheduled:** set `CONSOLIDATION_ENABLED=true` to run on a cron schedule (default: 3 AM daily). Uses a PostgreSQL advisory lock to prevent concurrent runs.
 
@@ -320,8 +320,8 @@ Cross-scope checks also run: workspace memories are compared against project-sco
 
 Flags are surfaced to agents at session start (up to 5 per session, configurable). The agent presents them to the user with suggested actions:
 
-- **duplicate / superseded** — offer to archive the redundant memory
-- **contradiction / override** — show both memories, ask which is correct
+- **duplicate** — offer to archive the redundant memory
+- **superseded** — workspace memory duplicates a project-scoped one; offer to archive
 - **verify** — ask if the memory is still accurate
 
 The user resolves each flag via `memory_resolve_flag` with one of: `accepted` (acted on), `dismissed` (false positive), or `deferred` (skip for now — reappears next session).
@@ -364,7 +364,7 @@ src/
 ├── scheduler/          # Cron-based consolidation job
 ├── services/
 │   ├── memory-service.ts        # Core business logic
-│   ├── consolidation-service.ts # Duplicate/contradiction detection
+│   ├── consolidation-service.ts # Duplicate/superseded detection
 │   ├── flag-service.ts          # Flag lifecycle management
 │   └── audit-service.ts         # Audit trail for archival actions
 ├── repositories/       # Data access layer (Drizzle)
