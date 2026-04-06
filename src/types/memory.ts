@@ -11,6 +11,9 @@ export type MemoryType =
 // workspace = scoped to a workspace, user = private, project = cross-workspace within deployment
 export type MemoryScope = "workspace" | "user" | "project";
 
+// D-37, D-62: Change type union for tracking what changed on a memory (used in list endpoints)
+export type ChangeType = "created" | "updated" | "commented";
+
 // Full memory object as stored (without embedding vector per D-44)
 export interface Memory {
   id: string;
@@ -99,12 +102,14 @@ export function toDetail(memory: Memory): MemoryDetail {
 }
 
 // Slim variants for list endpoints
+// Forward-declared for use in service layer list endpoints (Task 2)
 export interface MemorySummaryWithRelevance extends MemorySummary {
   relevance: number;
 }
 
+// Forward-declared for use in service layer list endpoints (Task 2)
 export interface MemorySummaryWithChangeType extends MemorySummary {
-  change_type: "created" | "updated" | "commented";
+  change_type: ChangeType;
 }
 
 // D-47: Comment on a memory by a team member
@@ -127,7 +132,7 @@ export interface MemoryGetResponse extends MemoryDetail {
 
 // D-37: Memory with change type for memory_list_recent
 export interface MemoryWithChangeType extends Memory {
-  change_type: "created" | "updated" | "commented";
+  change_type: ChangeType;
 }
 
 // Input type for creating a memory
