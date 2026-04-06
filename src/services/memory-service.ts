@@ -5,7 +5,6 @@ import type {
   MemoryWithRelevance,
   Comment,
   MemoryGetResponse,
-  MemoryWithChangeType,
   CreateSkipResult,
   MemorySummary,
   MemorySummaryWithRelevance,
