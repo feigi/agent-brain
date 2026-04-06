@@ -1,38 +1,63 @@
 import "dotenv/config";
+import { z } from "zod";
 
-export const config = {
+const configSchema = z.object({
+  projectId: z.string().default(""),
+  databaseUrl: z
+    .string()
+    .default("postgresql://agentic:agentic@localhost:5432/agent_brain"),
+  embeddingProvider: z.enum(["titan", "mock", "ollama"]).default("mock"),
+  embeddingDimensions: z.coerce.number().int().positive().default(768),
+  ollamaBaseUrl: z.string().default("http://localhost:11434"),
+  ollamaModel: z.string().default("nomic-embed-text"),
+  awsRegion: z.string().default("us-east-1"),
+  embeddingTimeoutMs: z.coerce.number().int().positive().default(10000),
+  recencyHalfLifeDays: z.coerce.number().positive().default(14),
+  writeBudgetPerSession: z.coerce.number().int().nonnegative().default(10),
+  duplicateThreshold: z.coerce.number().min(0).max(1).default(0.9),
+  host: z.string().default("127.0.0.1"),
+  port: z.coerce.number().int().positive().max(65535).default(19898),
+  version: z.string().default("0.1.0"),
+  consolidationEnabled: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  consolidationCron: z.string().default("0 3 * * *"),
+  consolidationAutoArchiveThreshold: z.coerce
+    .number()
+    .min(0)
+    .max(1)
+    .default(0.95),
+  consolidationFlagThreshold: z.coerce.number().min(0).max(1).default(0.9),
+  consolidationVerifyAfterDays: z.coerce.number().int().positive().default(30),
+  consolidationMaxFlagsPerSession: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(5),
+});
+
+export const config = configSchema.parse({
   projectId: process.env.PROJECT_ID ?? "",
-  databaseUrl:
-    process.env.DATABASE_URL ??
-    "postgresql://agentic:agentic@localhost:5432/agent_brain",
-  embeddingProvider: (process.env.EMBEDDING_PROVIDER ?? "mock") as
-    | "titan"
-    | "mock"
-    | "ollama",
-  embeddingDimensions: Number(process.env.EMBEDDING_DIMENSIONS ?? "768"),
-  ollamaBaseUrl: process.env.OLLAMA_BASE_URL ?? "http://localhost:11434",
-  ollamaModel: process.env.OLLAMA_MODEL ?? "nomic-embed-text",
-  awsRegion: process.env.AWS_REGION ?? "us-east-1",
-  embeddingTimeoutMs: Number(process.env.EMBEDDING_TIMEOUT_MS ?? "10000"),
-  recencyHalfLifeDays: Number(process.env.RECENCY_HALF_LIFE_DAYS ?? "14"),
-  writeBudgetPerSession: Number(process.env.WRITE_BUDGET_PER_SESSION ?? "10"),
-  duplicateThreshold: Number(process.env.DUPLICATE_THRESHOLD ?? "0.90"),
-  host: process.env.HOST ?? "127.0.0.1",
-  port: Number(process.env.PORT ?? "19898"),
+  databaseUrl: process.env.DATABASE_URL,
+  embeddingProvider: process.env.EMBEDDING_PROVIDER,
+  embeddingDimensions: process.env.EMBEDDING_DIMENSIONS,
+  ollamaBaseUrl: process.env.OLLAMA_BASE_URL,
+  ollamaModel: process.env.OLLAMA_MODEL,
+  awsRegion: process.env.AWS_REGION,
+  embeddingTimeoutMs: process.env.EMBEDDING_TIMEOUT_MS,
+  recencyHalfLifeDays: process.env.RECENCY_HALF_LIFE_DAYS,
+  writeBudgetPerSession: process.env.WRITE_BUDGET_PER_SESSION,
+  duplicateThreshold: process.env.DUPLICATE_THRESHOLD,
+  host: process.env.HOST,
+  port: process.env.PORT,
   version: "0.1.0",
-  consolidationEnabled:
-    (process.env.CONSOLIDATION_ENABLED ?? "false") === "true",
-  consolidationCron: process.env.CONSOLIDATION_CRON ?? "0 3 * * *",
-  consolidationAutoArchiveThreshold: Number(
-    process.env.CONSOLIDATION_AUTO_ARCHIVE_THRESHOLD ?? "0.95",
-  ),
-  consolidationFlagThreshold: Number(
-    process.env.CONSOLIDATION_FLAG_THRESHOLD ?? "0.90",
-  ),
-  consolidationVerifyAfterDays: Number(
-    process.env.CONSOLIDATION_VERIFY_AFTER_DAYS ?? "30",
-  ),
-  consolidationMaxFlagsPerSession: Number(
-    process.env.CONSOLIDATION_MAX_FLAGS_PER_SESSION ?? "5",
-  ),
-} as const;
+  consolidationEnabled: process.env.CONSOLIDATION_ENABLED,
+  consolidationCron: process.env.CONSOLIDATION_CRON,
+  consolidationAutoArchiveThreshold:
+    process.env.CONSOLIDATION_AUTO_ARCHIVE_THRESHOLD,
+  consolidationFlagThreshold: process.env.CONSOLIDATION_FLAG_THRESHOLD,
+  consolidationVerifyAfterDays: process.env.CONSOLIDATION_VERIFY_AFTER_DAYS,
+  consolidationMaxFlagsPerSession:
+    process.env.CONSOLIDATION_MAX_FLAGS_PER_SESSION,
+});
