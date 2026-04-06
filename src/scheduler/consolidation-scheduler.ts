@@ -19,7 +19,9 @@ export class ConsolidationScheduler {
     }
 
     this.task = cron.schedule(this.cronExpression, () => {
-      this.job.execute();
+      this.job.execute().catch((error) => {
+        logger.error("Consolidation job invocation failed:", error);
+      });
     });
 
     logger.info(
