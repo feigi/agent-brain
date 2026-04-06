@@ -1,7 +1,11 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
-import { slugSchema, contentSchema } from "../utils/validation.js";
+import {
+  slugSchema,
+  contentSchema,
+  memoryTypeEnum,
+} from "../utils/validation.js";
 import { toolResponse, withErrorHandling } from "./tool-utils.js";
 
 export function registerMemoryUpdate(
@@ -25,15 +29,7 @@ export function registerMemoryUpdate(
           .optional()
           .describe("New content text. Must not be empty if provided."),
         title: z.string().optional().describe("New title"),
-        type: z
-          .enum([
-            "fact",
-            "decision",
-            "learning",
-            "pattern",
-            "preference",
-            "architecture",
-          ])
+        type: memoryTypeEnum
           .optional()
           .catch(undefined)
           .describe("New memory category type"),

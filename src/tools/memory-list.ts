@@ -2,21 +2,13 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
 import { config } from "../config.js";
-import { slugSchema } from "../utils/validation.js";
+import {
+  slugSchema,
+  memoryTypeEnum,
+  memoryScopeEnum,
+  parseCursor,
+} from "../utils/validation.js";
 import { toolResponse, withErrorHandling } from "./tool-utils.js";
-
-/** Parse cursor string (format: "created_at|id") into object for the repository layer */
-function parseCursor(
-  cursor: string | undefined,
-): { created_at: string; id: string } | undefined {
-  if (!cursor) return undefined;
-  const sep = cursor.indexOf("|");
-  if (sep === -1) return undefined;
-  return {
-    created_at: cursor.slice(0, sep),
-    id: cursor.slice(sep + 1),
-  };
-}
 
 export function registerMemoryList(
   server: McpServer,
@@ -33,8 +25,7 @@ export function registerMemoryList(
           .describe(
             "Workspace slug (e.g., 'my-project'). Required for workspace/user scope. Optional for project scope (cross-workspace).",
           ),
-        scope: z
-          .enum(["workspace", "user", "project"])
+        scope: memoryScopeEnum
           .catch("workspace")
           .describe(
             "List scope: 'workspace' (shared team memories), 'user' (your private memories), or 'project' (cross-workspace)",
@@ -42,15 +33,7 @@ export function registerMemoryList(
         user_id: slugSchema.describe(
           "User identifier (e.g., 'alice'). Required for access control.",
         ),
-        type: z
-          .enum([
-            "fact",
-            "decision",
-            "learning",
-            "pattern",
-            "preference",
-            "architecture",
-          ])
+        type: memoryTypeEnum
           .optional()
           .catch(undefined)
           .describe("Filter by memory type"),

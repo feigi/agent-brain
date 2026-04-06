@@ -1,16 +1,10 @@
 import { z } from "zod";
-import { slugSchema, contentSchema } from "../utils/validation.js";
-
-const memoryTypeEnum = z.enum([
-  "fact",
-  "decision",
-  "learning",
-  "pattern",
-  "preference",
-  "architecture",
-]);
-
-const scopeEnum = z.enum(["workspace", "user", "project"]);
+import {
+  slugSchema,
+  contentSchema,
+  memoryTypeEnum,
+  memoryScopeEnum,
+} from "../utils/validation.js";
 
 export const toolSchemas = {
   memory_session_start: z.object({
@@ -26,7 +20,7 @@ export const toolSchemas = {
     title: z.string().optional(),
     type: memoryTypeEnum,
     tags: z.array(z.string()).optional(),
-    scope: scopeEnum.default("workspace"),
+    scope: memoryScopeEnum.default("workspace"),
     user_id: slugSchema,
     source: z.string().optional(),
     session_id: z.string().optional(),
@@ -65,7 +59,7 @@ export const toolSchemas = {
 
   memory_list: z.object({
     workspace_id: slugSchema.optional(),
-    scope: scopeEnum.default("workspace"),
+    scope: memoryScopeEnum.default("workspace"),
     user_id: slugSchema,
     type: memoryTypeEnum.optional(),
     tags: z.array(z.string()).optional(),

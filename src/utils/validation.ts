@@ -19,3 +19,28 @@ export const contentSchema = z
   .string()
   .trim()
   .min(1, "Content must not be empty or whitespace-only");
+
+// D-17: Shared Zod enums for memory type and scope (single source of truth)
+export const memoryTypeEnum = z.enum([
+  "fact",
+  "decision",
+  "learning",
+  "pattern",
+  "preference",
+  "architecture",
+]);
+
+export const memoryScopeEnum = z.enum(["workspace", "user", "project"]);
+
+/** Parse cursor string (format: "created_at|id") into object for the repository layer */
+export function parseCursor(
+  cursor: string | undefined,
+): { created_at: string; id: string } | undefined {
+  if (!cursor) return undefined;
+  const sep = cursor.indexOf("|");
+  if (sep === -1) return undefined;
+  return {
+    created_at: cursor.slice(0, sep),
+    id: cursor.slice(sep + 1),
+  };
+}

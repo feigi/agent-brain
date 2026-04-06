@@ -2,25 +2,10 @@ import { Router } from "express";
 import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
 import { config } from "../config.js";
-import { DomainError, ValidationError } from "../utils/errors.js";
+import { DomainError } from "../utils/errors.js";
 import { logger } from "../utils/logger.js";
+import { parseCursor } from "../utils/validation.js";
 import { toolSchemas, type ToolName } from "./api-schemas.js";
-
-function parseCursor(
-  cursor: string | undefined,
-): { created_at: string; id: string } | undefined {
-  if (!cursor) return undefined;
-  const sep = cursor.indexOf("|");
-  if (sep === -1) {
-    throw new ValidationError(
-      'Invalid cursor format: expected "created_at|id"',
-    );
-  }
-  return {
-    created_at: cursor.slice(0, sep),
-    id: cursor.slice(sep + 1),
-  };
-}
 
 export function createApiToolsRouter(memoryService: MemoryService): Router {
   const router = Router();

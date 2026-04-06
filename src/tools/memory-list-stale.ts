@@ -1,21 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
-import { slugSchema } from "../utils/validation.js";
+import { slugSchema, parseCursor } from "../utils/validation.js";
 import { toolResponse, withErrorHandling } from "./tool-utils.js";
-
-/** Parse cursor string (format: "created_at|id") into object for the repository layer */
-function parseCursor(
-  cursor: string | undefined,
-): { created_at: string; id: string } | undefined {
-  if (!cursor) return undefined;
-  const sep = cursor.indexOf("|");
-  if (sep === -1) return undefined;
-  return {
-    created_at: cursor.slice(0, sep),
-    id: cursor.slice(sep + 1),
-  };
-}
 
 export function registerMemoryListStale(
   server: McpServer,

@@ -75,22 +75,25 @@ export class ConsolidationService {
     const workspaces = await this.getActiveWorkspaces();
     for (const workspaceId of workspaces) {
       try {
-        const wsResult = await this.consolidateScope("workspace", workspaceId);
+        const [wsResult, crossResult, userResult, verifyResult] =
+          await Promise.all([
+            this.consolidateScope("workspace", workspaceId),
+            this.crossScopeCheck(workspaceId),
+            this.userScopeCheck(workspaceId),
+            this.flagVerificationCandidates(workspaceId),
+          ]);
+
         result.archived += wsResult.archived;
-        result.flagged += wsResult.flagged;
-        result.errors += wsResult.errors;
-
-        const crossResult = await this.crossScopeCheck(workspaceId);
-        result.flagged += crossResult.flagged;
-        result.errors += crossResult.errors;
-
-        const userResult = await this.userScopeCheck(workspaceId);
-        result.flagged += userResult.flagged;
-        result.errors += userResult.errors;
-
-        const verifyResult = await this.flagVerificationCandidates(workspaceId);
-        result.flagged += verifyResult.flagged;
-        result.errors += verifyResult.errors;
+        result.flagged +=
+          wsResult.flagged +
+          crossResult.flagged +
+          userResult.flagged +
+          verifyResult.flagged;
+        result.errors +=
+          wsResult.errors +
+          crossResult.errors +
+          userResult.errors +
+          verifyResult.errors;
       } catch (error) {
         logger.error(
           `Consolidation Layer 2 (workspace ${workspaceId}) failed:`,

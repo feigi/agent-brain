@@ -1,7 +1,12 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
-import { slugSchema, contentSchema } from "../utils/validation.js";
+import {
+  slugSchema,
+  contentSchema,
+  memoryTypeEnum,
+  memoryScopeEnum,
+} from "../utils/validation.js";
 import { toolResponse, withErrorHandling } from "./tool-utils.js";
 
 export function registerMemoryCreate(
@@ -26,23 +31,13 @@ export function registerMemoryCreate(
           .string()
           .optional()
           .describe("Optional title. Auto-generated from content if omitted."),
-        type: z
-          .enum([
-            "fact",
-            "decision",
-            "learning",
-            "pattern",
-            "preference",
-            "architecture",
-          ])
-          .describe("Memory category type"),
+        type: memoryTypeEnum.describe("Memory category type"),
         tags: z
           .array(z.string())
           .optional()
           .catch(undefined)
           .describe("Free-form categorization tags"),
-        scope: z
-          .enum(["workspace", "user", "project"])
+        scope: memoryScopeEnum
           .catch("workspace")
           .describe(
             "'workspace' scopes to this workspace (shared with team), 'user' is private to you, 'project' is visible across all workspaces (user-confirmed only, not for autonomous sources)",
