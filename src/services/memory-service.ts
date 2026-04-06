@@ -9,6 +9,7 @@ import type {
   MemorySummary,
   MemorySummaryWithRelevance,
   MemorySummaryWithChangeType,
+  ChangeType,
 } from "../types/memory.js";
 import { toSummary, toDetail } from "../types/memory.js";
 import type { Envelope } from "../types/envelope.js";
@@ -429,7 +430,7 @@ export class MemoryService {
   private getChangeType(
     memory: Memory,
     since: Date,
-  ): "created" | "updated" | "commented" {
+  ): ChangeType {
     if (memory.created_at >= since) return "created";
     if (
       memory.last_comment_at &&
