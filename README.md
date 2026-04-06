@@ -290,6 +290,7 @@ AWS_REGION=us-east-1
 | `memory_list`          | List memories with filters                                |
 | `memory_list_stale`    | Find memories that need review                            |
 | `memory_list_recent`   | Most recently created/updated memories                    |
+| `memory_consolidate`   | Run a full consolidation pass on demand (no cron needed)  |
 | `memory_resolve_flag`  | Resolve a consolidation flag (accept, dismiss, or defer)  |
 
 All tools require `workspace_id` and `user_id`. Workspaces are created automatically on first use.
@@ -300,7 +301,9 @@ All tools require `workspace_id` and `user_id`. Workspaces are created automatic
 
 Over time, agents and users create memories that overlap, contradict, or go stale. The consolidation engine detects these issues automatically.
 
-**Enable it** by setting `CONSOLIDATION_ENABLED=true`. The job runs on a cron schedule (default: 3 AM daily) and uses a PostgreSQL advisory lock to prevent concurrent runs.
+**Scheduled:** set `CONSOLIDATION_ENABLED=true` to run on a cron schedule (default: 3 AM daily). Uses a PostgreSQL advisory lock to prevent concurrent runs.
+
+**On demand:** call the `memory_consolidate` MCP tool to trigger a consolidation pass at any time (no cron required).
 
 ### What it does
 
@@ -310,7 +313,6 @@ The engine runs two tiers of detection:
 2. **Embedding similarity** — pairwise cosine similarity across memories in the same scope:
    - **≥ 0.95** — near-exact duplicate, auto-archived (non-user-scoped only)
    - **0.90–0.95** — flagged as probable duplicate for human review
-   - **0.80–0.90** — flagged as potential contradiction for human review
 
 Cross-scope checks also run: workspace memories are compared against project-scoped memories to detect superseded or overridden content. Memories not verified in over 30 days (configurable) are flagged for re-verification.
 
@@ -391,25 +393,24 @@ src/
 
 ## Configuration reference
 
-| Variable                                | Default                                                   | Description                                                              |
-| --------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `PROJECT_ID`                            | —                                                         | **Required.** Deployment-level project identifier (1 server = 1 project) |
-| `DATABASE_URL`                          | `postgresql://agentic:agentic@localhost:5432/agent_brain` | Postgres connection string                                               |
-| `EMBEDDING_PROVIDER`                    | `mock`                                                    | `mock`, `ollama`, or `titan`                                             |
-| `AWS_REGION`                            | `us-east-1`                                               | AWS region for Bedrock                                                   |
-| `WRITE_BUDGET_PER_SESSION`              | `10`                                                      | Max memories an agent can create per session                             |
-| `DUPLICATE_THRESHOLD`                   | `0.90`                                                    | Cosine similarity above which a new memory is rejected as duplicate      |
-| `RECENCY_HALF_LIFE_DAYS`                | `14`                                                      | Half-life for recency score decay in search ranking                      |
-| `EMBEDDING_DIMENSIONS`                  | `768`                                                     | Vector dimensions (512 for Titan, 768 for nomic-embed-text)              |
-| `OLLAMA_BASE_URL`                       | `http://localhost:11434`                                  | Ollama API endpoint                                                      |
-| `OLLAMA_MODEL`                          | `nomic-embed-text`                                        | Ollama model for embeddings                                              |
-| `HOST`                                  | `127.0.0.1`                                               | Server bind address                                                      |
-| `PORT`                                  | `19898`                                                   | Server port                                                              |
-| `EMBEDDING_TIMEOUT_MS`                  | `10000`                                                   | Timeout for embedding API calls                                          |
-| `CONSOLIDATION_ENABLED`                 | `false`                                                   | Enable the scheduled consolidation job                                   |
-| `CONSOLIDATION_CRON`                    | `0 3 * * *`                                               | Cron schedule for consolidation (default: 3 AM daily)                    |
-| `CONSOLIDATION_AUTO_ARCHIVE_THRESHOLD`  | `0.95`                                                    | Similarity above which duplicates are auto-archived                      |
-| `CONSOLIDATION_FLAG_THRESHOLD`          | `0.90`                                                    | Similarity above which pairs are flagged as probable duplicates          |
-| `CONSOLIDATION_CONTRADICTION_THRESHOLD` | `0.80`                                                    | Similarity above which pairs are flagged as potential contradictions     |
-| `CONSOLIDATION_VERIFY_AFTER_DAYS`       | `30`                                                      | Days without verification before a memory is flagged for review          |
-| `CONSOLIDATION_MAX_FLAGS_PER_SESSION`   | `5`                                                       | Max flags surfaced to agents per session start                           |
+| Variable                               | Default                                                   | Description                                                              |
+| -------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `PROJECT_ID`                           | —                                                         | **Required.** Deployment-level project identifier (1 server = 1 project) |
+| `DATABASE_URL`                         | `postgresql://agentic:agentic@localhost:5432/agent_brain` | Postgres connection string                                               |
+| `EMBEDDING_PROVIDER`                   | `mock`                                                    | `mock`, `ollama`, or `titan`                                             |
+| `AWS_REGION`                           | `us-east-1`                                               | AWS region for Bedrock                                                   |
+| `WRITE_BUDGET_PER_SESSION`             | `10`                                                      | Max memories an agent can create per session                             |
+| `DUPLICATE_THRESHOLD`                  | `0.90`                                                    | Cosine similarity above which a new memory is rejected as duplicate      |
+| `RECENCY_HALF_LIFE_DAYS`               | `14`                                                      | Half-life for recency score decay in search ranking                      |
+| `EMBEDDING_DIMENSIONS`                 | `768`                                                     | Vector dimensions (512 for Titan, 768 for nomic-embed-text)              |
+| `OLLAMA_BASE_URL`                      | `http://localhost:11434`                                  | Ollama API endpoint                                                      |
+| `OLLAMA_MODEL`                         | `nomic-embed-text`                                        | Ollama model for embeddings                                              |
+| `HOST`                                 | `127.0.0.1`                                               | Server bind address                                                      |
+| `PORT`                                 | `19898`                                                   | Server port                                                              |
+| `EMBEDDING_TIMEOUT_MS`                 | `10000`                                                   | Timeout for embedding API calls                                          |
+| `CONSOLIDATION_ENABLED`                | `false`                                                   | Enable the scheduled consolidation job                                   |
+| `CONSOLIDATION_CRON`                   | `0 3 * * *`                                               | Cron schedule for consolidation (default: 3 AM daily)                    |
+| `CONSOLIDATION_AUTO_ARCHIVE_THRESHOLD` | `0.95`                                                    | Similarity above which duplicates are auto-archived                      |
+| `CONSOLIDATION_FLAG_THRESHOLD`         | `0.90`                                                    | Similarity above which pairs are flagged as probable duplicates          |
+| `CONSOLIDATION_VERIFY_AFTER_DAYS`      | `30`                                                      | Days without verification before a memory is flagged for review          |
+| `CONSOLIDATION_MAX_FLAGS_PER_SESSION`  | `5`                                                       | Max flags surfaced to agents per session start                           |
