@@ -570,7 +570,7 @@ export class MemoryService {
       }
     }
 
-    const archivedCount = await this.memoryRepo.archive(idArray);
+    const archivedCount = await this.memoryRepo.archive(verifiedIds);
 
     for (const id of verifiedIds) {
       await this.auditService?.logArchive(id, userId);
