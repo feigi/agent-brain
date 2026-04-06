@@ -37,6 +37,76 @@ export interface Memory {
   verified_by: string | null; // D-19: who verified
 }
 
+// Slim projection for list endpoints — omits internal/DB-only fields
+export interface MemorySummary {
+  id: string;
+  title: string;
+  content: string;
+  type: MemoryType;
+  scope: MemoryScope;
+  tags: string[] | null;
+  author: string;
+  source: string | null;
+  created_at: Date;
+  updated_at: Date;
+  verified_at: Date | null;
+  verified_by: string | null;
+  comment_count: number;
+  last_comment_at: Date | null;
+}
+
+// Full projection for detail endpoints — everything except embedding internals
+export interface MemoryDetail extends MemorySummary {
+  project_id: string;
+  workspace_id: string | null;
+  version: number;
+  session_id: string | null;
+  metadata: Record<string, unknown> | null;
+  archived_at: Date | null;
+}
+
+/** Project a full Memory to the slim list representation */
+export function toSummary(memory: Memory): MemorySummary {
+  return {
+    id: memory.id,
+    title: memory.title,
+    content: memory.content,
+    type: memory.type,
+    scope: memory.scope,
+    tags: memory.tags,
+    author: memory.author,
+    source: memory.source,
+    created_at: memory.created_at,
+    updated_at: memory.updated_at,
+    verified_at: memory.verified_at,
+    verified_by: memory.verified_by,
+    comment_count: memory.comment_count,
+    last_comment_at: memory.last_comment_at,
+  };
+}
+
+/** Project a full Memory to the detail representation (strips embedding internals) */
+export function toDetail(memory: Memory): MemoryDetail {
+  return {
+    ...toSummary(memory),
+    project_id: memory.project_id,
+    workspace_id: memory.workspace_id,
+    version: memory.version,
+    session_id: memory.session_id,
+    metadata: memory.metadata,
+    archived_at: memory.archived_at,
+  };
+}
+
+// Slim variants for list endpoints
+export interface MemorySummaryWithRelevance extends MemorySummary {
+  relevance: number;
+}
+
+export interface MemorySummaryWithChangeType extends MemorySummary {
+  change_type: "created" | "updated" | "commented";
+}
+
 // D-47: Comment on a memory by a team member
 export interface Comment {
   id: string;
@@ -47,7 +117,7 @@ export interface Comment {
 }
 
 // D-72, D-63: Enhanced response for memory_get with comments and capability flags
-export interface MemoryGetResponse extends Memory {
+export interface MemoryGetResponse extends MemoryDetail {
   comments: Comment[];
   can_comment: boolean;
   can_edit: boolean;
