@@ -7,7 +7,11 @@ import type {
   MemoryGetResponse,
   MemoryWithChangeType,
   CreateSkipResult,
+  MemorySummary,
+  MemorySummaryWithRelevance,
+  MemorySummaryWithChangeType,
 } from "../types/memory.js";
+import { toSummary, toDetail } from "../types/memory.js";
 import type { Envelope } from "../types/envelope.js";
 import type { EmbeddingProvider } from "../providers/embedding/types.js";
 import type {
@@ -307,7 +311,7 @@ export class MemoryService {
     const timing = Date.now() - start;
     return {
       data: {
-        ...memory,
+        ...toDetail(memory),
         comments: commentsList,
         ...capabilities,
       },
@@ -395,7 +399,7 @@ export class MemoryService {
     since: Date,
     limit: number = 10,
     excludeSelf: boolean = false,
-  ): Promise<Envelope<MemoryWithChangeType[]>> {
+  ): Promise<Envelope<MemorySummaryWithChangeType[]>> {
     const start = Date.now();
 
     const recentMemories = await this.memoryRepo.findRecentActivity({
@@ -408,9 +412,9 @@ export class MemoryService {
     });
 
     // D-37: Determine change_type for each result
-    const withChangeType: MemoryWithChangeType[] = recentMemories.map(
+    const withChangeType: MemorySummaryWithChangeType[] = recentMemories.map(
       (memory) => ({
-        ...memory,
+        ...toSummary(memory),
         change_type: this.getChangeType(memory, since),
       }),
     );
@@ -555,7 +559,7 @@ export class MemoryService {
     user_id: string,
     limit?: number,
     min_similarity?: number,
-  ): Promise<Envelope<MemoryWithRelevance[]>> {
+  ): Promise<Envelope<MemorySummaryWithRelevance[]>> {
     const start = Date.now();
     const effectiveLimit = limit ?? 10;
 
@@ -601,10 +605,15 @@ export class MemoryService {
     scored.sort((a, b) => b.relevance - a.relevance);
     const results = scored.slice(0, effectiveLimit);
 
+    const projected: MemorySummaryWithRelevance[] = results.map((r) => ({
+      ...toSummary(r),
+      relevance: r.relevance,
+    }));
+
     const timing = Date.now() - start;
     return {
-      data: results,
-      meta: { count: results.length, timing },
+      data: projected,
+      meta: { count: projected.length, timing },
     };
   }
 
@@ -613,7 +622,7 @@ export class MemoryService {
     userId: string,
     context?: string,
     limit: number = 10,
-  ): Promise<Envelope<MemoryWithRelevance[]>> {
+  ): Promise<Envelope<MemorySummaryWithRelevance[]>> {
     const start = Date.now();
 
     // D-34: Auto-create workspace
@@ -644,7 +653,7 @@ export class MemoryService {
       previousSession ??
       new Date(Date.now() - FIRST_SESSION_FALLBACK_DAYS * 24 * 60 * 60 * 1000);
 
-    let result: Envelope<MemoryWithRelevance[]>;
+    let result: Envelope<MemorySummaryWithRelevance[]>;
     if (context) {
       // D-14: With context, use semantic search with composite scoring
       // D-15: Always search both scopes
@@ -667,8 +676,8 @@ export class MemoryService {
       });
 
       // Apply composite scoring with similarity = 1.0 (neutral baseline)
-      const scored: MemoryWithRelevance[] = recentMemories.map((memory) => ({
-        ...memory,
+      const scored: MemorySummaryWithRelevance[] = recentMemories.map((memory) => ({
+        ...toSummary(memory),
         relevance: computeRelevance(
           1.0, // neutral similarity -- recency dominates
           memory.created_at,
@@ -773,16 +782,18 @@ export class MemoryService {
     };
   }
 
-  async list(options: ListOptions): Promise<Envelope<Memory[]>> {
+  async list(options: ListOptions): Promise<Envelope<MemorySummary[]>> {
     const start = Date.now();
 
     const result = await this.memoryRepo.list(options);
 
+    const projected = result.memories.map(toSummary);
+
     const timing = Date.now() - start;
     return {
-      data: result.memories,
+      data: projected,
       meta: {
-        count: result.memories.length,
+        count: projected.length,
         has_more: result.has_more,
         cursor: result.cursor
           ? `${result.cursor.created_at}|${result.cursor.id}`
@@ -825,7 +836,7 @@ export class MemoryService {
     threshold_days: number,
     limit?: number,
     cursor?: { created_at: string; id: string },
-  ): Promise<Envelope<Memory[]>> {
+  ): Promise<Envelope<MemorySummary[]>> {
     const start = Date.now();
 
     const result = await this.memoryRepo.findStale({
@@ -839,11 +850,13 @@ export class MemoryService {
     // D-16: Filter out user-scoped memories not owned by requesting user
     const filtered = result.memories.filter((m) => this.canAccess(m, userId));
 
+    const projected = filtered.map(toSummary);
+
     const timing = Date.now() - start;
     return {
-      data: filtered,
+      data: projected,
       meta: {
-        count: filtered.length,
+        count: projected.length,
         has_more: result.has_more,
         cursor: result.cursor
           ? `${result.cursor.created_at}|${result.cursor.id}`
