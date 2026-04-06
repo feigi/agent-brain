@@ -102,12 +102,12 @@ export function toDetail(memory: Memory): MemoryDetail {
 }
 
 // Slim variants for list endpoints
-// Forward-declared for use in service layer list endpoints (Task 2)
+// Slim list endpoint result with relevance score — used by search and session_start
 export interface MemorySummaryWithRelevance extends MemorySummary {
   relevance: number;
 }
 
-// Forward-declared for use in service layer list endpoints (Task 2)
+// Slim list endpoint result with change classification — used by list_recent
 export interface MemorySummaryWithChangeType extends MemorySummary {
   change_type: ChangeType;
 }
@@ -128,11 +128,6 @@ export interface MemoryGetResponse extends MemoryDetail {
   can_edit: boolean;
   can_archive: boolean;
   can_verify: boolean;
-}
-
-// D-37: Memory with change type for memory_list_recent
-export interface MemoryWithChangeType extends Memory {
-  change_type: ChangeType;
 }
 
 // Input type for creating a memory
