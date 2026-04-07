@@ -39,3 +39,17 @@ export interface FlagWithMemory extends Flag {
     scope: string;
   } | null;
 }
+
+/** Enriched flag for API responses (session_start, consolidate, memory_get). */
+export interface FlagResponse {
+  flag_id: string;
+  flag_type: FlagType;
+  memory: { id: string; title: string; content: string; scope: string };
+  related_memory?: {
+    id: string;
+    title: string;
+    content: string;
+    scope: string;
+  } | null;
+  reason: string;
+}

@@ -1,6 +1,7 @@
 import type { MemoryRepository } from "../repositories/types.js";
 import type { FlagService } from "./flag-service.js";
 import type { AuditService } from "./audit-service.js";
+import type { FlagResponse } from "../types/flag.js";
 import { logger } from "../utils/logger.js";
 
 interface ConsolidationConfig {
@@ -43,7 +44,10 @@ export interface ConsolidationResult {
   archived: number;
   flagged: number;
   errors: number;
+  flags: FlagResponse[];
 }
+
+type SubResult = { flagged: number; errors: number; flags: FlagResponse[] };
 
 export class ConsolidationService {
   constructor(
@@ -55,10 +59,15 @@ export class ConsolidationService {
   ) {}
 
   /**
-   * Run a full consolidation pass. Returns counts of actions taken.
+   * Run a full consolidation pass. Returns counts and enriched flags.
    */
   async run(): Promise<ConsolidationResult> {
-    const result: ConsolidationResult = { archived: 0, flagged: 0, errors: 0 };
+    const result: ConsolidationResult = {
+      archived: 0,
+      flagged: 0,
+      errors: 0,
+      flags: [],
+    };
 
     // Layer 1: Project-scope consistency
     try {
@@ -66,6 +75,7 @@ export class ConsolidationService {
       result.archived += projectResult.archived;
       result.flagged += projectResult.flagged;
       result.errors += projectResult.errors;
+      result.flags.push(...projectResult.flags);
     } catch (error) {
       logger.error("Consolidation Layer 1 (project) failed:", error);
       result.errors++;
@@ -94,6 +104,12 @@ export class ConsolidationService {
           crossResult.errors +
           userResult.errors +
           verifyResult.errors;
+        result.flags.push(
+          ...wsResult.flags,
+          ...crossResult.flags,
+          ...userResult.flags,
+          ...verifyResult.flags,
+        );
       } catch (error) {
         logger.error(
           `Consolidation Layer 2 (workspace ${workspaceId}) failed:`,
@@ -110,7 +126,12 @@ export class ConsolidationService {
     scope: "project" | "workspace",
     workspaceId: string | null,
   ): Promise<ConsolidationResult> {
-    const result: ConsolidationResult = { archived: 0, flagged: 0, errors: 0 };
+    const result: ConsolidationResult = {
+      archived: 0,
+      flagged: 0,
+      errors: 0,
+      flags: [],
+    };
 
     // Get all memories in this scope for content subset check
     const memoriesResult = await this.memoryRepo.list({
@@ -159,6 +180,9 @@ export class ConsolidationService {
         }
       }
     }
+
+    // Build a lookup for enriching flags from pairwise similarity
+    const memoryById = new Map(active.map((m) => [m.id, m]));
 
     // Tier 1b + Tier 2: Pairwise embedding similarity
     const pairs = await this.memoryRepo.findPairwiseSimilar({
@@ -213,7 +237,7 @@ export class ConsolidationService {
           );
           if (alreadyFlagged) continue;
 
-          await this.flagService.createFlag({
+          const flag = await this.flagService.createFlag({
             memoryId: pair.memory_b_id,
             flagType: "duplicate",
             severity: "needs_review",
@@ -223,6 +247,29 @@ export class ConsolidationService {
               reason: `Probable duplicate (similarity ${pair.similarity.toFixed(3)})`,
             },
           });
+          const mem = memoryById.get(pair.memory_b_id);
+          const rel = memoryById.get(pair.memory_a_id);
+          if (mem) {
+            result.flags.push({
+              flag_id: flag.id,
+              flag_type: flag.flag_type,
+              memory: {
+                id: mem.id,
+                title: mem.title,
+                content: mem.content,
+                scope: mem.scope,
+              },
+              related_memory: rel
+                ? {
+                    id: rel.id,
+                    title: rel.title,
+                    content: rel.content,
+                    scope: rel.scope,
+                  }
+                : null,
+              reason: flag.details.reason,
+            });
+          }
           result.flagged++;
         }
       } catch (error) {
@@ -241,11 +288,8 @@ export class ConsolidationService {
     return this.memoryRepo.listDistinctWorkspaces(this.projectId);
   }
 
-  private async crossScopeCheck(
-    workspaceId: string,
-  ): Promise<{ flagged: number; errors: number }> {
-    let flagged = 0;
-    let errors = 0;
+  private async crossScopeCheck(workspaceId: string): Promise<SubResult> {
+    const subResult: SubResult = { flagged: 0, errors: 0, flags: [] };
 
     const wsMemories = await this.memoryRepo.listWithEmbeddings({
       projectId: this.projectId,
@@ -275,7 +319,7 @@ export class ConsolidationService {
           );
           if (alreadyFlagged) continue;
 
-          await this.flagService.createFlag({
+          const flag = await this.flagService.createFlag({
             memoryId: wsMem.id,
             flagType: "superseded",
             severity: "needs_review",
@@ -285,22 +329,36 @@ export class ConsolidationService {
               reason: `Workspace memory may duplicate project memory "${dup.title}" (similarity ${dup.relevance.toFixed(3)})`,
             },
           });
-          flagged++;
+          subResult.flags.push({
+            flag_id: flag.id,
+            flag_type: flag.flag_type,
+            memory: {
+              id: wsMem.id,
+              title: wsMem.title,
+              content: wsMem.content,
+              scope: wsMem.scope,
+            },
+            related_memory: {
+              id: dup.id,
+              title: dup.title,
+              content: "",
+              scope: dup.scope,
+            },
+            reason: flag.details.reason,
+          });
+          subResult.flagged++;
         }
       } catch (error) {
         logger.warn(`Cross-scope check failed for memory ${wsMem.id}:`, error);
-        errors++;
+        subResult.errors++;
       }
     }
 
-    return { flagged, errors };
+    return subResult;
   }
 
-  private async userScopeCheck(
-    workspaceId: string,
-  ): Promise<{ flagged: number; errors: number }> {
-    let flagged = 0;
-    let errors = 0;
+  private async userScopeCheck(workspaceId: string): Promise<SubResult> {
+    const subResult: SubResult = { flagged: 0, errors: 0, flags: [] };
 
     const userMemories = await this.memoryRepo.listWithEmbeddings({
       projectId: this.projectId,
@@ -338,7 +396,7 @@ export class ConsolidationService {
           );
           if (alreadyFlagged) continue;
 
-          await this.flagService.createFlag({
+          const flag = await this.flagService.createFlag({
             memoryId: userMem.id,
             flagType: "superseded",
             severity: "needs_review",
@@ -348,22 +406,38 @@ export class ConsolidationService {
               reason: `User memory may be superseded by ${dup.scope}-scoped memory "${dup.title}" (similarity ${dup.relevance.toFixed(3)})`,
             },
           });
-          flagged++;
+          subResult.flags.push({
+            flag_id: flag.id,
+            flag_type: flag.flag_type,
+            memory: {
+              id: userMem.id,
+              title: userMem.title,
+              content: userMem.content,
+              scope: userMem.scope,
+            },
+            related_memory: {
+              id: dup.id,
+              title: dup.title,
+              content: "",
+              scope: dup.scope,
+            },
+            reason: flag.details.reason,
+          });
+          subResult.flagged++;
         }
       } catch (error) {
         logger.warn(`User scope check failed for memory ${userMem.id}:`, error);
-        errors++;
+        subResult.errors++;
       }
     }
 
-    return { flagged, errors };
+    return subResult;
   }
 
   private async flagVerificationCandidates(
     workspaceId: string,
-  ): Promise<{ flagged: number; errors: number }> {
-    let flagged = 0;
-    let errors = 0;
+  ): Promise<SubResult> {
+    const subResult: SubResult = { flagged: 0, errors: 0, flags: [] };
 
     const threshold = this.config.verifyAfterDays;
     const staleResult = await this.memoryRepo.findStale({
@@ -381,7 +455,7 @@ export class ConsolidationService {
         );
         if (hasOpenVerify) continue;
 
-        await this.flagService.createFlag({
+        const flag = await this.flagService.createFlag({
           memoryId: memory.id,
           flagType: "verify",
           severity: "needs_review",
@@ -389,13 +463,25 @@ export class ConsolidationService {
             reason: `Memory not verified in over ${threshold} days`,
           },
         });
-        flagged++;
+        subResult.flags.push({
+          flag_id: flag.id,
+          flag_type: flag.flag_type,
+          memory: {
+            id: memory.id,
+            title: memory.title,
+            content: memory.content,
+            scope: memory.scope,
+          },
+          related_memory: null,
+          reason: flag.details.reason,
+        });
+        subResult.flagged++;
       } catch (error) {
         logger.warn(`Verify flag failed for memory ${memory.id}:`, error);
-        errors++;
+        subResult.errors++;
       }
     }
 
-    return { flagged, errors };
+    return subResult;
   }
 }

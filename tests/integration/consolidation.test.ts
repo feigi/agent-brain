@@ -339,4 +339,81 @@ describe("end-to-end: create → consolidate → session start → resolve", () 
     );
     expect(remainingVerifyFlags).toHaveLength(0);
   });
+
+  it("consolidation result includes enriched flag details", async () => {
+    // 1. Create a memory and backdate it to trigger verify flag
+    const created = await service.create({
+      workspace_id: "test-ws",
+      content: "stale memory that needs verification",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(created.data);
+
+    const db = getTestDb();
+    await db
+      .update(memories)
+      .set({
+        created_at: new Date("2025-01-01"),
+        updated_at: new Date("2025-01-01"),
+      })
+      .where(eq(memories.id, created.data.id));
+
+    // 2. Run consolidation and check the result includes flags
+    const result = await consolidationService.run();
+    expect(result.flagged).toBeGreaterThanOrEqual(1);
+    expect(result.flags).toBeDefined();
+    expect(result.flags.length).toBeGreaterThanOrEqual(1);
+
+    const verifyFlag = result.flags.find((f) => f.flag_type === "verify");
+    expect(verifyFlag).toBeDefined();
+    expect(verifyFlag!.flag_id).toBeDefined();
+    expect(verifyFlag!.memory.id).toBe(created.data.id);
+    expect(verifyFlag!.memory.content).toContain("stale memory");
+    expect(verifyFlag!.reason).toContain("verified");
+    expect(verifyFlag!.related_memory).toBeNull();
+  });
+
+  it("memory_get returns open flags for the memory", async () => {
+    // 1. Create a memory and backdate it
+    const created = await service.create({
+      workspace_id: "test-ws",
+      content: "flagged memory for get test",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(created.data);
+
+    const db = getTestDb();
+    await db
+      .update(memories)
+      .set({
+        created_at: new Date("2025-01-01"),
+        updated_at: new Date("2025-01-01"),
+      })
+      .where(eq(memories.id, created.data.id));
+
+    // 2. Consolidate to create a verify flag
+    await consolidationService.run();
+
+    // 3. memory_get should include the flag
+    const getResult = await service.getWithComments(created.data.id, "alice");
+    expect(getResult.data.flags).toBeDefined();
+    expect(getResult.data.flags.length).toBeGreaterThanOrEqual(1);
+
+    const verifyFlag = getResult.data.flags.find(
+      (f) => f.flag_type === "verify",
+    );
+    expect(verifyFlag).toBeDefined();
+    expect(verifyFlag!.flag_id).toBeDefined();
+    expect(verifyFlag!.reason).toContain("verified");
+
+    // 4. Resolve the flag, then memory_get should return empty flags
+    await flagRepo.resolve(verifyFlag!.flag_id, "alice", "accepted");
+    const getResult2 = await service.getWithComments(created.data.id, "alice");
+    const remaining = getResult2.data.flags.filter(
+      (f) => f.flag_type === "verify",
+    );
+    expect(remaining).toHaveLength(0);
+  });
 });

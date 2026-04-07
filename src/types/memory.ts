@@ -124,6 +124,17 @@ export interface Comment {
 // D-72, D-63: Enhanced response for memory_get with comments and capability flags
 export interface MemoryGetResponse extends MemoryDetail {
   comments: Comment[];
+  flags: Array<{
+    flag_id: string;
+    flag_type: string;
+    related_memory?: {
+      id: string;
+      title: string;
+      content: string;
+      scope: string;
+    } | null;
+    reason: string;
+  }>;
   can_comment: boolean;
   can_edit: boolean;
   can_archive: boolean;

@@ -12,7 +12,7 @@ export function registerMemoryGet(
     "memory_get",
     {
       description:
-        'Retrieve a specific memory by ID. Returns full details including comments array and capability booleans (can_comment, can_edit, can_archive, can_verify). user_id is required for access control and capability computation. Example: memory_get({ id: "abc123", user_id: "alice" })',
+        'Retrieve a specific memory by ID. Returns full details including comments array, capability booleans (can_comment, can_edit, can_archive, can_verify), and open flags. user_id is required for access control and capability computation. Example: memory_get({ id: "abc123", user_id: "alice" })',
       inputSchema: {
         id: z.string().describe("Memory ID to retrieve"),
         user_id: slugSchema.describe(

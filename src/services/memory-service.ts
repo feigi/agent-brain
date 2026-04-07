@@ -24,6 +24,7 @@ import type {
 } from "../repositories/types.js";
 import type { AuditService } from "./audit-service.js";
 import type { FlagService } from "./flag-service.js";
+import type { FlagResponse } from "../types/flag.js";
 import {
   NotFoundError,
   EmbeddingError,
@@ -297,6 +298,35 @@ export class MemoryService {
       ? await this.commentRepo.findByMemoryId(id)
       : [];
 
+    // Open flags for this memory
+    const flagsList: MemoryGetResponse["flags"] = [];
+    if (this.flagService) {
+      const allFlags = await this.flagService.getFlagsByMemoryId(id);
+      for (const f of allFlags) {
+        if (f.resolved_at) continue;
+        let relatedMem = null;
+        if (f.details.related_memory_id) {
+          const related = await this.memoryRepo.findById(
+            f.details.related_memory_id,
+          );
+          if (related) {
+            relatedMem = {
+              id: related.id,
+              title: related.title,
+              content: related.content,
+              scope: related.scope,
+            };
+          }
+        }
+        flagsList.push({
+          flag_id: f.id,
+          flag_type: f.flag_type,
+          related_memory: relatedMem,
+          reason: f.details.reason,
+        });
+      }
+    }
+
     // D-72: Capability booleans
     const isOwner = memory.author === userId;
     const isShared = memory.scope === "workspace" || memory.scope === "project";
@@ -313,6 +343,7 @@ export class MemoryService {
       data: {
         ...toDetail(memory),
         comments: commentsList,
+        flags: flagsList,
         ...capabilities,
       },
       meta: { timing },
@@ -712,20 +743,7 @@ export class MemoryService {
     }
 
     // Fetch open flags for this workspace (bypass ranking)
-    let flagsData:
-      | Array<{
-          flag_id: string;
-          flag_type: string;
-          memory: { id: string; title: string; content: string; scope: string };
-          related_memory?: {
-            id: string;
-            title: string;
-            content: string;
-            scope: string;
-          } | null;
-          reason: string;
-        }>
-      | undefined;
+    let flagsData: FlagResponse[] | undefined;
 
     if (this.flagService) {
       const openFlags = await this.flagService.getOpenFlags(
@@ -733,7 +751,7 @@ export class MemoryService {
         this.maxFlagsPerSession,
       );
       if (openFlags.length > 0) {
-        const enriched = [];
+        const enriched: FlagResponse[] = [];
         for (const f of openFlags) {
           const mem = await this.memoryRepo.findById(f.memory_id);
           if (!mem) continue; // Memory was archived/deleted since flag was created
