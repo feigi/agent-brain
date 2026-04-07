@@ -6,5 +6,14 @@ export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   eslintConfigPrettier,
-  { ignores: ["node_modules/", "dist/", ".worktrees/", "drizzle/", "bin/"] },
+  {
+    ignores: [
+      "node_modules/",
+      "dist/",
+      ".worktrees/",
+      ".claude/",
+      "drizzle/",
+      "bin/",
+    ],
+  },
 );
