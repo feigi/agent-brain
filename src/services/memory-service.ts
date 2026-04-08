@@ -24,6 +24,7 @@ import type {
 } from "../repositories/types.js";
 import type { AuditService } from "./audit-service.js";
 import type { FlagService } from "./flag-service.js";
+import type { RelationshipService } from "./relationship-service.js";
 import type { FlagResponse } from "../types/flag.js";
 import {
   NotFoundError,
@@ -51,6 +52,7 @@ export class MemoryService {
     private readonly auditService?: AuditService,
     private readonly flagService?: FlagService,
     private readonly maxFlagsPerSession: number = 5,
+    private readonly relationshipService?: RelationshipService,
   ) {}
 
   // D-11: Workspace/Project=shared, User=owner only
@@ -327,6 +329,11 @@ export class MemoryService {
       }
     }
 
+    // Relationships for this memory
+    const relationshipsList = this.relationshipService
+      ? await this.relationshipService.listForMemory(id, "both", userId)
+      : [];
+
     // D-72: Capability booleans
     const isOwner = memory.author === userId;
     const isShared = memory.scope === "workspace" || memory.scope === "project";
@@ -344,6 +351,7 @@ export class MemoryService {
         ...toDetail(memory),
         comments: commentsList,
         flags: flagsList,
+        relationships: relationshipsList,
         ...capabilities,
       },
       meta: { timing },

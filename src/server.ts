@@ -107,6 +107,7 @@ async function main() {
     auditService,
     flagService,
     config.consolidationMaxFlagsPerSession,
+    relationshipService,
   );
 
   // Always create ConsolidationService (used by both scheduler and MCP tool)

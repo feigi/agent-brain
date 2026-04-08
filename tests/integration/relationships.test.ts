@@ -5,6 +5,7 @@ import {
   closeDb,
   assertMemory,
   createTestService,
+  createTestServiceWithRelationships,
 } from "../helpers.js";
 import { DrizzleRelationshipRepository } from "../../src/repositories/relationship-repository.js";
 import { DrizzleWorkspaceRepository } from "../../src/repositories/workspace-repository.js";
@@ -294,5 +295,64 @@ describe("relationship repository", () => {
   it("findBetweenMemories returns empty array for fewer than 2 IDs", async () => {
     const result = await repo.findBetweenMemories("test-project", [sourceId]);
     expect(result).toHaveLength(0);
+  });
+});
+
+describe("memory_get includes relationships", () => {
+  let memoryService: ReturnType<
+    typeof createTestServiceWithRelationships
+  >["memoryService"];
+  let relationshipService: ReturnType<
+    typeof createTestServiceWithRelationships
+  >["relationshipService"];
+
+  beforeEach(async () => {
+    await truncateAll();
+    const services = createTestServiceWithRelationships();
+    memoryService = services.memoryService;
+    relationshipService = services.relationshipService;
+
+    const workspaceRepo = new DrizzleWorkspaceRepository(getTestDb());
+    await workspaceRepo.findOrCreate("test-ws");
+  });
+
+  afterAll(async () => {
+    await closeDb();
+  });
+
+  it("returns relationships in memory_get response", async () => {
+    // Create two memories
+    const sourceResult = await memoryService.create({
+      workspace_id: "test-ws",
+      content: "source memory for relationship test",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(sourceResult.data);
+    const sourceId = sourceResult.data.id;
+
+    const targetResult = await memoryService.create({
+      workspace_id: "test-ws",
+      content: "target memory for relationship test",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(targetResult.data);
+    const targetId = targetResult.data.id;
+
+    // Create a relationship between them
+    await relationshipService.create({
+      sourceId,
+      targetId,
+      type: "overrides",
+      userId: "alice",
+    });
+
+    // Fetch via memory_get
+    const result = await memoryService.getWithComments(sourceId, "alice");
+
+    expect(result.data.relationships).toHaveLength(1);
+    expect(result.data.relationships[0].type).toBe("overrides");
+    expect(result.data.relationships[0].direction).toBe("outgoing");
   });
 });

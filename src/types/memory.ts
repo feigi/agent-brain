@@ -135,6 +135,7 @@ export interface MemoryGetResponse extends MemoryDetail {
     } | null;
     reason: string;
   }>;
+  relationships: import("./relationship.js").RelationshipWithMemory[];
   can_comment: boolean;
   can_edit: boolean;
   can_archive: boolean;
