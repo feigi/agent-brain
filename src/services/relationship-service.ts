@@ -111,12 +111,17 @@ export class RelationshipService {
       this.validateConfidence(input.confidence);
     }
 
-    const source = await this.memoryRepo.findById(input.sourceId);
+    // Use findByIdIncludingArchived so consolidation can link archived memories
+    const source = await this.memoryRepo.findByIdIncludingArchived(
+      input.sourceId,
+    );
     if (!source || source.project_id !== this.projectId) {
       throw new NotFoundError("Memory", input.sourceId);
     }
 
-    const target = await this.memoryRepo.findById(input.targetId);
+    const target = await this.memoryRepo.findByIdIncludingArchived(
+      input.targetId,
+    );
     if (!target || target.project_id !== this.projectId) {
       throw new NotFoundError("Memory", input.targetId);
     }

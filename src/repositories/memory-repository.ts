@@ -124,6 +124,16 @@ export class DrizzleMemoryRepository implements MemoryRepository {
     return result.length > 0 ? rowToMemory(result[0]) : null;
   }
 
+  async findByIdIncludingArchived(id: string): Promise<Memory | null> {
+    const result = await this.db
+      .select(this.memoryColumns())
+      .from(memories)
+      .where(eq(memories.id, id))
+      .limit(1);
+
+    return result.length > 0 ? rowToMemory(result[0]) : null;
+  }
+
   // D-30: Optimistic locking via version check
   async update(
     id: string,
