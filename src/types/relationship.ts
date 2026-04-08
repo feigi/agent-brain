@@ -11,7 +11,18 @@ export const WELL_KNOWN_RELATIONSHIP_TYPES = [
 export type WellKnownRelationshipType =
   (typeof WELL_KNOWN_RELATIONSHIP_TYPES)[number];
 
-type RelationshipType = WellKnownRelationshipType | (string & {});
+export type RelationshipType = WellKnownRelationshipType | (string & {});
+
+export interface CreateRelationshipInput {
+  sourceId: string;
+  targetId: string;
+  type: string;
+  description?: string;
+  /** Value between 0 and 1 inclusive */
+  confidence?: number;
+  userId: string;
+  createdVia?: string;
+}
 
 export interface Relationship {
   id: string;
@@ -49,5 +60,7 @@ export interface RelationshipWithMemory extends Omit<
   "project_id" | "archived_at"
 > {
   direction: "outgoing" | "incoming";
+  /** In listForMemory: the memory on the opposite end from the queried one.
+   *  In listBetweenMemories: always the target memory (source→target canonical direction). */
   related_memory: RelatedMemorySummary;
 }
