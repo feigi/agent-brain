@@ -12,7 +12,7 @@ export function registerMemoryUnrelate(
     "memory_unrelate",
     {
       description:
-        'Remove a relationship between two memories by relationship ID. Example: memory_unrelate({ id: "abc123", user_id: "alice" })',
+        'Remove (soft-delete) a relationship by relationship ID. The relationship is archived and excluded from all queries. Example: memory_unrelate({ id: "abc123", user_id: "alice" })',
       inputSchema: {
         id: z.string().describe("Relationship ID to remove"),
         user_id: slugSchema.describe(

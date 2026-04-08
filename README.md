@@ -300,7 +300,7 @@ AWS_REGION=us-east-1
 | `memory_unrelate`      | Remove (soft-delete) a relationship by relationship ID    |
 | `memory_relationships` | List relationships for a memory                           |
 
-All tools require `workspace_id` and `user_id`. Workspaces are created automatically on first use.
+All tools require `user_id`. Most tools also require `workspace_id` (workspaces are created automatically on first use). The relationship tools (`memory_relate`, `memory_unrelate`, `memory_relationships`) are exceptions — they operate at the project level.
 
 ---
 
