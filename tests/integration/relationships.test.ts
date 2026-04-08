@@ -486,3 +486,87 @@ describe("memory_get includes relationships", () => {
     expect(result.data.relationships[0].direction).toBe("outgoing");
   });
 });
+
+describe("end-to-end: create relationship → get → archive → verify cleanup", () => {
+  let memoryService: ReturnType<
+    typeof createTestServiceWithRelationships
+  >["memoryService"];
+  let relationshipService: ReturnType<
+    typeof createTestServiceWithRelationships
+  >["relationshipService"];
+
+  beforeEach(async () => {
+    await truncateAll();
+    const services = createTestServiceWithRelationships();
+    memoryService = services.memoryService;
+    relationshipService = services.relationshipService;
+
+    const workspaceRepo = new DrizzleWorkspaceRepository(getTestDb());
+    await workspaceRepo.findOrCreate("test-ws");
+  });
+
+  afterAll(async () => {
+    await closeDb();
+  });
+
+  it("full lifecycle", async () => {
+    // 1. Create two memories: one workspace-scoped, one project-scoped
+    const newResult = await memoryService.create({
+      workspace_id: "test-ws",
+      content: "new authoritative decision about caching strategy",
+      type: "decision",
+      author: "alice",
+      scope: "workspace",
+    });
+    assertMemory(newResult.data);
+    const newId = newResult.data.id;
+
+    const oldResult = await memoryService.create({
+      workspace_id: "test-ws",
+      content: "old decision about caching strategy",
+      type: "decision",
+      author: "alice",
+      scope: "project",
+    });
+    assertMemory(oldResult.data);
+    const oldId = oldResult.data.id;
+
+    // 2. Create an "overrides" relationship: new memory overrides old
+    await relationshipService.create({
+      sourceId: newId,
+      targetId: oldId,
+      type: "overrides",
+      description: "New caching decision supersedes old one",
+      userId: "alice",
+    });
+
+    // 3. Verify memory_get includes the relationship
+    const getResult = await memoryService.getWithComments(newId, "alice");
+    expect(getResult.data.relationships).toHaveLength(1);
+    const rel = getResult.data.relationships[0];
+    expect(rel.type).toBe("overrides");
+    expect(rel.direction).toBe("outgoing");
+
+    // 4. Verify session_start includes the relationship in meta
+    const sessionResult = await memoryService.sessionStart("test-ws", "alice");
+    const returnedIds = sessionResult.data.map((m) => m.id);
+    expect(returnedIds).toContain(newId);
+    expect(returnedIds).toContain(oldId);
+    expect(sessionResult.meta.relationships).toBeDefined();
+    const sessionRel = sessionResult.meta.relationships!.find(
+      (r) => r.source_id === newId && r.target_id === oldId,
+    );
+    expect(sessionRel).toBeDefined();
+    expect(sessionRel!.type).toBe("overrides");
+
+    // 5. Archive the source memory → verify relationship is soft-deleted
+    await memoryService.archive(newId, "alice");
+
+    const relsAfterArchive = await relationshipService.listForMemory(
+      oldId,
+      "both",
+      "alice",
+    );
+    expect(relsAfterArchive).toHaveLength(0);
+  });
+});
