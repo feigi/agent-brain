@@ -5,8 +5,11 @@ import {
   integer,
   jsonb,
   index,
+  uniqueIndex,
   vector,
   unique,
+  real,
+  check,
 } from "drizzle-orm/pg-core";
 import { pgEnum } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -211,5 +214,41 @@ export const flags = pgTable(
   (table) => [
     index("flags_memory_id_idx").on(table.memory_id),
     index("flags_severity_resolved_idx").on(table.severity, table.resolved_at),
+  ],
+);
+
+// ── Relationships ────────────────────────────────────────────────
+export const relationships = pgTable(
+  "relationships",
+  {
+    id: text("id").primaryKey(),
+    project_id: text("project_id").notNull(),
+    source_id: text("source_id")
+      .notNull()
+      .references(() => memories.id),
+    target_id: text("target_id")
+      .notNull()
+      .references(() => memories.id),
+    type: text("type").notNull(),
+    description: text("description"),
+    confidence: real("confidence").notNull().default(1.0),
+    created_by: text("created_by").notNull(),
+    source: text("source"),
+    archived_at: timestamp("archived_at", { withTimezone: true }),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("relationships_unique_edge").on(
+      table.project_id,
+      table.source_id,
+      table.target_id,
+      table.type,
+    ),
+    index("relationships_source_idx").on(table.source_id),
+    index("relationships_target_idx").on(table.target_id),
+    index("relationships_project_type_idx").on(table.project_id, table.type),
+    check("relationships_no_self_ref", sql`source_id != target_id`),
   ],
 );
