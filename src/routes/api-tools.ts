@@ -177,7 +177,7 @@ export function createApiToolsRouter(
             description: b.description,
             confidence: b.confidence,
             userId: b.user_id,
-            source: b.source,
+            createdVia: b.created_via,
           });
           res.json(result);
           break;

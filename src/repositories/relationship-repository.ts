@@ -19,7 +19,7 @@ export class DrizzleRelationshipRepository implements RelationshipRepository {
         description: relationship.description,
         confidence: relationship.confidence,
         created_by: relationship.created_by,
-        source: relationship.source,
+        created_via: relationship.created_via,
         archived_at: relationship.archived_at,
         created_at: relationship.created_at,
       })
@@ -132,10 +132,11 @@ export class DrizzleRelationshipRepository implements RelationshipRepository {
     return result.length;
   }
 
-  async deleteById(id: string): Promise<boolean> {
+  async archiveById(id: string): Promise<boolean> {
     const result = await this.db
-      .delete(relationships)
-      .where(eq(relationships.id, id))
+      .update(relationships)
+      .set({ archived_at: sql`now()` })
+      .where(and(eq(relationships.id, id), isNull(relationships.archived_at)))
       .returning({ id: relationships.id });
     return result.length > 0;
   }
