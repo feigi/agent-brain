@@ -8,7 +8,7 @@ import type { Relationship } from "../types/relationship.js";
 export interface ListOptions {
   project_id: string; // deployment project (from server config)
   workspace_id?: string; // optional for project-scope listing (cross-workspace)
-  scope: Array<"workspace" | "user" | "project">; // project-scoped memories are auto-included when any non-project scope is requested
+  scope: Array<"workspace" | "user" | "project">; // non-empty (enforced by Zod .min(1) + runtime guard); project-scoped memories are auto-included when any non-project scope is requested
   user_id?: string;
   type?: string;
   tags?: string[];
@@ -22,7 +22,7 @@ export interface SearchOptions {
   embedding: number[];
   project_id: string; // deployment project
   workspace_id: string; // workspace to search within
-  scope: Array<"workspace" | "user" | "project">;
+  scope: Array<"workspace" | "user" | "project">; // non-empty (enforced by Zod .min(1) + runtime guard); project-scoped memories are auto-included when any non-project scope is requested
   user_id?: string;
   limit?: number;
   min_similarity?: number;

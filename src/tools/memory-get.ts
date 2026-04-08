@@ -12,7 +12,7 @@ export function registerMemoryGet(
     "memory_get",
     {
       description:
-        'Retrieve one or more memories by ID. Returns full details with comment_count, flag_count, and relationship_count. Use the include parameter to get full comments, flags, or relationships arrays instead of counts. With include: ["relationships"], there is no need to call memory_relationships separately. For the common "get all memories" flow: memory_list → memory_get. Example: memory_get({ ids: ["abc123"], user_id: "alice", include: ["comments", "relationships"] })',
+        'Retrieve one or more memories by ID. Returns full details with comment_count, flag_count, and relationship_count. Use the include parameter to get full comments, flags, or relationships arrays instead of counts. With include: ["relationships"], there is no need to call memory_relationships separately (relationships are always fetched in both directions). For the common "get all memories" flow: memory_list → memory_get. IDs that are inaccessible or not found are silently omitted (check meta.omitted). Example: memory_get({ ids: ["abc123"], user_id: "alice", include: ["comments", "relationships"] })',
       inputSchema: {
         ids: z
           .array(z.string().min(1))
