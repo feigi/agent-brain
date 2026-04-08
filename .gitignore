@@ -9,3 +9,10 @@ dist/
 ralph.yml
 .planning
 .claude
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
