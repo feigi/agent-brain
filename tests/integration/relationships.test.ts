@@ -565,7 +565,7 @@ describe("listForMemories — batch anchor query", () => {
     // m3 has 1 relationship (outgoing to m1) — but m1 is also an anchor, so isSourceAnchor wins
     // Total unique: m1→m2 (outgoing), m3→m1 (outgoing from m3 anchor perspective is covered
     // by isSourceAnchor=true for m3; and incoming to m1 anchor but isTargetAnchor&&!isSourceAnchor skips it)
-    expect(results.length).toBeGreaterThanOrEqual(2);
+    expect(results).toHaveLength(2);
 
     const outgoingFromM1 = results.find(
       (r) => r.source_id === m1.id && r.target_id === m2.id,
