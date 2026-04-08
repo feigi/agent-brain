@@ -5,6 +5,7 @@ import type {
   MemoryWithRelevance,
   Comment,
   MemoryGetResponse,
+  MemoryGetManyItem,
   CreateSkipResult,
   MemorySummary,
   MemorySummaryWithRelevance,
@@ -362,6 +363,138 @@ export class MemoryService {
       },
       meta: { timing },
     };
+  }
+
+  // Batch get: retrieve multiple memories by ID with optional include expansions
+  async getMany(
+    ids: string[],
+    userId: string,
+    include?: Array<"comments" | "flags" | "relationships">,
+  ): Promise<Envelope<MemoryGetManyItem[]>> {
+    const start = Date.now();
+
+    const allMemories = await this.memoryRepo.findByIds(ids);
+    const accessible = allMemories.filter(
+      (m) => m.project_id === this.projectId && canAccessMemory(m, userId),
+    );
+
+    const accessibleIds = accessible.map((m) => m.id);
+    const includeSet = new Set(include ?? []);
+
+    // Batch-fetch optional joins
+    let commentsByMemory = new Map<string, Comment[]>();
+    let flagsByMemory = new Map<string, MemoryGetResponse["flags"]>();
+    let relsByMemory = new Map<string, RelationshipWithMemory[]>();
+
+    if (includeSet.has("comments") && this.commentRepo) {
+      const allComments = await this.commentRepo.findByMemoryIds(accessibleIds);
+      commentsByMemory = groupBy(allComments, "memory_id");
+    }
+
+    if (includeSet.has("flags") && this.flagService) {
+      flagsByMemory = await this.batchFetchFlags(accessibleIds);
+    }
+
+    if (includeSet.has("relationships") && this.relationshipService) {
+      relsByMemory = await this.batchFetchRelationships(accessibleIds, userId);
+    }
+
+    const items: MemoryGetManyItem[] = accessible.map((memory) => {
+      const isOwner = memory.author === userId;
+      const isShared =
+        memory.scope === "workspace" || memory.scope === "project";
+
+      const item: MemoryGetManyItem = {
+        ...toDetail(memory),
+        flag_count: memory.flag_count,
+        relationship_count: memory.relationship_count,
+        can_edit: canAccessMemory(memory, userId),
+        can_archive: canAccessMemory(memory, userId),
+        can_verify: canAccessMemory(memory, userId),
+        can_comment: isShared && !isOwner,
+      };
+
+      if (includeSet.has("comments")) {
+        item.comments = commentsByMemory.get(memory.id) ?? [];
+      }
+      if (includeSet.has("flags")) {
+        item.flags = flagsByMemory.get(memory.id) ?? [];
+      }
+      if (includeSet.has("relationships")) {
+        item.relationships = relsByMemory.get(memory.id) ?? [];
+      }
+
+      return item;
+    });
+
+    const timing = Date.now() - start;
+    return { data: items, meta: { count: items.length, timing } };
+  }
+
+  private async batchFetchFlags(
+    memoryIds: string[],
+  ): Promise<Map<string, MemoryGetResponse["flags"]>> {
+    if (!this.flagService) return new Map();
+
+    const allFlags = await this.flagService.findByMemoryIds(memoryIds);
+    const map = new Map<string, MemoryGetResponse["flags"]>();
+
+    for (const f of allFlags) {
+      if (f.resolved_at) continue;
+      let relatedMem = null;
+      if (f.details.related_memory_id) {
+        const related = await this.memoryRepo.findById(
+          f.details.related_memory_id,
+        );
+        if (related) {
+          relatedMem = {
+            id: related.id,
+            title: related.title,
+            content: related.content,
+            scope: related.scope,
+          };
+        }
+      }
+      const entry = {
+        flag_id: f.id,
+        flag_type: f.flag_type,
+        related_memory: relatedMem,
+        reason: f.details.reason,
+      };
+      const arr = map.get(f.memory_id);
+      if (arr) {
+        arr.push(entry);
+      } else {
+        map.set(f.memory_id, [entry]);
+      }
+    }
+    return map;
+  }
+
+  private async batchFetchRelationships(
+    memoryIds: string[],
+    userId: string,
+  ): Promise<Map<string, RelationshipWithMemory[]>> {
+    if (!this.relationshipService) return new Map();
+
+    const map = new Map<string, RelationshipWithMemory[]>();
+    await Promise.all(
+      memoryIds.map(async (id) => {
+        try {
+          const rels = await this.relationshipService!.listForMemory(
+            id,
+            "both",
+            userId,
+          );
+          if (rels.length > 0) {
+            map.set(id, rels);
+          }
+        } catch {
+          // Memory may have been archived between fetch and relationship lookup
+        }
+      }),
+    );
+    return map;
   }
 
   // D-44 through D-50: Add comment to a project memory authored by another user
@@ -935,4 +1068,18 @@ export class MemoryService {
       },
     };
   }
+}
+
+function groupBy<T>(items: T[], key: keyof T & string): Map<string, T[]> {
+  const map = new Map<string, T[]>();
+  for (const item of items) {
+    const k = item[key] as string;
+    const arr = map.get(k);
+    if (arr) {
+      arr.push(item);
+    } else {
+      map.set(k, [item]);
+    }
+  }
+  return map;
 }

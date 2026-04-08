@@ -1,4 +1,4 @@
-import { eq, asc, sql } from "drizzle-orm";
+import { eq, asc, sql, inArray } from "drizzle-orm";
 import type { Database } from "../db/index.js";
 import { comments, memories } from "../db/schema.js";
 import type { Comment } from "../types/memory.js";
@@ -52,6 +52,23 @@ export class DrizzleCommentRepository implements CommentRepository {
       .select()
       .from(comments)
       .where(eq(comments.memory_id, memoryId))
+      .orderBy(asc(comments.created_at));
+
+    return result.map((row) => ({
+      id: row.id,
+      memory_id: row.memory_id,
+      author: row.author,
+      content: row.content,
+      created_at: row.created_at,
+    }));
+  }
+
+  async findByMemoryIds(memoryIds: string[]): Promise<Comment[]> {
+    if (memoryIds.length === 0) return [];
+    const result = await this.db
+      .select()
+      .from(comments)
+      .where(inArray(comments.memory_id, memoryIds))
       .orderBy(asc(comments.created_at));
 
     return result.map((row) => ({

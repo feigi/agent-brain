@@ -12,19 +12,29 @@ export function registerMemoryGet(
     "memory_get",
     {
       description:
-        'Retrieve a specific memory by ID. Returns full details including comments array, capability booleans (can_comment, can_edit, can_archive, can_verify), and open flags. user_id is required for access control and capability computation. Example: memory_get({ id: "abc123", user_id: "alice" })',
+        'Retrieve one or more memories by ID. Returns full details with comment_count, flag_count, and relationship_count. Use the include parameter to get full comments, flags, or relationships arrays instead of counts. With include: ["relationships"], there is no need to call memory_relationships separately. For the common "get all memories" flow: memory_list → memory_get. Example: memory_get({ ids: ["abc123"], user_id: "alice", include: ["comments", "relationships"] })',
       inputSchema: {
-        id: z.string().describe("Memory ID to retrieve"),
+        ids: z
+          .array(z.string().min(1))
+          .min(1)
+          .describe("Memory IDs to retrieve"),
         user_id: slugSchema.describe(
           "User identifier (e.g., 'alice'). Required for access control and capability computation.",
         ),
+        include: z
+          .array(z.enum(["comments", "flags", "relationships"]))
+          .optional()
+          .describe(
+            'Optional: expand these fields to full arrays instead of counts. E.g. ["comments", "relationships"]',
+          ),
       },
     },
     async (params) => {
       return withErrorHandling(async () => {
-        const result = await memoryService.getWithComments(
-          params.id,
+        const result = await memoryService.getMany(
+          params.ids,
           params.user_id,
+          params.include,
         );
         return toolResponse(result);
       });

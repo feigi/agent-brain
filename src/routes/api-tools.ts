@@ -67,7 +67,11 @@ export function createApiToolsRouter(
 
         case "memory_get": {
           const b = body as z.infer<typeof toolSchemas.memory_get>;
-          const result = await memoryService.getWithComments(b.id, b.user_id);
+          const result = await memoryService.getMany(
+            b.ids,
+            b.user_id,
+            b.include,
+          );
           res.json(result);
           break;
         }

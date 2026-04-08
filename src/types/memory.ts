@@ -148,6 +148,30 @@ export interface MemoryGetResponse extends MemoryDetail {
   can_verify: boolean;
 }
 
+// Response type for batch memory_get — detail with counts, optionally expanded joins
+export interface MemoryGetManyItem extends MemoryDetail {
+  flag_count: number;
+  relationship_count: number;
+  can_comment: boolean;
+  can_edit: boolean;
+  can_archive: boolean;
+  can_verify: boolean;
+  // Optional: populated when requested via include parameter
+  comments?: Comment[];
+  flags?: Array<{
+    flag_id: string;
+    flag_type: string;
+    related_memory?: {
+      id: string;
+      title: string;
+      content: string;
+      scope: string;
+    } | null;
+    reason: string;
+  }>;
+  relationships?: import("./relationship.js").RelationshipWithMemory[];
+}
+
 // Input type for creating a memory
 export interface MemoryCreate {
   workspace_id?: string; // optional for project-scoped memories (cross-workspace)
