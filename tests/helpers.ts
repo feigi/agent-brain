@@ -21,6 +21,7 @@ import {
   sessions,
   auditLog,
   flags,
+  relationships,
 } from "../src/db/schema.js";
 import { TEST_DB_URL } from "./global-setup.js";
 
@@ -100,6 +101,7 @@ export function createTestServiceWithFlags(
 /** Truncate all tables between tests (D-64) */
 export async function truncateAll(): Promise<void> {
   const testDb = getTestDb();
+  await testDb.delete(relationships); // FK: references memories
   await testDb.delete(flags); // FK: references memories
   await testDb.delete(auditLog); // FK: references memories
   await testDb.delete(comments); // FK: references memories
