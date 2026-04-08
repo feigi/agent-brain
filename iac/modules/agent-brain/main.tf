@@ -86,16 +86,27 @@ resource "aws_iam_role_policy" "ecr_pull" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "ecr:GetDownloadUrlForLayer",
-        "ecr:BatchGetImage",
-        "ecr:GetAuthorizationToken"
-      ]
-      Resource = "*"
-    }]
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "ecr:GetAuthorizationToken"
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchGetImage"
+        ]
+        Resource = aws_ecr_repository.agent_brain.arn
+      }
+    ]
   })
+}
+
+resource "aws_iam_role_policy_attachment" "ssm" {
+  role       = aws_iam_role.agent_brain.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
 resource "aws_iam_instance_profile" "agent_brain" {
@@ -111,7 +122,6 @@ resource "aws_instance" "agent_brain" {
   subnet_id              = var.subnet_id
   vpc_security_group_ids = [aws_security_group.agent_brain.id]
   iam_instance_profile   = aws_iam_instance_profile.agent_brain.name
-  key_name               = var.key_name
 
   root_block_device {
     volume_size = 10
