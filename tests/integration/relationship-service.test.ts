@@ -139,6 +139,105 @@ describe("RelationshipService", () => {
     });
   });
 
+  describe("createInternal", () => {
+    it("creates relationships across user-scoped memories without access checks", async () => {
+      const memService = createTestService();
+
+      // Create Alice's user-scoped memory
+      const aliceResult = await memService.create({
+        workspace_id: "test-ws",
+        content: "alice's private memory",
+        type: "fact",
+        author: "alice",
+        scope: "user",
+      });
+      assertMemory(aliceResult.data);
+
+      // Create Bob's user-scoped memory
+      const bobResult = await memService.create({
+        workspace_id: "test-ws",
+        content: "bob's private memory",
+        type: "fact",
+        author: "bob",
+        scope: "user",
+      });
+      assertMemory(bobResult.data);
+
+      // createInternal should succeed even though consolidation can't access either user-scoped memory
+      const rel = await service.createInternal({
+        sourceId: aliceResult.data.id,
+        targetId: bobResult.data.id,
+        type: "duplicates",
+        userId: "consolidation",
+        createdVia: "consolidation",
+      });
+
+      expect(rel.id).toBeDefined();
+      expect(rel.source_id).toBe(aliceResult.data.id);
+      expect(rel.target_id).toBe(bobResult.data.id);
+    });
+
+    it("rejects self-referencing", async () => {
+      await expect(
+        service.createInternal({
+          sourceId,
+          targetId: sourceId,
+          type: "duplicates",
+          userId: "consolidation",
+        }),
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it("rejects non-existent memory IDs", async () => {
+      await expect(
+        service.createInternal({
+          sourceId: "non-existent-id",
+          targetId,
+          type: "duplicates",
+          userId: "consolidation",
+        }),
+      ).rejects.toThrow(NotFoundError);
+    });
+
+    it("deduplicates like create", async () => {
+      const first = await service.createInternal({
+        sourceId,
+        targetId,
+        type: "duplicates",
+        userId: "consolidation",
+      });
+      const second = await service.createInternal({
+        sourceId,
+        targetId,
+        type: "duplicates",
+        userId: "consolidation",
+      });
+      expect(second.id).toBe(first.id);
+    });
+
+    it("rejects memories from a different project", async () => {
+      // Create a service scoped to a different project
+      const db = getTestDb();
+      const relationshipRepo = new DrizzleRelationshipRepository(db);
+      const memoryRepo = new DrizzleMemoryRepository(db);
+      const otherProjectService = new RelationshipService(
+        relationshipRepo,
+        memoryRepo,
+        "other-project",
+      );
+
+      // sourceId and targetId belong to "test-project"
+      await expect(
+        otherProjectService.createInternal({
+          sourceId,
+          targetId,
+          type: "duplicates",
+          userId: "consolidation",
+        }),
+      ).rejects.toThrow(NotFoundError);
+    });
+  });
+
   describe("listForMemory", () => {
     it("lists relationships with enriched memory summaries (direction, related_memory)", async () => {
       await service.create({
