@@ -1,0 +1,6 @@
+vpc_id    = "vpc-xxxxxxxxx"
+subnet_id = "subnet-xxxxxxxxx"
+# project_id    = "agent-brain-dev"
+# aws_region    = "us-east-1"
+# instance_type = "t4g.micro"
+# key_name      = "my-key"
