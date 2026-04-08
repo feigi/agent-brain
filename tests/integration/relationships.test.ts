@@ -164,7 +164,7 @@ describe("relationship repository", () => {
   it("soft-deletes relationships when archiveByMemoryId is called", async () => {
     await repo.create(makeRelationship({ id: generateId() }));
 
-    const count = await repo.archiveByMemoryId(sourceId);
+    const count = await repo.archiveByMemoryId(sourceId, "test-project");
     expect(count).toBe(1);
 
     // Should not be visible via findById (soft-deleted)
@@ -186,7 +186,7 @@ describe("relationship repository", () => {
       }),
     );
     // targetId is also a target — archive by targetId
-    const count = await repo.archiveByMemoryId(targetId);
+    const count = await repo.archiveByMemoryId(targetId, "test-project");
     expect(count).toBe(1);
 
     const incoming = await repo.findByMemoryId(

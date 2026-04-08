@@ -16,7 +16,7 @@ export type RelationshipType = WellKnownRelationshipType | (string & {});
 export interface CreateRelationshipInput {
   sourceId: string;
   targetId: string;
-  type: string;
+  type: RelationshipType;
   description?: string;
   /** Value between 0 and 1 inclusive */
   confidence?: number;
