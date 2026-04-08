@@ -4,9 +4,12 @@ import {
   truncateAll,
   closeDb,
   assertMemory,
+  getTestDb,
 } from "../helpers.js";
 import { ValidationError } from "../../src/utils/errors.js";
 import type { MemoryService } from "../../src/services/memory-service.js";
+import { memories } from "../../src/db/schema.js";
+import { eq } from "drizzle-orm";
 
 describe("Memory scoping integration tests", () => {
   let service: MemoryService;
@@ -89,7 +92,7 @@ describe("Memory scoping integration tests", () => {
   });
 
   it("stale memories appear in list_stale", async () => {
-    // Create a memory (verified_at is null by default = stale)
+    // Create a memory and backdate created_at to 31 days ago to simulate staleness
     const { data: createdData } = await service.create({
       workspace_id: "test-project",
       content: "Stale memory that has never been verified",
@@ -97,6 +100,13 @@ describe("Memory scoping integration tests", () => {
       author: "alice",
     });
     assertMemory(createdData);
+
+    const thirtyOneDaysAgo = new Date();
+    thirtyOneDaysAgo.setDate(thirtyOneDaysAgo.getDate() - 31);
+    await getTestDb()
+      .update(memories)
+      .set({ created_at: thirtyOneDaysAgo })
+      .where(eq(memories.id, createdData.id));
 
     const staleResult = await service.listStale("test-project", "alice", 30);
 

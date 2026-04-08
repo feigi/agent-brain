@@ -402,10 +402,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       eq(memories.project_id, options.project_id),
       eq(memories.workspace_id, options.workspace_id),
       isNull(memories.archived_at),
-      or(
-        isNull(memories.verified_at),
-        lt(memories.verified_at, thresholdDate),
-      )!,
+      sql`COALESCE(${memories.verified_at}, ${memories.created_at}) < ${thresholdDate.toISOString()}::timestamptz`,
     ];
 
     // Cursor-based pagination
