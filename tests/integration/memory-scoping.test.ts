@@ -37,7 +37,7 @@ describe("Memory scoping integration tests", () => {
     const result = await service.search(
       "deployment pipelines",
       "project-b",
-      "workspace",
+      ["workspace"],
       "alice",
     );
 
@@ -63,7 +63,7 @@ describe("Memory scoping integration tests", () => {
     const result = await service.search(
       "vim keybindings",
       "project-b",
-      "user",
+      ["user"],
       "alice",
       undefined,
       -1, // negative threshold ensures mock embeddings with any cosine similarity pass through
@@ -131,7 +131,7 @@ describe("Memory scoping integration tests", () => {
     const searchResult = await service.search(
       "ESM imports",
       "workspace-b",
-      "workspace",
+      ["workspace"],
       "bob",
       undefined,
       -1,
@@ -181,7 +181,7 @@ describe("Memory scoping integration tests", () => {
     expect(result.data.scope).toBe("project");
   });
 
-  it("search scope=both includes project-scoped memories", async () => {
+  it("search scope array includes project-scoped memories", async () => {
     // Create workspace-scoped memory
     await service.create({
       workspace_id: "test-project",
@@ -211,7 +211,7 @@ describe("Memory scoping integration tests", () => {
     const result = await service.search(
       "configuration patterns",
       "test-project",
-      "both",
+      ["workspace", "user"],
       "alice",
       undefined,
       -1,

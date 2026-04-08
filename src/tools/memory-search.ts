@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
-import { slugSchema } from "../utils/validation.js";
+import { slugSchema, memoryScopeEnum } from "../utils/validation.js";
 import { toolResponse, withErrorHandling } from "./tool-utils.js";
 
 export function registerMemorySearch(
@@ -12,17 +12,18 @@ export function registerMemorySearch(
     "memory_search",
     {
       description:
-        'Search memories by semantic similarity. Returns ranked results with relevance scores. user_id is required for all searches to enforce scope-based access control. Example: memory_search({ workspace_id: "my-project", query: "database migration patterns", user_id: "alice" })',
+        'Search memories by semantic similarity across one or more scopes. Returns ranked results with relevance scores. user_id is required for all searches to enforce scope-based access control. Example: memory_search({ workspace_id: "my-project", query: "database migration patterns", user_id: "alice", scope: ["workspace", "user"] })',
       inputSchema: {
         workspace_id: slugSchema.describe(
           "Workspace slug to search within (e.g., 'my-project')",
         ),
         query: z.string().describe("Natural language search query"),
         scope: z
-          .enum(["workspace", "user", "both"])
-          .catch("workspace")
+          .array(memoryScopeEnum)
+          .min(1)
+          .catch(["workspace"])
           .describe(
-            "Search scope: 'workspace' (default), 'user' (your memories), or 'both'. Project-scoped memories are always included.",
+            'Scopes to search, e.g. ["workspace", "user"]. Defaults to ["workspace"]. Project-scoped memories are always included.',
           ),
         user_id: slugSchema.describe(
           "User identifier (e.g., 'alice'). Required for access control and user-scope filtering.",

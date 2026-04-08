@@ -43,7 +43,7 @@ describe("Memory search integration tests", () => {
     const result = await service.search(
       "database",
       "test-project",
-      "workspace",
+      ["workspace"],
       "alice",
       undefined,
       -1, // negative threshold ensures mock embeddings with any cosine similarity pass through
@@ -72,7 +72,7 @@ describe("Memory search integration tests", () => {
     const result = await service.search(
       "search content",
       "test-project",
-      "workspace",
+      ["workspace"],
       "alice",
       2,
       -1, // negative threshold ensures mock embeddings with any cosine similarity pass through
@@ -95,7 +95,7 @@ describe("Memory search integration tests", () => {
     const result = await service.search(
       "archived memory search",
       "test-project",
-      "workspace",
+      ["workspace"],
       "alice",
     );
 
@@ -115,7 +115,7 @@ describe("Memory search integration tests", () => {
     const result = await service.search(
       "completely unrelated query xyz",
       "test-project",
-      "workspace",
+      ["workspace"],
       "alice",
       undefined,
       0.99,
@@ -146,7 +146,7 @@ describe("Memory search integration tests", () => {
     const result = await service.search(
       "deployment",
       "test-project",
-      "both",
+      ["workspace", "user"],
       "alice",
       undefined,
       -1, // negative threshold ensures mock embeddings with any cosine similarity pass through
@@ -166,17 +166,45 @@ describe("Memory search integration tests", () => {
   });
 
   it("cross-scope search with both scopes requires user_id (D-09)", async () => {
-    // user_id is now a required parameter -- repository enforces it for scope='both'
+    // user_id is now a required parameter -- repository enforces it for scope=['workspace','user']
     // Passing a valid user_id must work without error
     const result = await service.search(
       "test",
       "test-project",
-      "both",
+      ["workspace", "user"],
       "alice",
       undefined,
       -1,
     );
     expect(result.data).toBeInstanceOf(Array);
+  });
+
+  it("searches across multiple scopes with array", async () => {
+    await service.create({
+      workspace_id: "test-project",
+      content: "Workspace search target multi-scope",
+      type: "fact",
+      author: "alice",
+    });
+
+    await service.create({
+      workspace_id: "test-project",
+      content: "User search target multi-scope",
+      type: "fact",
+      author: "alice",
+      scope: "user",
+    });
+
+    const result = await service.search(
+      "search target multi-scope",
+      "test-project",
+      ["workspace", "user"],
+      "alice",
+      undefined,
+      -1, // negative threshold ensures mock embeddings with any cosine similarity pass through
+    );
+
+    expect(result.data.length).toBe(2);
   });
 
   it("search results include relevance score between 0 and 1", async () => {
@@ -190,7 +218,7 @@ describe("Memory search integration tests", () => {
     const result = await service.search(
       "relevance scores",
       "test-project",
-      "workspace",
+      ["workspace"],
       "alice",
       undefined,
       -1, // negative threshold ensures mock embeddings with any cosine similarity pass through
