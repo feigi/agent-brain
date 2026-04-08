@@ -115,12 +115,16 @@ export class DrizzleRelationshipRepository implements RelationshipRepository {
     return rows as Relationship[];
   }
 
-  async archiveByMemoryId(memoryId: string): Promise<number> {
+  async archiveByMemoryId(
+    memoryId: string,
+    projectId: string,
+  ): Promise<number> {
     const result = await this.db
       .update(relationships)
       .set({ archived_at: sql`now()` })
       .where(
         and(
+          eq(relationships.project_id, projectId),
           or(
             eq(relationships.source_id, memoryId),
             eq(relationships.target_id, memoryId),

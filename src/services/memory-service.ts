@@ -26,12 +26,14 @@ import type { AuditService } from "./audit-service.js";
 import type { FlagService } from "./flag-service.js";
 import type { RelationshipService } from "./relationship-service.js";
 import type { FlagResponse } from "../types/flag.js";
+import type { RelationshipWithMemory } from "../types/relationship.js";
 import {
   NotFoundError,
   EmbeddingError,
   AuthorizationError,
   ValidationError,
 } from "../utils/errors.js";
+import { canAccessMemory } from "../utils/access.js";
 import { generateId } from "../utils/id.js";
 import { logger } from "../utils/logger.js";
 import { computeRelevance, OVER_FETCH_FACTOR } from "../utils/scoring.js";
@@ -55,15 +57,9 @@ export class MemoryService {
     private readonly relationshipService?: RelationshipService,
   ) {}
 
-  // D-11: Workspace/Project=shared, User=owner only
-  private canAccess(memory: Memory, userId: string): boolean {
-    if (memory.scope === "workspace" || memory.scope === "project") return true;
-    return memory.author === userId;
-  }
-
   // D-12: Descriptive error for mutations
   private assertCanModify(memory: Memory, userId: string): void {
-    if (!this.canAccess(memory, userId)) {
+    if (!canAccessMemory(memory, userId)) {
       throw new AuthorizationError(
         "Cannot modify user-scoped memory owned by another user.",
       );
@@ -267,7 +263,7 @@ export class MemoryService {
       throw new NotFoundError("Memory", id);
     }
     // D-17: user-scoped memories return "not found" for non-owners (don't leak existence)
-    if (!this.canAccess(memory, userId)) {
+    if (!canAccessMemory(memory, userId)) {
       throw new NotFoundError("Memory", id);
     }
 
@@ -291,7 +287,7 @@ export class MemoryService {
     }
 
     // D-17: user-scoped memories return not-found for non-owners
-    if (!this.canAccess(memory, userId)) {
+    if (!canAccessMemory(memory, userId)) {
       throw new NotFoundError("Memory", id);
     }
 
@@ -329,9 +325,7 @@ export class MemoryService {
       }
     }
 
-    // Relationships for this memory (best-effort enrichment)
-    let relationshipsList: import("../types/relationship.js").RelationshipWithMemory[] =
-      [];
+    let relationshipsList: RelationshipWithMemory[] = [];
     if (this.relationshipService) {
       try {
         relationshipsList = await this.relationshipService.listForMemory(
@@ -348,9 +342,9 @@ export class MemoryService {
     const isOwner = memory.author === userId;
     const isShared = memory.scope === "workspace" || memory.scope === "project";
     const capabilities = {
-      can_edit: this.canAccess(memory, userId),
-      can_archive: this.canAccess(memory, userId),
-      can_verify: this.canAccess(memory, userId),
+      can_edit: canAccessMemory(memory, userId),
+      can_archive: canAccessMemory(memory, userId),
+      can_verify: canAccessMemory(memory, userId),
       // D-56: no self-comment; user-scoped memories can't have comments (owner blocks self-comment)
       can_comment: isShared && !isOwner,
     };
@@ -889,7 +883,7 @@ export class MemoryService {
       throw new NotFoundError("Memory", id);
     }
     // D-20: project=anyone can verify, user=owner only
-    if (!this.canAccess(existing, userId)) {
+    if (!canAccessMemory(existing, userId)) {
       throw new AuthorizationError(
         "Cannot verify user-scoped memory owned by another user.",
       );
@@ -922,7 +916,7 @@ export class MemoryService {
     });
 
     // D-16: Filter out user-scoped memories not owned by requesting user
-    const filtered = result.memories.filter((m) => this.canAccess(m, userId));
+    const filtered = result.memories.filter((m) => canAccessMemory(m, userId));
 
     const projected = filtered.map(toSummary);
 
