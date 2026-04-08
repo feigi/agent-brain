@@ -240,42 +240,46 @@ export class DrizzleMemoryRepository implements MemoryRepository {
 
     // SCOP-01: workspace scope queries workspace_id
     // SCOP-02: user scope queries author + scope column
-    // SCOP-03: cross-scope ('both') uses OR for workspace + user memories
+    // SCOP-03: array scope uses OR for each requested scope
     // All search modes also include project-scoped memories (cross-workspace)
-    if (options.scope === "workspace") {
-      conditions.push(
-        or(
-          eq(memories.workspace_id, options.workspace_id),
-          eq(memories.scope, "project"),
-        )!,
-      );
-    } else if (options.scope === "user") {
-      if (!options.user_id) {
-        throw new ValidationError("user_id is required for user-scoped search");
-      }
-      conditions.push(
-        or(
-          and(eq(memories.author, options.user_id), eq(memories.scope, "user")),
-          eq(memories.scope, "project"),
-        )!,
-      );
-    } else {
-      // scope === 'both' (D-10: single SQL query with OR)
-      if (!options.user_id) {
-        throw new ValidationError(
-          "user_id is required for cross-scope search (D-09)",
-        );
-      }
-      conditions.push(
-        or(
+    if (options.scope.length === 0) {
+      throw new ValidationError("scope must contain at least one value");
+    }
+    // Build scope conditions from array
+    const scopeConditions: SQL[] = [];
+    for (const s of options.scope) {
+      if (s === "workspace") {
+        scopeConditions.push(
           and(
             eq(memories.workspace_id, options.workspace_id),
             eq(memories.scope, "workspace"),
-          ),
-          and(eq(memories.author, options.user_id), eq(memories.scope, "user")),
-          eq(memories.scope, "project"),
-        )!,
-      );
+          )!,
+        );
+      } else if (s === "user") {
+        if (!options.user_id) {
+          throw new ValidationError(
+            "user_id is required for user-scoped search",
+          );
+        }
+        scopeConditions.push(
+          and(
+            eq(memories.author, options.user_id),
+            eq(memories.scope, "user"),
+          )!,
+        );
+      } else {
+        scopeConditions.push(eq(memories.scope, "project"));
+      }
+    }
+    // Always include project-scoped if any non-project scope requested
+    const hasNonProjectScope = options.scope.some((s) => s !== "project");
+    if (hasNonProjectScope && !options.scope.includes("project")) {
+      scopeConditions.push(eq(memories.scope, "project"));
+    }
+    if (scopeConditions.length === 1) {
+      conditions.push(scopeConditions[0]);
+    } else {
+      conditions.push(or(...scopeConditions)!);
     }
 
     const result = await this.db

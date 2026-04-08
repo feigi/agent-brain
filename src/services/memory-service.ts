@@ -743,7 +743,7 @@ export class MemoryService {
   async search(
     query: string,
     workspace_id: string,
-    scope: "workspace" | "user" | "both",
+    scope: Array<"workspace" | "user" | "project">,
     user_id: string,
     limit?: number,
     min_similarity?: number,
@@ -849,7 +849,7 @@ export class MemoryService {
       result = await this.search(
         context,
         workspaceId,
-        "both",
+        ["workspace", "user"],
         userId,
         limit,
         -1,

@@ -22,7 +22,7 @@ export interface SearchOptions {
   embedding: number[];
   project_id: string; // deployment project
   workspace_id: string; // workspace to search within
-  scope: "workspace" | "user" | "both"; // D-08: 'both' for cross-scope search
+  scope: Array<"workspace" | "user" | "project">;
   user_id?: string;
   limit?: number;
   min_similarity?: number;

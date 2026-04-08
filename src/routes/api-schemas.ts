@@ -52,7 +52,7 @@ export const toolSchemas = {
   memory_search: z.object({
     query: z.string().min(1),
     workspace_id: slugSchema,
-    scope: z.enum(["workspace", "user", "both"]).default("workspace"),
+    scope: z.array(memoryScopeEnum).min(1).default(["workspace"]),
     user_id: slugSchema,
     limit: z.number().int().min(1).max(100).default(10),
     min_similarity: z.number().min(0).max(1).default(0.3),
