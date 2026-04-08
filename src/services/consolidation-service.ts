@@ -2,6 +2,7 @@ import type { MemoryRepository } from "../repositories/types.js";
 import type { FlagService } from "./flag-service.js";
 import type { AuditService } from "./audit-service.js";
 import type { RelationshipService } from "./relationship-service.js";
+import type { CreateRelationshipInput } from "./relationship-service.js";
 import type { FlagResponse } from "../types/flag.js";
 import { logger } from "../utils/logger.js";
 
@@ -59,6 +60,22 @@ export class ConsolidationService {
     private readonly config: ConsolidationConfig,
     private readonly relationshipService?: RelationshipService,
   ) {}
+
+  private async tryCreateRelationship(
+    input: CreateRelationshipInput,
+  ): Promise<string | undefined> {
+    if (!this.relationshipService) return undefined;
+    try {
+      const rel = await this.relationshipService.createInternal(input);
+      return rel.id;
+    } catch (error) {
+      logger.error(
+        `Failed to create ${input.type} relationship ${input.sourceId} → ${input.targetId}:`,
+        error,
+      );
+      return undefined;
+    }
+  }
 
   /**
    * Run a full consolidation pass. Returns counts and enriched flags.
@@ -171,38 +188,29 @@ export class ConsolidationService {
             try {
               await this.relationshipService.archiveByMemoryId(active[i].id);
             } catch (error) {
-              logger.warn(
+              logger.error(
                 `Failed to archive relationships for auto-archived memory ${active[i].id}:`,
                 error,
               );
             }
           }
-          let subsetRelationshipId: string | undefined;
-          if (this.relationshipService) {
-            try {
-              const rel = await this.relationshipService.createInternal({
-                sourceId: active[i].id,
-                targetId: active[j].id,
-                type: "duplicates",
-                confidence: 1.0,
-                userId: "consolidation",
-                createdVia: "consolidation",
-              });
-              subsetRelationshipId = rel.id;
-            } catch (error) {
-              logger.warn(
-                `Failed to create duplicates relationship ${active[i].id} → ${active[j].id}:`,
-                error,
-              );
-            }
-          }
+          const subsetRelationshipId = await this.tryCreateRelationship({
+            sourceId: active[j].id,
+            targetId: active[i].id,
+            type: "duplicates",
+            confidence: 1.0,
+            userId: "consolidation",
+            createdVia: "consolidation",
+          });
           await this.flagService.createFlag({
             memoryId: active[i].id,
             flagType: "duplicate",
             severity: "auto_resolved",
             details: {
               related_memory_id: active[j].id,
-              relationship_id: subsetRelationshipId,
+              ...(subsetRelationshipId
+                ? { relationship_id: subsetRelationshipId }
+                : {}),
               reason: `Auto-archived: content is a subset of memory "${active[j].title}"`,
             },
           });
@@ -253,38 +261,29 @@ export class ConsolidationService {
             try {
               await this.relationshipService.archiveByMemoryId(olderMemoryId);
             } catch (error) {
-              logger.warn(
+              logger.error(
                 `Failed to archive relationships for auto-archived memory ${olderMemoryId}:`,
                 error,
               );
             }
           }
-          let autoArchiveRelationshipId: string | undefined;
-          if (this.relationshipService) {
-            try {
-              const rel = await this.relationshipService.createInternal({
-                sourceId: pair.memory_a_id,
-                targetId: olderMemoryId,
-                type: "duplicates",
-                confidence: pair.similarity,
-                userId: "consolidation",
-                createdVia: "consolidation",
-              });
-              autoArchiveRelationshipId = rel.id;
-            } catch (error) {
-              logger.warn(
-                `Failed to create duplicates relationship ${pair.memory_a_id} → ${olderMemoryId}:`,
-                error,
-              );
-            }
-          }
+          const autoArchiveRelationshipId = await this.tryCreateRelationship({
+            sourceId: pair.memory_a_id,
+            targetId: olderMemoryId,
+            type: "duplicates",
+            confidence: pair.similarity,
+            userId: "consolidation",
+            createdVia: "consolidation",
+          });
           await this.flagService.createFlag({
             memoryId: olderMemoryId,
             flagType: "duplicate",
             severity: "auto_resolved",
             details: {
               related_memory_id: pair.memory_a_id,
-              relationship_id: autoArchiveRelationshipId,
+              ...(autoArchiveRelationshipId
+                ? { relationship_id: autoArchiveRelationshipId }
+                : {}),
               similarity: pair.similarity,
               reason: `Auto-archived: near-exact duplicate (similarity ${pair.similarity.toFixed(3)})`,
             },
@@ -299,32 +298,23 @@ export class ConsolidationService {
           );
           if (alreadyFlagged) continue;
 
-          let flagDupRelationshipId: string | undefined;
-          if (this.relationshipService) {
-            try {
-              const rel = await this.relationshipService.createInternal({
-                sourceId: pair.memory_a_id,
-                targetId: pair.memory_b_id,
-                type: "duplicates",
-                confidence: pair.similarity,
-                userId: "consolidation",
-                createdVia: "consolidation",
-              });
-              flagDupRelationshipId = rel.id;
-            } catch (error) {
-              logger.warn(
-                `Failed to create duplicates relationship ${pair.memory_a_id} → ${pair.memory_b_id}:`,
-                error,
-              );
-            }
-          }
+          const flagDupRelationshipId = await this.tryCreateRelationship({
+            sourceId: pair.memory_a_id,
+            targetId: pair.memory_b_id,
+            type: "duplicates",
+            confidence: pair.similarity,
+            userId: "consolidation",
+            createdVia: "consolidation",
+          });
           const flag = await this.flagService.createFlag({
             memoryId: pair.memory_b_id,
             flagType: "duplicate",
             severity: "needs_review",
             details: {
               related_memory_id: pair.memory_a_id,
-              relationship_id: flagDupRelationshipId,
+              ...(flagDupRelationshipId
+                ? { relationship_id: flagDupRelationshipId }
+                : {}),
               similarity: pair.similarity,
               reason: `Probable duplicate (similarity ${pair.similarity.toFixed(3)})`,
             },
@@ -401,32 +391,23 @@ export class ConsolidationService {
           );
           if (alreadyFlagged) continue;
 
-          let crossScopeRelationshipId: string | undefined;
-          if (this.relationshipService) {
-            try {
-              const rel = await this.relationshipService.createInternal({
-                sourceId: dup.id,
-                targetId: wsMem.id,
-                type: "overrides",
-                confidence: dup.relevance,
-                userId: "consolidation",
-                createdVia: "consolidation",
-              });
-              crossScopeRelationshipId = rel.id;
-            } catch (error) {
-              logger.warn(
-                `Failed to create overrides relationship ${dup.id} → ${wsMem.id}:`,
-                error,
-              );
-            }
-          }
+          const crossScopeRelationshipId = await this.tryCreateRelationship({
+            sourceId: dup.id,
+            targetId: wsMem.id,
+            type: "overrides",
+            confidence: dup.relevance,
+            userId: "consolidation",
+            createdVia: "consolidation",
+          });
           const flag = await this.flagService.createFlag({
             memoryId: wsMem.id,
             flagType: "superseded",
             severity: "needs_review",
             details: {
               related_memory_id: dup.id,
-              relationship_id: crossScopeRelationshipId,
+              ...(crossScopeRelationshipId
+                ? { relationship_id: crossScopeRelationshipId }
+                : {}),
               similarity: dup.relevance,
               reason: `Workspace memory may duplicate project memory "${dup.title}" (similarity ${dup.relevance.toFixed(3)})`,
             },
@@ -498,32 +479,23 @@ export class ConsolidationService {
           );
           if (alreadyFlagged) continue;
 
-          let userScopeRelationshipId: string | undefined;
-          if (this.relationshipService) {
-            try {
-              const rel = await this.relationshipService.createInternal({
-                sourceId: dup.id,
-                targetId: userMem.id,
-                type: "overrides",
-                confidence: dup.relevance,
-                userId: "consolidation",
-                createdVia: "consolidation",
-              });
-              userScopeRelationshipId = rel.id;
-            } catch (error) {
-              logger.warn(
-                `Failed to create overrides relationship ${dup.id} → ${userMem.id}:`,
-                error,
-              );
-            }
-          }
+          const userScopeRelationshipId = await this.tryCreateRelationship({
+            sourceId: dup.id,
+            targetId: userMem.id,
+            type: "overrides",
+            confidence: dup.relevance,
+            userId: "consolidation",
+            createdVia: "consolidation",
+          });
           const flag = await this.flagService.createFlag({
             memoryId: userMem.id,
             flagType: "superseded",
             severity: "needs_review",
             details: {
               related_memory_id: dup.id,
-              relationship_id: userScopeRelationshipId,
+              ...(userScopeRelationshipId
+                ? { relationship_id: userScopeRelationshipId }
+                : {}),
               similarity: dup.relevance,
               reason: `User memory may be superseded by ${dup.scope}-scoped memory "${dup.title}" (similarity ${dup.relevance.toFixed(3)})`,
             },
