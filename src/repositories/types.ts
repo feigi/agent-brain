@@ -200,7 +200,7 @@ export interface RelationshipRepository {
     projectId: string,
     memoryIds: string[],
   ): Promise<Relationship[]>;
-  archiveByMemoryId(memoryId: string): Promise<number>;
+  archiveByMemoryId(memoryId: string, projectId: string): Promise<number>;
   archiveById(id: string): Promise<boolean>;
 }
 
