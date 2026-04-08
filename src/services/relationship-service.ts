@@ -5,22 +5,12 @@ import type {
 import type {
   Relationship,
   RelationshipWithMemory,
+  CreateRelationshipInput,
 } from "../types/relationship.js";
 import type { Memory } from "../types/memory.js";
 import { generateId } from "../utils/id.js";
 import { NotFoundError, ValidationError } from "../utils/errors.js";
 import { logger } from "../utils/logger.js";
-
-export interface CreateRelationshipInput {
-  sourceId: string;
-  targetId: string;
-  type: string;
-  description?: string;
-  /** Value between 0 and 1 inclusive */
-  confidence?: number;
-  userId: string;
-  createdVia?: string;
-}
 
 export class RelationshipService {
   constructor(
