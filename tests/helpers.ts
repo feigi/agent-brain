@@ -9,6 +9,8 @@ import {
 } from "../src/repositories/session-repository.js";
 import { AuditService } from "../src/services/audit-service.js";
 import { FlagService } from "../src/services/flag-service.js";
+import { RelationshipService } from "../src/services/relationship-service.js";
+import { DrizzleRelationshipRepository } from "../src/repositories/relationship-repository.js";
 import { MockEmbeddingProvider } from "../src/providers/embedding/mock.js";
 import { config } from "../src/config.js";
 import { MemoryService } from "../src/services/memory-service.js";
@@ -39,6 +41,7 @@ interface TestServiceOptions {
   flagService?: FlagService;
   withSessions?: boolean;
   maxFlagsPerSession?: number;
+  relationshipService?: RelationshipService;
 }
 
 /** Configurable factory — accepts any combination of optional services */
@@ -66,6 +69,7 @@ export function createTestServiceWith(
     options.auditService,
     options.flagService,
     options.maxFlagsPerSession,
+    options.relationshipService,
   );
 }
 
@@ -96,6 +100,23 @@ export function createTestServiceWithFlags(
     flagService,
     maxFlagsPerSession,
   });
+}
+
+/** Create a test service that includes RelationshipService for memory_get relationship enrichment */
+export function createTestServiceWithRelationships(): {
+  memoryService: MemoryService;
+  relationshipService: RelationshipService;
+} {
+  const testDb = getTestDb();
+  const relationshipRepo = new DrizzleRelationshipRepository(testDb);
+  const memoryRepo = new DrizzleMemoryRepository(testDb);
+  const relationshipService = new RelationshipService(
+    relationshipRepo,
+    memoryRepo,
+    "test-project",
+  );
+  const memoryService = createTestServiceWith({ relationshipService });
+  return { memoryService, relationshipService };
 }
 
 /** Truncate all tables between tests (D-64) */
