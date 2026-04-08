@@ -1,6 +1,7 @@
 import type { MemoryRepository } from "../repositories/types.js";
 import type { FlagService } from "./flag-service.js";
 import type { AuditService } from "./audit-service.js";
+import type { RelationshipService } from "./relationship-service.js";
 import type { FlagResponse } from "../types/flag.js";
 import { logger } from "../utils/logger.js";
 
@@ -56,6 +57,7 @@ export class ConsolidationService {
     private readonly auditService: AuditService,
     private readonly projectId: string,
     private readonly config: ConsolidationConfig,
+    private readonly relationshipService?: RelationshipService,
   ) {}
 
   /**
@@ -165,12 +167,29 @@ export class ConsolidationService {
             "consolidation",
             `Content subset of ${active[j].id}`,
           );
+          let subsetRelationshipId: string | undefined;
+          if (this.relationshipService) {
+            try {
+              const rel = await this.relationshipService.create({
+                sourceId: active[i].id,
+                targetId: active[j].id,
+                type: "duplicates",
+                confidence: 1.0,
+                userId: "consolidation",
+                source: "consolidation",
+              });
+              subsetRelationshipId = rel.id;
+            } catch {
+              /* best-effort */
+            }
+          }
           await this.flagService.createFlag({
             memoryId: active[i].id,
             flagType: "duplicate",
             severity: "auto_resolved",
             details: {
               related_memory_id: active[j].id,
+              relationship_id: subsetRelationshipId,
               reason: `Auto-archived: content is a subset of memory "${active[j].title}"`,
             },
           });
@@ -217,12 +236,29 @@ export class ConsolidationService {
             "consolidation",
             `Near-exact duplicate of ${pair.memory_a_id} (similarity: ${pair.similarity.toFixed(3)})`,
           );
+          let autoArchiveRelationshipId: string | undefined;
+          if (this.relationshipService) {
+            try {
+              const rel = await this.relationshipService.create({
+                sourceId: pair.memory_a_id,
+                targetId: olderMemoryId,
+                type: "duplicates",
+                confidence: pair.similarity,
+                userId: "consolidation",
+                source: "consolidation",
+              });
+              autoArchiveRelationshipId = rel.id;
+            } catch {
+              /* best-effort */
+            }
+          }
           await this.flagService.createFlag({
             memoryId: olderMemoryId,
             flagType: "duplicate",
             severity: "auto_resolved",
             details: {
               related_memory_id: pair.memory_a_id,
+              relationship_id: autoArchiveRelationshipId,
               similarity: pair.similarity,
               reason: `Auto-archived: near-exact duplicate (similarity ${pair.similarity.toFixed(3)})`,
             },
@@ -237,12 +273,29 @@ export class ConsolidationService {
           );
           if (alreadyFlagged) continue;
 
+          let flagDupRelationshipId: string | undefined;
+          if (this.relationshipService) {
+            try {
+              const rel = await this.relationshipService.create({
+                sourceId: pair.memory_a_id,
+                targetId: pair.memory_b_id,
+                type: "duplicates",
+                confidence: pair.similarity,
+                userId: "consolidation",
+                source: "consolidation",
+              });
+              flagDupRelationshipId = rel.id;
+            } catch {
+              /* best-effort */
+            }
+          }
           const flag = await this.flagService.createFlag({
             memoryId: pair.memory_b_id,
             flagType: "duplicate",
             severity: "needs_review",
             details: {
               related_memory_id: pair.memory_a_id,
+              relationship_id: flagDupRelationshipId,
               similarity: pair.similarity,
               reason: `Probable duplicate (similarity ${pair.similarity.toFixed(3)})`,
             },
@@ -319,12 +372,29 @@ export class ConsolidationService {
           );
           if (alreadyFlagged) continue;
 
+          let crossScopeRelationshipId: string | undefined;
+          if (this.relationshipService) {
+            try {
+              const rel = await this.relationshipService.create({
+                sourceId: dup.id,
+                targetId: wsMem.id,
+                type: "overrides",
+                confidence: dup.relevance,
+                userId: "consolidation",
+                source: "consolidation",
+              });
+              crossScopeRelationshipId = rel.id;
+            } catch {
+              /* best-effort */
+            }
+          }
           const flag = await this.flagService.createFlag({
             memoryId: wsMem.id,
             flagType: "superseded",
             severity: "needs_review",
             details: {
               related_memory_id: dup.id,
+              relationship_id: crossScopeRelationshipId,
               similarity: dup.relevance,
               reason: `Workspace memory may duplicate project memory "${dup.title}" (similarity ${dup.relevance.toFixed(3)})`,
             },
@@ -396,12 +466,29 @@ export class ConsolidationService {
           );
           if (alreadyFlagged) continue;
 
+          let userScopeRelationshipId: string | undefined;
+          if (this.relationshipService) {
+            try {
+              const rel = await this.relationshipService.create({
+                sourceId: dup.id,
+                targetId: userMem.id,
+                type: "overrides",
+                confidence: dup.relevance,
+                userId: "consolidation",
+                source: "consolidation",
+              });
+              userScopeRelationshipId = rel.id;
+            } catch {
+              /* best-effort */
+            }
+          }
           const flag = await this.flagService.createFlag({
             memoryId: userMem.id,
             flagType: "superseded",
             severity: "needs_review",
             details: {
               related_memory_id: dup.id,
+              relationship_id: userScopeRelationshipId,
               similarity: dup.relevance,
               reason: `User memory may be superseded by ${dup.scope}-scoped memory "${dup.title}" (similarity ${dup.relevance.toFixed(3)})`,
             },
