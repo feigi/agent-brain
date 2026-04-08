@@ -29,7 +29,7 @@
    # Get the ECR repo URL from Terraform output
    ECR_URL=$(terraform output -raw ecr_repository_url)
 
-   # Login to ECR
+   # Login to ECR (replace region if not using us-east-1)
    aws ecr get-login-password --region us-east-1 \
      | docker login --username AWS --password-stdin $(echo $ECR_URL | cut -d/ -f1)
 
@@ -38,7 +38,7 @@
    docker buildx build --platform linux/arm64 -t $ECR_URL:latest --push .
    ```
 
-4. SSH into the instance and verify:
+4. Connect to the instance and verify:
 
    ```bash
    INSTANCE_ID=$(cd iac/envs/dev && terraform output -raw instance_id)
@@ -54,10 +54,10 @@
 ECR_URL=$(cd iac/envs/dev && terraform output -raw ecr_repository_url)
 docker buildx build --platform linux/arm64 -t $ECR_URL:latest --push .
 
-# SSH in and pull + restart
+# Connect via SSM and pull + restart
 INSTANCE_ID=$(cd iac/envs/dev && terraform output -raw instance_id)
 aws ssm start-session --target $INSTANCE_ID
-# On the instance:
+# On the instance (replace region if not using us-east-1):
 cd /opt/agent-brain
 aws ecr get-login-password --region us-east-1 \
   | docker login --username AWS --password-stdin $(echo $ECR_URL | cut -d/ -f1)
