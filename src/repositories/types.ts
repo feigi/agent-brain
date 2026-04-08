@@ -1,6 +1,7 @@
 import type { Memory, MemoryWithRelevance, Comment } from "../types/memory.js";
 import type { AuditEntry } from "../types/audit.js";
 import type { Flag, FlagResolution, FlagType } from "../types/flag.js";
+import type { Relationship } from "../types/relationship.js";
 
 // INFR-02: Repository interfaces -- abstract storage layer
 
@@ -176,6 +177,29 @@ export interface FlagRepository {
     flagType: FlagType,
     relatedMemoryId?: string,
   ): Promise<boolean>;
+}
+
+export interface RelationshipRepository {
+  create(relationship: Relationship): Promise<Relationship>;
+  findById(id: string): Promise<Relationship | null>;
+  findByMemoryId(
+    projectId: string,
+    memoryId: string,
+    direction: "outgoing" | "incoming" | "both",
+    type?: string,
+  ): Promise<Relationship[]>;
+  findExisting(
+    projectId: string,
+    sourceId: string,
+    targetId: string,
+    type: string,
+  ): Promise<Relationship | null>;
+  findBetweenMemories(
+    projectId: string,
+    memoryIds: string[],
+  ): Promise<Relationship[]>;
+  archiveByMemoryId(memoryId: string): Promise<number>;
+  deleteById(id: string): Promise<boolean>;
 }
 
 export interface RecentActivityOptions {
