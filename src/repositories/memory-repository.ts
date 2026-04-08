@@ -318,8 +318,10 @@ export class DrizzleMemoryRepository implements MemoryRepository {
     // Deployment isolation: always filter by project_id
     conditions.push(eq(memories.project_id, options.project_id));
 
-    // SCOP-01, SCOP-04: Scope-based filtering
     // Scope-based filtering: build OR conditions for each requested scope
+    if (options.scope.length === 0) {
+      throw new ValidationError("scope must contain at least one value");
+    }
     const scopeConditions: SQL[] = [];
     for (const s of options.scope) {
       if (s === "workspace") {
