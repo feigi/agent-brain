@@ -365,6 +365,69 @@ describe("session_start includes relationships between returned memories", () =>
   });
 });
 
+describe("archive soft-deletes relationships", () => {
+  let memoryService: ReturnType<
+    typeof createTestServiceWithRelationships
+  >["memoryService"];
+  let relationshipService: ReturnType<
+    typeof createTestServiceWithRelationships
+  >["relationshipService"];
+
+  beforeEach(async () => {
+    await truncateAll();
+    const services = createTestServiceWithRelationships();
+    memoryService = services.memoryService;
+    relationshipService = services.relationshipService;
+
+    const workspaceRepo = new DrizzleWorkspaceRepository(getTestDb());
+    await workspaceRepo.findOrCreate("test-ws");
+  });
+
+  afterAll(async () => {
+    await closeDb();
+  });
+
+  it("soft-deletes relationships when a memory is archived", async () => {
+    // Create two memories
+    const sourceResult = await memoryService.create({
+      workspace_id: "test-ws",
+      content: "archive test source memory",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(sourceResult.data);
+    const sourceId = sourceResult.data.id;
+
+    const targetResult = await memoryService.create({
+      workspace_id: "test-ws",
+      content: "archive test target memory",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(targetResult.data);
+    const targetId = targetResult.data.id;
+
+    // Create a relationship between them
+    await relationshipService.create({
+      sourceId,
+      targetId,
+      type: "overrides",
+      userId: "alice",
+    });
+
+    // Archive the source memory
+    await memoryService.archive(sourceId, "alice");
+
+    // Verify the relationship is soft-deleted: listForMemory on target returns empty
+    const rels = await relationshipService.listForMemory(
+      targetId,
+      "both",
+      "alice",
+    );
+    expect(rels).toHaveLength(0);
+  });
+});
+
 describe("memory_get includes relationships", () => {
   let memoryService: ReturnType<
     typeof createTestServiceWithRelationships
