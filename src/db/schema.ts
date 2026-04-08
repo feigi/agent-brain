@@ -202,6 +202,7 @@ export const flags = pgTable(
     severity: flagSeverityEnum("severity").notNull(),
     details: jsonb("details").notNull().$type<{
       related_memory_id?: string;
+      relationship_id?: string;
       similarity?: number;
       reason: string;
     }>(),
