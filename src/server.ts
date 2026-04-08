@@ -121,6 +121,7 @@ async function main() {
       flagThreshold: config.consolidationFlagThreshold,
       verifyAfterDays: config.consolidationVerifyAfterDays,
     },
+    relationshipService,
   );
 
   // Initialize consolidation scheduler (opt-in via config)
