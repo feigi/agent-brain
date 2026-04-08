@@ -580,6 +580,12 @@ export class MemoryService {
 
     const archivedCount = await this.memoryRepo.archive(verifiedIds);
 
+    if (this.relationshipService) {
+      for (const id of verifiedIds) {
+        await this.relationshipService.archiveByMemoryId(id);
+      }
+    }
+
     for (const id of verifiedIds) {
       await this.auditService?.logArchive(id, userId);
     }
