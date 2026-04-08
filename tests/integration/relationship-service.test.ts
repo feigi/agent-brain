@@ -236,6 +236,40 @@ describe("RelationshipService", () => {
       await expect(service.remove(rel.id, "alice")).resolves.toBeUndefined();
     });
 
+    it("allows creator to remove relationship when source memory is archived", async () => {
+      const memService = createTestService();
+
+      // Alice creates two workspace memories
+      const s = await memService.create({
+        workspace_id: "test-ws",
+        content: "source that will be archived",
+        type: "fact",
+        author: "alice",
+      });
+      assertMemory(s.data);
+      const t = await memService.create({
+        workspace_id: "test-ws",
+        content: "target memory",
+        type: "fact",
+        author: "alice",
+      });
+      assertMemory(t.data);
+
+      // Alice creates a relationship
+      const rel = await service.create({
+        sourceId: s.data.id,
+        targetId: t.data.id,
+        type: "overrides",
+        userId: "alice",
+      });
+
+      // Archive the source memory
+      await memService.archive([s.data.id], "alice");
+
+      // Alice (creator) should still be able to remove the relationship
+      await expect(service.remove(rel.id, "alice")).resolves.toBeUndefined();
+    });
+
     it("throws NotFoundError when non-source-owner tries to remove non-consolidation relationship", async () => {
       const memService = createTestService();
 

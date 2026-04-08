@@ -156,12 +156,22 @@ export class RelationshipService {
     const source = await this.memoryRepo.findById(relationship.source_id);
     const target = await this.memoryRepo.findById(relationship.target_id);
 
+    const isCreator = relationship.created_by === userId;
     const canEditSource = source && this.canAccess(source, userId);
+    const canEditTarget = target && this.canAccess(target, userId);
     const canEditEitherSide =
       relationship.created_via === "consolidation" &&
-      (canEditSource || (target && this.canAccess(target, userId)));
+      (canEditSource || canEditTarget);
+    // Allow removal if: user can access source, OR user created it,
+    // OR (source is gone and user can access target),
+    // OR (consolidation-created and user can access either side)
+    const canRemove =
+      canEditSource ||
+      isCreator ||
+      (!source && canEditTarget) ||
+      canEditEitherSide;
 
-    if (!canEditSource && !canEditEitherSide) {
+    if (!canRemove) {
       throw new NotFoundError("Relationship", id);
     }
 
