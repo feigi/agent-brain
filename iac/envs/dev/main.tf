@@ -20,7 +20,6 @@ module "agent_brain" {
   project_id    = var.project_id
   aws_region    = var.aws_region
   instance_type = var.instance_type
-  key_name      = var.key_name
 }
 
 output "private_ip" {

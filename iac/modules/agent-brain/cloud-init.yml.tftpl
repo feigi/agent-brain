@@ -67,4 +67,11 @@ runcmd:
   - |
     aws ecr get-login-password --region ${aws_region} \
       | docker login --username AWS --password-stdin ${ecr_url}
-  - cd /opt/agent-brain && docker compose up -d
+  # Retry loop: on first deploy, ECR image may not exist yet (pushed after terraform apply)
+  - |
+    cd /opt/agent-brain
+    for i in $(seq 1 30); do
+      docker compose up -d 2>/dev/null && break
+      echo "Waiting for ECR image... (attempt $i/30)"
+      sleep 30
+    done

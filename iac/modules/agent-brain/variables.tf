@@ -24,9 +24,3 @@ variable "instance_type" {
   type        = string
   default     = "t4g.micro"
 }
-
-variable "key_name" {
-  description = "SSH key pair name for instance access (optional)"
-  type        = string
-  default     = null
-}
