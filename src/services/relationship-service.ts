@@ -35,7 +35,7 @@ export class RelationshipService {
   }
 
   private validateConfidence(confidence: number): void {
-    if (confidence < 0 || confidence > 1) {
+    if (!(confidence >= 0 && confidence <= 1)) {
       throw new ValidationError(
         `Confidence must be between 0 and 1, got ${confidence}`,
       );
