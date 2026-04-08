@@ -319,22 +319,45 @@ export class DrizzleMemoryRepository implements MemoryRepository {
     conditions.push(eq(memories.project_id, options.project_id));
 
     // SCOP-01, SCOP-04: Scope-based filtering
-    if (options.scope === "workspace") {
-      if (!options.workspace_id) {
-        throw new ValidationError(
-          "workspace_id is required for workspace-scoped list",
+    // Scope-based filtering: build OR conditions for each requested scope
+    const scopeConditions: SQL[] = [];
+    for (const s of options.scope) {
+      if (s === "workspace") {
+        if (!options.workspace_id) {
+          throw new ValidationError(
+            "workspace_id is required for workspace-scoped list",
+          );
+        }
+        scopeConditions.push(
+          and(
+            eq(memories.workspace_id, options.workspace_id),
+            eq(memories.scope, "workspace"),
+          )!,
+        );
+      } else if (s === "project") {
+        scopeConditions.push(eq(memories.scope, "project"));
+      } else {
+        // user scope
+        if (!options.user_id) {
+          throw new ValidationError("user_id is required for user-scoped list");
+        }
+        scopeConditions.push(
+          and(
+            eq(memories.author, options.user_id),
+            eq(memories.scope, "user"),
+          )!,
         );
       }
-      conditions.push(eq(memories.workspace_id, options.workspace_id));
-    } else if (options.scope === "project") {
-      // Cross-workspace project scope -- no workspace_id filter
-      conditions.push(eq(memories.scope, "project"));
+    }
+    // Always include project-scoped memories if any non-project scope requested
+    const hasNonProjectScope = options.scope.some((s) => s !== "project");
+    if (hasNonProjectScope && !options.scope.includes("project")) {
+      scopeConditions.push(eq(memories.scope, "project"));
+    }
+    if (scopeConditions.length === 1) {
+      conditions.push(scopeConditions[0]);
     } else {
-      if (!options.user_id) {
-        throw new ValidationError("user_id is required for user-scoped list");
-      }
-      conditions.push(eq(memories.author, options.user_id));
-      conditions.push(eq(memories.scope, "user"));
+      conditions.push(or(...scopeConditions)!);
     }
 
     // D-48: Optional type filter

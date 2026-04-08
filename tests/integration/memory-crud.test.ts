@@ -271,7 +271,7 @@ describe("Memory CRUD integration tests", () => {
     const result = await service.list({
       project_id: "test-project",
       workspace_id: "test-project",
-      scope: "workspace",
+      scope: ["workspace"],
     });
 
     expect(result.data.length).toBe(3);
@@ -303,7 +303,7 @@ describe("Memory CRUD integration tests", () => {
     const result = await service.list({
       project_id: "test-project",
       workspace_id: "test-project",
-      scope: "workspace",
+      scope: ["workspace"],
       type: "decision",
     });
 
@@ -330,7 +330,7 @@ describe("Memory CRUD integration tests", () => {
     const result = await service.list({
       project_id: "test-project",
       workspace_id: "test-project",
-      scope: "workspace",
+      scope: ["workspace"],
       tags: ["deploy"],
     });
 
@@ -386,7 +386,7 @@ describe("Memory CRUD integration tests", () => {
     const page1 = await service.list({
       project_id: "test-project",
       workspace_id: "test-project",
-      scope: "workspace",
+      scope: ["workspace"],
       limit: 2,
     });
     expect(page1.data.length).toBe(2);
@@ -398,7 +398,7 @@ describe("Memory CRUD integration tests", () => {
     const page2 = await service.list({
       project_id: "test-project",
       workspace_id: "test-project",
-      scope: "workspace",
+      scope: ["workspace"],
       limit: 2,
       cursor: { created_at: cursorParts[0], id: cursorParts[1] },
     });
@@ -410,7 +410,7 @@ describe("Memory CRUD integration tests", () => {
     const page3 = await service.list({
       project_id: "test-project",
       workspace_id: "test-project",
-      scope: "workspace",
+      scope: ["workspace"],
       limit: 2,
       cursor: { created_at: cursor2Parts[0], id: cursor2Parts[1] },
     });

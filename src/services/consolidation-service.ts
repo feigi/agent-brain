@@ -201,7 +201,7 @@ export class ConsolidationService {
     const memoriesResult = await this.memoryRepo.list({
       project_id: this.projectId,
       workspace_id: workspaceId ?? undefined,
-      scope,
+      scope: [scope],
       limit: 1000,
     });
 
