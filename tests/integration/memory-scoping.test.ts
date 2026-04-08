@@ -234,6 +234,37 @@ describe("Memory scoping integration tests", () => {
     expect(result.data.scope).toBe("workspace");
   });
 
+  it("lists memories across multiple scopes", async () => {
+    const ws = await service.create({
+      workspace_id: "test-project",
+      content: "Workspace memory for multi-scope test",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(ws.data);
+
+    const user = await service.create({
+      workspace_id: "test-project",
+      content: "User memory for multi-scope test",
+      type: "fact",
+      author: "alice",
+      scope: "user",
+    });
+    assertMemory(user.data);
+
+    const result = await service.list({
+      project_id: "test-project",
+      workspace_id: "test-project",
+      scope: ["workspace", "user"],
+      user_id: "alice",
+    });
+
+    expect(result.data.length).toBe(2);
+    const scopes = result.data.map((m) => m.scope);
+    expect(scopes).toContain("workspace");
+    expect(scopes).toContain("user");
+  });
+
   it("recently verified memories excluded from list_stale", async () => {
     const { data: createdData } = await service.create({
       workspace_id: "test-project",

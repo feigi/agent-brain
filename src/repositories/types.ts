@@ -8,7 +8,7 @@ import type { Relationship } from "../types/relationship.js";
 export interface ListOptions {
   project_id: string; // deployment project (from server config)
   workspace_id?: string; // optional for project-scope listing (cross-workspace)
-  scope: "workspace" | "user" | "project";
+  scope: Array<"workspace" | "user" | "project">;
   user_id?: string;
   type?: string;
   tags?: string[];

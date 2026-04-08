@@ -59,7 +59,7 @@ export const toolSchemas = {
 
   memory_list: z.object({
     workspace_id: slugSchema.optional(),
-    scope: memoryScopeEnum.default("workspace"),
+    scope: z.array(memoryScopeEnum).min(1).default(["workspace"]),
     user_id: slugSchema,
     type: memoryTypeEnum.optional(),
     tags: z.array(z.string()).optional(),
