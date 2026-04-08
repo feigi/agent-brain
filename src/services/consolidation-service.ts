@@ -2,7 +2,7 @@ import type { MemoryRepository } from "../repositories/types.js";
 import type { FlagService } from "./flag-service.js";
 import type { AuditService } from "./audit-service.js";
 import type { RelationshipService } from "./relationship-service.js";
-import type { CreateRelationshipInput } from "./relationship-service.js";
+import type { CreateRelationshipInput } from "../types/relationship.js";
 import type { FlagResponse } from "../types/flag.js";
 import { logger } from "../utils/logger.js";
 
