@@ -54,7 +54,7 @@ export function registerMemoryRelate(
           userId: params.user_id,
           source: params.source,
         });
-        return toolResponse(result);
+        return toolResponse({ data: result, meta: {} });
       });
     },
   );

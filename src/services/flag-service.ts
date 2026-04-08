@@ -15,6 +15,7 @@ interface CreateFlagInput {
   severity: FlagSeverity;
   details: {
     related_memory_id?: string;
+    relationship_id?: string;
     similarity?: number;
     reason: string;
   };

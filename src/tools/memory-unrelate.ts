@@ -23,7 +23,7 @@ export function registerMemoryUnrelate(
     async (params) => {
       return withErrorHandling(async () => {
         await relationshipService.remove(params.id, params.user_id);
-        return toolResponse({ success: true });
+        return toolResponse({ data: { success: true }, meta: {} });
       });
     },
   );
