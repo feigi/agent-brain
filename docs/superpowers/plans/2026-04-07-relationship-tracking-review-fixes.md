@@ -2,335 +2,527 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Address all findings from the 5-agent PR review of the `feature/relationship-tracking` branch before merge.
+**Goal:** Address all 17 findings from the 5-agent PR review of the `feature/relationship-tracking` branch before merge.
 
-**Architecture:** Single fix-up commit on the feature branch. Changes span DB schema (migration + partial index), service layer (access control, error handling, batch loading, logging), type safety improvements, documentation, and tests. All work happens on `feature/relationship-tracking`.
+**Architecture:** All changes are on the `feature/relationship-tracking` branch. Fixes span the service layer (access control, validation, error handling), types (exports, relocation), consolidation (direction consistency, helper extraction), tool descriptions, README, and test coverage.
 
-**Tech Stack:** TypeScript, Drizzle ORM, PostgreSQL, Vitest, Express, Zod
+**Tech Stack:** TypeScript, Vitest, Drizzle ORM, Zod
 
-**Branch:** `feature/relationship-tracking` — all changes are committed as a single fix-up commit at the end.
+**Branch:** `feature/relationship-tracking` (all work happens here)
 
 ---
 
-### Task 1: Database Migration — Partial Unique Index + Rename `source` → `created_via`
+### Task 1: Access control on `listForMemory` anchor memory
 
 **Files:**
 
-- Modify: `src/db/schema.ts` (relationships table definition)
-- Create: new migration file via `npm run db:generate`
+- Modify: `src/services/relationship-service.ts` (`listForMemory` method)
+- Modify: `tests/integration/relationship-service.test.ts`
 
-- [ ] **Step 1: Update the Drizzle schema**
+- [ ] **Step 1: Write the failing test**
 
-In `src/db/schema.ts`, make two changes to the `relationships` table:
-
-1. Rename `source` column to `created_via`
-2. Change the unique index to a partial index (Drizzle supports `sql` expressions in where clauses)
+Add to the `listForMemory access control` describe block in `tests/integration/relationship-service.test.ts`:
 
 ```typescript
-// ── Relationships ────────────────────────────────────────────────
-export const relationships = pgTable(
-  "relationships",
-  {
-    id: text("id").primaryKey(),
-    project_id: text("project_id").notNull(),
-    source_id: text("source_id")
-      .notNull()
-      .references(() => memories.id),
-    target_id: text("target_id")
-      .notNull()
-      .references(() => memories.id),
-    type: text("type").notNull(),
-    description: text("description"),
-    confidence: real("confidence").notNull().default(1.0),
-    created_by: text("created_by").notNull(),
-    created_via: text("created_via"),
-    archived_at: timestamp("archived_at", { withTimezone: true }),
-    created_at: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    uniqueIndex("relationships_unique_active_edge")
-      .on(table.project_id, table.source_id, table.target_id, table.type)
-      .where(sql`archived_at IS NULL`),
-    index("relationships_source_idx").on(table.source_id),
-    index("relationships_target_idx").on(table.target_id),
-    index("relationships_project_type_idx").on(table.project_id, table.type),
-    check("relationships_no_self_ref", sql`source_id != target_id`),
-  ],
-);
+it("throws NotFoundError when querying another user's user-scoped memory", async () => {
+  const memService = createTestService();
+
+  // Create Bob's user-scoped memory
+  const bobResult = await memService.create({
+    workspace_id: "test-ws",
+    content: "bob's private memory",
+    type: "fact",
+    author: "bob",
+    scope: "user",
+  });
+  assertMemory(bobResult.data);
+
+  // Alice tries to list relationships for Bob's private memory
+  await expect(
+    service.listForMemory(bobResult.data.id, "both", "alice"),
+  ).rejects.toThrow(NotFoundError);
+});
 ```
 
-- [ ] **Step 2: Generate the migration**
+- [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm run db:generate`
-Expected: A new migration file in `drizzle/` that drops the old unique index, renames `source` to `created_via`, and creates the new partial unique index.
+Run: `npm test -- --grep "throws NotFoundError when querying another user"`
+Expected: FAIL — currently returns empty array instead of throwing
 
-- [ ] **Step 3: Review the generated migration SQL**
+- [ ] **Step 3: Write minimal implementation**
 
-Verify it contains:
+In `src/services/relationship-service.ts`, add access control check at the start of `listForMemory`:
 
-- `ALTER TABLE "relationships" RENAME COLUMN "source" TO "created_via"`
-- `DROP INDEX "relationships_unique_edge"`
-- `CREATE UNIQUE INDEX "relationships_unique_active_edge" ON "relationships" (...) WHERE archived_at IS NULL`
+```typescript
+async listForMemory(
+  memoryId: string,
+  direction: "outgoing" | "incoming" | "both",
+  userId: string,
+  type?: string,
+): Promise<RelationshipWithMemory[]> {
+  // Validate the requesting user can access the anchor memory
+  const anchorMemory = await this.memoryRepo.findById(memoryId);
+  if (
+    !anchorMemory ||
+    anchorMemory.project_id !== this.projectId ||
+    !this.canAccess(anchorMemory, userId)
+  ) {
+    throw new NotFoundError("Memory", memoryId);
+  }
 
-If the generated SQL doesn't look right (Drizzle may not handle partial indexes perfectly), hand-edit the migration SQL.
+  const relationships = await this.relationshipRepo.findByMemoryId(
+  // ... rest unchanged
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `npm test -- --grep "throws NotFoundError when querying another user"`
+Expected: PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/services/relationship-service.ts tests/integration/relationship-service.test.ts
+git commit -m "fix: add access control check on listForMemory anchor memory"
+```
 
 ---
 
-### Task 2: Type Safety Improvements
+### Task 2: NaN-safe `validateConfidence`
+
+**Files:**
+
+- Modify: `src/services/relationship-service.ts` (`validateConfidence` method)
+- Modify: `tests/integration/relationship-service.test.ts`
+
+- [ ] **Step 1: Write the failing tests**
+
+Add a new describe block in `tests/integration/relationship-service.test.ts`:
+
+```typescript
+describe("confidence validation", () => {
+  it("rejects NaN confidence", async () => {
+    await expect(
+      service.create({
+        sourceId,
+        targetId,
+        type: "overrides",
+        confidence: NaN,
+        userId: "alice",
+      }),
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it("rejects negative confidence", async () => {
+    await expect(
+      service.create({
+        sourceId,
+        targetId,
+        type: "overrides",
+        confidence: -0.1,
+        userId: "alice",
+      }),
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it("rejects confidence above 1", async () => {
+    await expect(
+      service.create({
+        sourceId,
+        targetId,
+        type: "overrides",
+        confidence: 1.1,
+        userId: "alice",
+      }),
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it("accepts confidence of 0", async () => {
+    const rel = await service.create({
+      sourceId,
+      targetId,
+      type: "overrides",
+      confidence: 0,
+      userId: "alice",
+    });
+    expect(rel.confidence).toBe(0);
+  });
+
+  it("accepts confidence of 1", async () => {
+    const rel = await service.create({
+      sourceId,
+      targetId,
+      type: "overrides",
+      confidence: 1,
+      userId: "alice",
+    });
+    expect(rel.confidence).toBe(1);
+  });
+});
+```
+
+- [ ] **Step 2: Run tests to verify NaN test fails**
+
+Run: `npm test -- --grep "rejects NaN confidence"`
+Expected: FAIL — NaN passes the current check
+
+- [ ] **Step 3: Fix `validateConfidence`**
+
+In `src/services/relationship-service.ts`, change:
+
+```typescript
+private validateConfidence(confidence: number): void {
+  if (!(confidence >= 0 && confidence <= 1)) {
+    throw new ValidationError(
+      `Confidence must be between 0 and 1, got ${confidence}`,
+    );
+  }
+}
+```
+
+- [ ] **Step 4: Run all confidence tests**
+
+Run: `npm test -- --grep "confidence validation"`
+Expected: All 5 PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/services/relationship-service.ts tests/integration/relationship-service.test.ts
+git commit -m "fix: reject NaN/Infinity in validateConfidence"
+```
+
+---
+
+### Task 3: Fix `remove` when source memory is archived
+
+**Files:**
+
+- Modify: `src/services/relationship-service.ts` (`remove` method)
+- Modify: `tests/integration/relationship-service.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+Add to the `remove` describe block:
+
+```typescript
+it("allows creator to remove relationship when source memory is archived", async () => {
+  const memService = createTestService();
+
+  // Alice creates two workspace memories
+  const s = await memService.create({
+    workspace_id: "test-ws",
+    content: "source that will be archived",
+    type: "fact",
+    author: "alice",
+  });
+  assertMemory(s.data);
+  const t = await memService.create({
+    workspace_id: "test-ws",
+    content: "target memory",
+    type: "fact",
+    author: "alice",
+  });
+  assertMemory(t.data);
+
+  // Alice creates a relationship
+  const rel = await service.create({
+    sourceId: s.data.id,
+    targetId: t.data.id,
+    type: "overrides",
+    userId: "alice",
+  });
+
+  // Archive the source memory
+  await memService.archive([s.data.id], "alice");
+
+  // Alice (creator) should still be able to remove the relationship
+  await expect(service.remove(rel.id, "alice")).resolves.toBeUndefined();
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npm test -- --grep "allows creator to remove relationship when source memory is archived"`
+Expected: FAIL — throws NotFoundError because source is archived
+
+- [ ] **Step 3: Fix `remove` method**
+
+In `src/services/relationship-service.ts`, update the `remove` method:
+
+```typescript
+async remove(id: string, userId: string): Promise<void> {
+  const relationship = await this.relationshipRepo.findById(id);
+  if (!relationship) {
+    throw new NotFoundError("Relationship", id);
+  }
+
+  const source = await this.memoryRepo.findById(relationship.source_id);
+  const target = await this.memoryRepo.findById(relationship.target_id);
+
+  const isCreator = relationship.created_by === userId;
+  const canEditSource = source && this.canAccess(source, userId);
+  const canEditTarget = target && this.canAccess(target, userId);
+  const canEditEitherSide =
+    relationship.created_via === "consolidation" &&
+    (canEditSource || canEditTarget);
+  // Allow removal if: user can access source, OR user created it,
+  // OR (source is gone and user can access target),
+  // OR (consolidation-created and user can access either side)
+  const canRemove =
+    canEditSource ||
+    isCreator ||
+    (!source && canEditTarget) ||
+    canEditEitherSide;
+
+  if (!canRemove) {
+    throw new NotFoundError("Relationship", id);
+  }
+
+  await this.relationshipRepo.archiveById(id);
+  logger.debug(`Archived relationship ${id}`);
+}
+```
+
+- [ ] **Step 4: Run tests**
+
+Run: `npm test -- --grep "remove"`
+Expected: All remove tests PASS (including the existing ones)
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/services/relationship-service.ts tests/integration/relationship-service.test.ts
+git commit -m "fix: allow relationship removal when source memory is archived"
+```
+
+---
+
+### Task 4: Extract `tryCreateRelationship` helper + fix log levels and undefined guard
+
+**Files:**
+
+- Modify: `src/services/consolidation-service.ts`
+- Modify: `src/services/memory-service.ts`
+
+- [ ] **Step 1: Add `tryCreateRelationship` helper to `ConsolidationService`**
+
+In `src/services/consolidation-service.ts`, add the import for `CreateRelationshipInput` and the private method:
+
+```typescript
+import type { CreateRelationshipInput } from "./relationship-service.js";
+```
+
+Add below the constructor:
+
+```typescript
+private async tryCreateRelationship(
+  input: CreateRelationshipInput,
+): Promise<string | undefined> {
+  if (!this.relationshipService) return undefined;
+  try {
+    const rel = await this.relationshipService.createInternal(input);
+    return rel.id;
+  } catch (error) {
+    logger.error(
+      `Failed to create ${input.type} relationship ${input.sourceId} → ${input.targetId}:`,
+      error,
+    );
+    return undefined;
+  }
+}
+```
+
+- [ ] **Step 2: Replace all 6 inline try/catch blocks with helper calls**
+
+Replace each `if (this.relationshipService) { try { ... } catch { ... } }` block in `consolidateScope`, `crossScopeCheck`, and `userScopeCheck` with a single call.
+
+**Content subset (in `consolidateScope`):**
+
+Replace the relationship archiving + creation block with:
+
+```typescript
+if (this.relationshipService) {
+  try {
+    await this.relationshipService.archiveByMemoryId(active[i].id);
+  } catch (error) {
+    logger.error(
+      `Failed to archive relationships for auto-archived memory ${active[i].id}:`,
+      error,
+    );
+  }
+}
+const subsetRelationshipId = await this.tryCreateRelationship({
+  sourceId: active[j].id,
+  targetId: active[i].id,
+  type: "duplicates",
+  confidence: 1.0,
+  userId: "consolidation",
+  createdVia: "consolidation",
+});
+```
+
+Note: `sourceId` is now `active[j].id` (surviving) and `targetId` is `active[i].id` (archived) — this fixes the direction inconsistency (Task 5 overlap).
+
+**Near-exact duplicate auto-archive (in `consolidateScope`):**
+
+Replace the archive + create blocks with:
+
+```typescript
+if (this.relationshipService) {
+  try {
+    await this.relationshipService.archiveByMemoryId(olderMemoryId);
+  } catch (error) {
+    logger.error(
+      `Failed to archive relationships for auto-archived memory ${olderMemoryId}:`,
+      error,
+    );
+  }
+}
+const autoArchiveRelationshipId = await this.tryCreateRelationship({
+  sourceId: pair.memory_a_id,
+  targetId: olderMemoryId,
+  type: "duplicates",
+  confidence: pair.similarity,
+  userId: "consolidation",
+  createdVia: "consolidation",
+});
+```
+
+**Flagged duplicate (in `consolidateScope`):**
+
+```typescript
+const flagDupRelationshipId = await this.tryCreateRelationship({
+  sourceId: pair.memory_a_id,
+  targetId: pair.memory_b_id,
+  type: "duplicates",
+  confidence: pair.similarity,
+  userId: "consolidation",
+  createdVia: "consolidation",
+});
+```
+
+**Cross-scope (in `crossScopeCheck`):**
+
+```typescript
+const crossScopeRelationshipId = await this.tryCreateRelationship({
+  sourceId: dup.id,
+  targetId: wsMem.id,
+  type: "overrides",
+  confidence: dup.relevance,
+  userId: "consolidation",
+  createdVia: "consolidation",
+});
+```
+
+**User-scope (in `userScopeCheck`):**
+
+```typescript
+const userScopeRelationshipId = await this.tryCreateRelationship({
+  sourceId: dup.id,
+  targetId: userMem.id,
+  type: "overrides",
+  confidence: dup.relevance,
+  userId: "consolidation",
+  createdVia: "consolidation",
+});
+```
+
+- [ ] **Step 3: Guard `relationship_id` in all flag details**
+
+In all 5 `createFlag` calls that include `relationship_id`, change from:
+
+```typescript
+relationship_id: someRelationshipId,
+```
+
+to:
+
+```typescript
+...(someRelationshipId ? { relationship_id: someRelationshipId } : {}),
+```
+
+This applies to the subset, auto-archive, flagged-duplicate, cross-scope, and user-scope flag creation calls.
+
+- [ ] **Step 4: Fix `logger.warn` → `logger.error` in `memory-service.ts` archive loop**
+
+In `src/services/memory-service.ts`, change the archive relationship loop (around line 598):
+
+```typescript
+logger.error(`Failed to archive relationships for memory ${id}:`, error);
+```
+
+Keep the `memory_get` and `session_start` relationship catch blocks as `logger.warn` — those are read-path best-effort.
+
+- [ ] **Step 5: Run full test suite**
+
+Run: `npm test`
+Expected: All tests PASS
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/services/consolidation-service.ts src/services/memory-service.ts
+git commit -m "refactor: extract tryCreateRelationship helper, fix log levels and undefined guard"
+```
+
+---
+
+### Task 5: Fix consolidation source/target direction + migration script comment
+
+**Files:**
+
+- Modify: `src/services/consolidation-service.ts` (already done in Task 4 — verify)
+- Modify: `scripts/migrate-flag-relationships.ts`
+
+- [ ] **Step 1: Verify direction fix from Task 4**
+
+The subset detection direction was already fixed in Task 4 Step 2 (first replacement). Verify that the `tryCreateRelationship` call for content subset uses:
+
+- `sourceId: active[j].id` (surviving/larger)
+- `targetId: active[i].id` (archived/smaller)
+
+- [ ] **Step 2: Update migration script comment**
+
+In `scripts/migrate-flag-relationships.ts`, replace lines 14-16:
+
+```typescript
+/**
+ * ...
+ * Source/target convention (consistent across all consolidation cases):
+ *   - source_id = relatedMemoryId (the surviving/dominant memory)
+ *   - target_id = flag.memory_id   (the flagged/superseded memory)
+ */
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add scripts/migrate-flag-relationships.ts
+git commit -m "docs: update migration script comment for consistent source/target convention"
+```
+
+---
+
+### Task 6: Type improvements — export, relocate, document
 
 **Files:**
 
 - Modify: `src/types/relationship.ts`
-- Modify: `src/types/envelope.ts`
-- Modify: `src/types/memory.ts`
-
-- [ ] **Step 1: Rewrite `src/types/relationship.ts`**
-
-```typescript
-import type { MemoryType, MemoryScope } from "./memory.js";
-
-export const WELL_KNOWN_RELATIONSHIP_TYPES = [
-  "overrides",
-  "implements",
-  "refines",
-  "contradicts",
-  "duplicates",
-] as const;
-
-export type WellKnownRelationshipType =
-  (typeof WELL_KNOWN_RELATIONSHIP_TYPES)[number];
-
-/** Value between 0 and 1 inclusive */
-type RelationshipType = WellKnownRelationshipType | (string & {});
-
-export interface Relationship {
-  id: string;
-  project_id: string;
-  source_id: string;
-  target_id: string;
-  /** Well-known types: overrides, implements, refines, contradicts, duplicates. Any string is valid. */
-  type: RelationshipType;
-  description: string | null;
-  /** Value between 0 and 1 inclusive */
-  confidence: number;
-  created_by: string;
-  created_via: string | null;
-  archived_at: Date | null;
-  created_at: Date;
-}
-
-/** Summary of the related memory, included when returning relationships */
-export interface RelatedMemorySummary {
-  id: string;
-  title: string;
-  type: MemoryType;
-  scope: MemoryScope;
-}
-
-/** Subset of Relationship fields for lightweight API responses (e.g. session_start meta) */
-export type RelationshipSummary = Pick<
-  Relationship,
-  "id" | "type" | "description" | "confidence" | "source_id" | "target_id"
->;
-
-/** Relationship enriched with related memory summary for API responses */
-export interface RelationshipWithMemory extends Omit<
-  Relationship,
-  "project_id" | "archived_at"
-> {
-  direction: "outgoing" | "incoming";
-  related_memory: RelatedMemorySummary;
-}
-```
-
-- [ ] **Step 2: Update `src/types/envelope.ts`**
-
-Replace the inline `relationships` type with `RelationshipSummary`:
-
-```typescript
-// D-02: Envelope response structure
-import type { RelationshipSummary } from "./relationship.js";
-
-export interface Envelope<T> {
-  data: T;
-  meta: {
-    count?: number;
-    timing?: number; // ms
-    cursor?: string;
-    has_more?: boolean;
-    team_activity?: {
-      // D-29: session_start only
-      new_memories: number;
-      updated_memories: number;
-      commented_memories: number;
-      since: string; // ISO timestamp
-    };
-    comment_count?: number; // D-67: memory_comment response
-    session_id?: string; // Phase 4: returned from session_start
-    budget?: {
-      // Phase 4: returned from memory_create for autonomous writes
-      used: number;
-      limit: number;
-      exceeded: boolean;
-    };
-    flags?: Array<{
-      flag_id: string;
-      flag_type: string;
-      memory: { id: string; title: string; content: string; scope: string };
-      related_memory?: {
-        id: string;
-        title: string;
-        content: string;
-        scope: string;
-      } | null;
-      reason: string;
-    }>;
-    relationships?: RelationshipSummary[];
-  };
-}
-```
-
-- [ ] **Step 3: Verify TypeScript compiles**
-
-Run: `npx tsc --noEmit`
-Expected: No type errors. The `RelationshipWithMemory` now inherits `type` and `confidence` from `Relationship` via `Omit`, so all downstream usages should still work. Fix any compile errors from the `source` → `created_via` rename (these will be addressed in subsequent tasks but should surface here).
-
----
-
-### Task 3: Repository — Rename `source` → `created_via`, Add `archiveById`, Add `findByIds`
-
-**Files:**
-
-- Modify: `src/repositories/relationship-repository.ts`
-- Modify: `src/repositories/types.ts`
-- Modify: `src/repositories/memory-repository.ts` (add `findByIds`)
-
-- [ ] **Step 1: Update `RelationshipRepository` interface in `src/repositories/types.ts`**
-
-Replace `deleteById` with `archiveById` and add `findByIds` to `MemoryRepository`:
-
-```typescript
-export interface RelationshipRepository {
-  create(relationship: Relationship): Promise<Relationship>;
-  findById(id: string): Promise<Relationship | null>;
-  findByMemoryId(
-    projectId: string,
-    memoryId: string,
-    direction: "outgoing" | "incoming" | "both",
-    type?: string,
-  ): Promise<Relationship[]>;
-  findExisting(
-    projectId: string,
-    sourceId: string,
-    targetId: string,
-    type: string,
-  ): Promise<Relationship | null>;
-  findBetweenMemories(
-    projectId: string,
-    memoryIds: string[],
-  ): Promise<Relationship[]>;
-  archiveByMemoryId(memoryId: string): Promise<number>;
-  archiveById(id: string): Promise<boolean>;
-}
-```
-
-Add to the existing `MemoryRepository` interface (after `findById`):
-
-```typescript
-  findByIds(ids: string[]): Promise<Memory[]>;
-```
-
-- [ ] **Step 2: Update `DrizzleRelationshipRepository` in `src/repositories/relationship-repository.ts`**
-
-Rename all `source` references to `created_via` in the `create` method's `.values()` call. Replace `deleteById` with `archiveById`:
-
-```typescript
-  async archiveById(id: string): Promise<boolean> {
-    const result = await this.db
-      .update(relationships)
-      .set({ archived_at: sql`now()` })
-      .where(and(eq(relationships.id, id), isNull(relationships.archived_at)))
-      .returning({ id: relationships.id });
-    return result.length > 0;
-  }
-```
-
-Remove the old `deleteById` method entirely.
-
-Also update the `create` method to use `created_via` instead of `source`:
-
-```typescript
-  async create(relationship: Relationship): Promise<Relationship> {
-    const [row] = await this.db
-      .insert(relationships)
-      .values({
-        id: relationship.id,
-        project_id: relationship.project_id,
-        source_id: relationship.source_id,
-        target_id: relationship.target_id,
-        type: relationship.type,
-        description: relationship.description,
-        confidence: relationship.confidence,
-        created_by: relationship.created_by,
-        created_via: relationship.created_via,
-        archived_at: relationship.archived_at,
-        created_at: relationship.created_at,
-      })
-      .returning();
-    return row as Relationship;
-  }
-```
-
-- [ ] **Step 3: Add `findByIds` to `DrizzleMemoryRepository` in `src/repositories/memory-repository.ts`**
-
-Add this method to the class:
-
-```typescript
-  async findByIds(ids: string[]): Promise<Memory[]> {
-    if (ids.length === 0) return [];
-    const rows = await this.db
-      .select()
-      .from(memories)
-      .where(
-        and(inArray(memories.id, ids), isNull(memories.archived_at)),
-      );
-    return rows as Memory[];
-  }
-```
-
-Ensure `inArray` is imported from `drizzle-orm` at the top of the file.
-
-- [ ] **Step 4: Verify TypeScript compiles**
-
-Run: `npx tsc --noEmit`
-Expected: Compile errors in service files referencing `deleteById` and `source` — these are fixed in the next task.
-
----
-
-### Task 4: RelationshipService — `createInternal`, Soft-delete, Batch Loading, Logging, Validation
-
-**Files:**
-
 - Modify: `src/services/relationship-service.ts`
+- Modify: `src/services/consolidation-service.ts`
 
-- [ ] **Step 1: Rewrite `src/services/relationship-service.ts`**
+- [ ] **Step 1: Export `RelationshipType` and move `CreateRelationshipInput`**
+
+In `src/types/relationship.ts`, add `export` to the type alias and add the `CreateRelationshipInput` interface:
 
 ```typescript
-import type {
-  RelationshipRepository,
-  MemoryRepository,
-} from "../repositories/types.js";
-import type {
-  Relationship,
-  RelationshipWithMemory,
-} from "../types/relationship.js";
-import type { Memory } from "../types/memory.js";
-import { generateId } from "../utils/id.js";
-import { NotFoundError, ValidationError } from "../utils/errors.js";
-import { logger } from "../utils/logger.js";
+export type RelationshipType = WellKnownRelationshipType | (string & {});
+```
 
+Add `CreateRelationshipInput` after the `Relationship` interface:
+
+```typescript
 export interface CreateRelationshipInput {
   sourceId: string;
   targetId: string;
@@ -341,704 +533,128 @@ export interface CreateRelationshipInput {
   userId: string;
   createdVia?: string;
 }
-
-export class RelationshipService {
-  constructor(
-    private readonly relationshipRepo: RelationshipRepository,
-    private readonly memoryRepo: MemoryRepository,
-    private readonly projectId: string,
-  ) {}
-
-  private canAccess(memory: Memory, userId: string): boolean {
-    if (memory.scope === "workspace" || memory.scope === "project") return true;
-    return memory.author === userId;
-  }
-
-  private validateConfidence(confidence?: number): void {
-    if (confidence !== undefined && (confidence < 0 || confidence > 1)) {
-      throw new ValidationError("Confidence must be between 0 and 1");
-    }
-  }
-
-  private buildRelationship(input: CreateRelationshipInput): Relationship {
-    return {
-      id: generateId(),
-      project_id: this.projectId,
-      source_id: input.sourceId,
-      target_id: input.targetId,
-      type: input.type,
-      description: input.description ?? null,
-      confidence: input.confidence ?? 1.0,
-      created_by: input.userId,
-      created_via: input.createdVia ?? null,
-      archived_at: null,
-      created_at: new Date(),
-    };
-  }
-
-  async create(input: CreateRelationshipInput): Promise<Relationship> {
-    if (input.sourceId === input.targetId) {
-      throw new ValidationError("Source and target must be different memories");
-    }
-    this.validateConfidence(input.confidence);
-
-    const source = await this.memoryRepo.findById(input.sourceId);
-    if (
-      !source ||
-      source.project_id !== this.projectId ||
-      !this.canAccess(source, input.userId)
-    ) {
-      throw new NotFoundError("Memory", input.sourceId);
-    }
-
-    const target = await this.memoryRepo.findById(input.targetId);
-    if (
-      !target ||
-      target.project_id !== this.projectId ||
-      !this.canAccess(target, input.userId)
-    ) {
-      throw new NotFoundError("Memory", input.targetId);
-    }
-
-    const existing = await this.relationshipRepo.findExisting(
-      this.projectId,
-      input.sourceId,
-      input.targetId,
-      input.type,
-    );
-    if (existing) return existing;
-
-    const relationship = this.buildRelationship(input);
-    const created = await this.relationshipRepo.create(relationship);
-    logger.debug(
-      `Created relationship ${created.id} (${created.type}) ${created.source_id} → ${created.target_id}`,
-    );
-    return created;
-  }
-
-  /**
-   * Create a relationship without per-user access control.
-   *
-   * Used by system actors (consolidation engine, migration scripts) that operate
-   * across all memories regardless of scope. The consolidation engine is reachable
-   * via the `memory_consolidate` MCP tool, which already operates without per-user
-   * access control — this method extends that existing privilege model to
-   * relationship creation.
-   *
-   * Still validates: both memories exist, belong to this project, self-ref check, dedup.
-   */
-  async createInternal(input: CreateRelationshipInput): Promise<Relationship> {
-    if (input.sourceId === input.targetId) {
-      throw new ValidationError("Source and target must be different memories");
-    }
-    this.validateConfidence(input.confidence);
-
-    const source = await this.memoryRepo.findById(input.sourceId);
-    if (!source || source.project_id !== this.projectId) {
-      throw new NotFoundError("Memory", input.sourceId);
-    }
-
-    const target = await this.memoryRepo.findById(input.targetId);
-    if (!target || target.project_id !== this.projectId) {
-      throw new NotFoundError("Memory", input.targetId);
-    }
-
-    const existing = await this.relationshipRepo.findExisting(
-      this.projectId,
-      input.sourceId,
-      input.targetId,
-      input.type,
-    );
-    if (existing) return existing;
-
-    const relationship = this.buildRelationship(input);
-    const created = await this.relationshipRepo.create(relationship);
-    logger.debug(
-      `Created relationship ${created.id} (${created.type}) ${created.source_id} → ${created.target_id}`,
-    );
-    return created;
-  }
-
-  async remove(id: string, userId: string): Promise<void> {
-    const relationship = await this.relationshipRepo.findById(id);
-    if (!relationship) {
-      throw new NotFoundError("Relationship", id);
-    }
-
-    const source = await this.memoryRepo.findById(relationship.source_id);
-    const target = await this.memoryRepo.findById(relationship.target_id);
-
-    const canEditSource = source && this.canAccess(source, userId);
-    const canEditEitherSide =
-      relationship.created_via === "consolidation" &&
-      (canEditSource || (target && this.canAccess(target, userId)));
-
-    if (!canEditSource && !canEditEitherSide) {
-      throw new NotFoundError("Relationship", id);
-    }
-
-    await this.relationshipRepo.archiveById(id);
-    logger.debug(`Removed (archived) relationship ${id}`);
-  }
-
-  async listForMemory(
-    memoryId: string,
-    direction: "outgoing" | "incoming" | "both",
-    userId: string,
-    type?: string,
-  ): Promise<RelationshipWithMemory[]> {
-    const relationships = await this.relationshipRepo.findByMemoryId(
-      this.projectId,
-      memoryId,
-      direction,
-      type,
-    );
-
-    // Batch-load all related memories
-    const relatedIds = new Set<string>();
-    for (const rel of relationships) {
-      const relatedId =
-        rel.source_id === memoryId ? rel.target_id : rel.source_id;
-      relatedIds.add(relatedId);
-    }
-    const relatedMemories = await this.memoryRepo.findByIds([...relatedIds]);
-    const memoryMap = new Map(relatedMemories.map((m) => [m.id, m]));
-
-    const result: RelationshipWithMemory[] = [];
-    for (const rel of relationships) {
-      const isOutgoing = rel.source_id === memoryId;
-      const relatedId = isOutgoing ? rel.target_id : rel.source_id;
-      const related = memoryMap.get(relatedId);
-      if (!related || !this.canAccess(related, userId)) continue;
-
-      result.push({
-        id: rel.id,
-        source_id: rel.source_id,
-        target_id: rel.target_id,
-        type: rel.type,
-        description: rel.description,
-        confidence: rel.confidence,
-        created_by: rel.created_by,
-        created_via: rel.created_via,
-        direction: isOutgoing ? "outgoing" : "incoming",
-        related_memory: {
-          id: related.id,
-          title: related.title,
-          type: related.type,
-          scope: related.scope,
-        },
-        created_at: rel.created_at,
-      });
-    }
-    return result;
-  }
-
-  async listBetweenMemories(
-    memoryIds: string[],
-    userId: string,
-  ): Promise<RelationshipWithMemory[]> {
-    const relationships = await this.relationshipRepo.findBetweenMemories(
-      this.projectId,
-      memoryIds,
-    );
-
-    // Batch-load all referenced memories
-    const allIds = new Set<string>();
-    for (const rel of relationships) {
-      allIds.add(rel.source_id);
-      allIds.add(rel.target_id);
-    }
-    const allMemories = await this.memoryRepo.findByIds([...allIds]);
-    const memoryMap = new Map(allMemories.map((m) => [m.id, m]));
-
-    const result: RelationshipWithMemory[] = [];
-    for (const rel of relationships) {
-      const source = memoryMap.get(rel.source_id);
-      const target = memoryMap.get(rel.target_id);
-      if (!source || !this.canAccess(source, userId)) continue;
-      if (!target || !this.canAccess(target, userId)) continue;
-
-      // Direction is always "outgoing" — we're showing the graph edge between
-      // session memories, not a per-memory perspective.
-      result.push({
-        id: rel.id,
-        source_id: rel.source_id,
-        target_id: rel.target_id,
-        type: rel.type,
-        description: rel.description,
-        confidence: rel.confidence,
-        created_by: rel.created_by,
-        created_via: rel.created_via,
-        direction: "outgoing",
-        related_memory: {
-          id: target.id,
-          title: target.title,
-          type: target.type,
-          scope: target.scope,
-        },
-        created_at: rel.created_at,
-      });
-    }
-    return result;
-  }
-
-  async archiveByMemoryId(memoryId: string): Promise<number> {
-    const count = await this.relationshipRepo.archiveByMemoryId(memoryId);
-    if (count > 0) {
-      logger.info(`Archived ${count} relationship(s) for memory ${memoryId}`);
-    }
-    return count;
-  }
-}
 ```
 
-- [ ] **Step 2: Verify TypeScript compiles**
+Add JSDoc to `related_memory` in `RelationshipWithMemory`:
 
-Run: `npx tsc --noEmit`
-Expected: Remaining errors in consolidation-service.ts, memory-service.ts, tools, routes, and migration script due to `source` → `createdVia` and `deleteById` → `archiveById` changes. These are addressed in subsequent tasks.
+```typescript
+/** In listForMemory: the memory on the opposite end from the queried one.
+ *  In listBetweenMemories: always the target memory (source→target canonical direction). */
+related_memory: RelatedMemorySummary;
+```
+
+- [ ] **Step 2: Update imports in `relationship-service.ts`**
+
+Remove the `CreateRelationshipInput` interface definition from `src/services/relationship-service.ts`. Update the import:
+
+```typescript
+import type {
+  Relationship,
+  RelationshipWithMemory,
+  CreateRelationshipInput,
+} from "../types/relationship.js";
+```
+
+- [ ] **Step 3: Update import in `consolidation-service.ts`**
+
+Change the import from:
+
+```typescript
+import type { CreateRelationshipInput } from "./relationship-service.js";
+```
+
+to:
+
+```typescript
+import type { CreateRelationshipInput } from "../types/relationship.js";
+```
+
+- [ ] **Step 4: Run tests to verify no regressions**
+
+Run: `npm test`
+Expected: All PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/types/relationship.ts src/services/relationship-service.ts src/services/consolidation-service.ts
+git commit -m "refactor: export RelationshipType, move CreateRelationshipInput to types"
+```
 
 ---
 
-### Task 5: Memory Service — Error Handling + Logging
-
-**Files:**
-
-- Modify: `src/services/memory-service.ts`
-
-- [ ] **Step 1: Wrap relationship loading in `getWithComments` with try-catch**
-
-Find the relationship loading block (around line 332-336) and replace:
-
-```typescript
-// Relationships for this memory
-const relationshipsList = this.relationshipService
-  ? await this.relationshipService.listForMemory(id, "both", userId)
-  : [];
-```
-
-With:
-
-```typescript
-// Relationships for this memory (best-effort enrichment)
-let relationshipsList: import("../types/relationship.js").RelationshipWithMemory[] =
-  [];
-if (this.relationshipService) {
-  try {
-    relationshipsList = await this.relationshipService.listForMemory(
-      id,
-      "both",
-      userId,
-    );
-  } catch (error) {
-    logger.warn(`Failed to load relationships for memory ${id}:`, error);
-  }
-}
-```
-
-- [ ] **Step 2: Wrap relationship loading in `sessionStart` with try-catch**
-
-Find the `listBetweenMemories` block (around line 806-820) and replace:
-
-```typescript
-let relationshipsData: Envelope<
-  MemorySummaryWithRelevance[]
->["meta"]["relationships"];
-if (this.relationshipService && result.data.length >= 2) {
-  const memoryIds = result.data.map((m) => m.id);
-  const rels = await this.relationshipService.listBetweenMemories(
-    memoryIds,
-    userId,
-  );
-  if (rels.length > 0) {
-    relationshipsData = rels.map((r) => ({
-      id: r.id,
-      type: r.type,
-      description: r.description,
-      confidence: r.confidence,
-      source_id: r.source_id,
-      target_id: r.target_id,
-    }));
-  }
-}
-```
-
-With:
-
-```typescript
-let relationshipsData: Envelope<
-  MemorySummaryWithRelevance[]
->["meta"]["relationships"];
-if (this.relationshipService && result.data.length >= 2) {
-  try {
-    const memoryIds = result.data.map((m) => m.id);
-    const rels = await this.relationshipService.listBetweenMemories(
-      memoryIds,
-      userId,
-    );
-    if (rels.length > 0) {
-      relationshipsData = rels.map((r) => ({
-        id: r.id,
-        type: r.type,
-        description: r.description,
-        confidence: r.confidence,
-        source_id: r.source_id,
-        target_id: r.target_id,
-      }));
-    }
-  } catch (error) {
-    logger.warn("Failed to load relationships for session_start:", error);
-  }
-}
-```
-
-- [ ] **Step 3: Wrap relationship archival in `archive` with per-ID try-catch and logging**
-
-Find the archive relationship block (around line 582-586) and replace:
-
-```typescript
-if (this.relationshipService) {
-  for (const id of verifiedIds) {
-    await this.relationshipService.archiveByMemoryId(id);
-  }
-}
-```
-
-With:
-
-```typescript
-if (this.relationshipService) {
-  for (const id of verifiedIds) {
-    try {
-      await this.relationshipService.archiveByMemoryId(id);
-    } catch (error) {
-      logger.warn(`Failed to archive relationships for memory ${id}:`, error);
-    }
-  }
-}
-```
-
-- [ ] **Step 4: Verify TypeScript compiles**
-
-Run: `npx tsc --noEmit`
-Expected: No new errors from this file. The `Envelope` type now uses `RelationshipSummary` which matches the mapped shape.
-
----
-
-### Task 6: Consolidation Service — `createInternal` + Logging + Auto-archive Cascade
-
-**Files:**
-
-- Modify: `src/services/consolidation-service.ts`
-
-- [ ] **Step 1: Switch all 5 relationship creation sites to `createInternal` with logging**
-
-There are 5 identical patterns in consolidation-service.ts. Each looks like:
-
-```typescript
-          if (this.relationshipService) {
-            try {
-              const rel = await this.relationshipService.create({
-                sourceId: ...,
-                targetId: ...,
-                type: "...",
-                confidence: ...,
-                userId: "consolidation",
-                source: "consolidation",
-              });
-              ...RelationshipId = rel.id;
-            } catch {
-              /* best-effort */
-            }
-          }
-```
-
-Replace each with (updating the specific IDs and types for each site):
-
-```typescript
-          if (this.relationshipService) {
-            try {
-              const rel = await this.relationshipService.createInternal({
-                sourceId: ...,
-                targetId: ...,
-                type: "...",
-                confidence: ...,
-                userId: "consolidation",
-                createdVia: "consolidation",
-              });
-              ...RelationshipId = rel.id;
-            } catch (error) {
-              logger.warn(
-                `Failed to create relationship (${type}) ${sourceId} → ${targetId}:`,
-                error,
-              );
-            }
-          }
-```
-
-The 5 sites are:
-
-1. **Subset check** (~line 172): `type: "duplicates"`, `confidence: 1.0`, `sourceId: active[i].id`, `targetId: active[j].id`
-2. **Auto-archive duplicate** (~line 242): `type: "duplicates"`, `confidence: pair.similarity`, `sourceId: pair.memory_a_id`, `targetId: olderMemoryId`
-3. **Flag duplicate** (~line 283): `type: "duplicates"`, `confidence: pair.similarity`, `sourceId: pair.memory_a_id`, `targetId: pair.memory_b_id`
-4. **Cross-scope supersedence** (~line 378): `type: "overrides"`, `confidence: dup.relevance`, `sourceId: dup.id`, `targetId: wsMem.id`
-5. **User-scope supersedence** (~line 472): `type: "overrides"`, `confidence: dup.relevance`, `sourceId: dup.id`, `targetId: userMem.id`
-
-- [ ] **Step 2: Add auto-archive cascade for subset check**
-
-After the `this.memoryRepo.archive([active[i].id])` call in the subset check (~line 166), add:
-
-```typescript
-if (this.relationshipService) {
-  try {
-    await this.relationshipService.archiveByMemoryId(active[i].id);
-  } catch (error) {
-    logger.warn(
-      `Failed to archive relationships for auto-archived memory ${active[i].id}:`,
-      error,
-    );
-  }
-}
-```
-
-- [ ] **Step 3: Add auto-archive cascade for near-exact duplicate**
-
-After the `this.memoryRepo.archive([olderMemoryId])` call in the auto-archive duplicate section (~line 233), add the same pattern:
-
-```typescript
-if (this.relationshipService) {
-  try {
-    await this.relationshipService.archiveByMemoryId(olderMemoryId);
-  } catch (error) {
-    logger.warn(
-      `Failed to archive relationships for auto-archived memory ${olderMemoryId}:`,
-      error,
-    );
-  }
-}
-```
-
-**Note:** The relationship created in Step 1 for this same memory will be immediately archived by this cascade. This is correct — the relationship serves as provenance (it exists in the DB with `archived_at` set), and the flag still references it via `relationship_id`.
-
-- [ ] **Step 4: Verify TypeScript compiles**
-
-Run: `npx tsc --noEmit`
-Expected: No errors from consolidation-service.ts. The `createInternal` method signature matches `create` except for the access control bypass.
-
----
-
-### Task 7: Tools, Routes, Migration Script — Rename `source` → `createdVia`
+### Task 7: Tool descriptions and README fixes
 
 **Files:**
 
 - Modify: `src/tools/memory-relate.ts`
-- Modify: `src/routes/api-tools.ts`
-- Modify: `src/routes/api-schemas.ts`
-- Modify: `scripts/migrate-flag-relationships.ts`
+- Modify: `src/tools/memory-unrelate.ts`
+- Modify: `README.md`
 
-- [ ] **Step 1: Update `memory-relate.ts` MCP tool**
+- [ ] **Step 1: Update `memory_relate` description**
 
-In the `inputSchema`, rename the `source` parameter to `created_via`:
-
-```typescript
-        created_via: z
-          .string()
-          .optional()
-          .describe("System or tool that created this relationship"),
-```
-
-In the handler, update the service call:
+In `src/tools/memory-relate.ts`, change the description to:
 
 ```typescript
-const result = await relationshipService.create({
-  sourceId: params.source_id,
-  targetId: params.target_id,
-  type: params.type,
-  description: params.description,
-  confidence: params.confidence,
-  userId: params.user_id,
-  createdVia: params.created_via,
-});
+description: `Create a directional relationship between two memories. Idempotent: if an identical relationship (same source, target, and type) already exists, returns the existing one. Well-known types: ${wellKnownList}. Any descriptive string is also valid.`,
 ```
 
-- [ ] **Step 2: Update `api-schemas.ts`**
+- [ ] **Step 2: Update `memory_unrelate` description**
 
-In the `memory_relate` schema, rename `source` to `created_via`:
+In `src/tools/memory-unrelate.ts`, change:
 
 ```typescript
-  memory_relate: z.object({
-    source_id: z.string().min(1),
-    target_id: z.string().min(1),
-    type: z.string().min(1).max(64),
-    description: z.string().max(500).optional(),
-    confidence: z.number().min(0).max(1).optional(),
-    user_id: slugSchema,
-    created_via: z.string().optional(),
-  }),
+description:
+  'Remove (soft-delete) a relationship by relationship ID. The relationship is archived and excluded from all queries. Example: memory_unrelate({ id: "abc123", user_id: "alice" })',
 ```
 
-- [ ] **Step 3: Update `api-tools.ts` route handler**
+- [ ] **Step 3: Fix README**
 
-In the `memory_relate` case, update to use `created_via`:
+In `README.md`, change line 303 from:
 
-```typescript
-        case "memory_relate": {
-          const b = body as z.infer<typeof toolSchemas.memory_relate>;
-          const result = await relationshipService.create({
-            sourceId: b.source_id,
-            targetId: b.target_id,
-            type: b.type,
-            description: b.description,
-            confidence: b.confidence,
-            userId: b.user_id,
-            createdVia: b.created_via,
-          });
-          res.json(result);
-          break;
-        }
+```
+All tools require `workspace_id` and `user_id`. Workspaces are created automatically on first use.
 ```
 
-- [ ] **Step 4: Update migration script**
+to:
 
-In `scripts/migrate-flag-relationships.ts`, update the `db.insert(relationships).values()` call to use `created_via` instead of `source`:
-
-```typescript
-await db.insert(relationships).values({
-  id: relId,
-  project_id: flag.project_id,
-  source_id: sourceId,
-  target_id: targetId,
-  type: relType,
-  description: details.reason,
-  confidence: details.similarity ?? 1.0,
-  created_by: "migration",
-  created_via: "consolidation",
-  archived_at: archivedAt,
-  created_at: flag.created_at,
-});
+```
+All tools require `user_id`. Most tools also require `workspace_id` (workspaces are created automatically on first use). The relationship tools (`memory_relate`, `memory_unrelate`, `memory_relationships`) are exceptions — they operate at the project level.
 ```
 
-- [ ] **Step 5: Verify full TypeScript compilation**
+- [ ] **Step 4: Commit**
 
-Run: `npx tsc --noEmit`
-Expected: Clean build with zero errors. All `source` references should now be `created_via` / `createdVia`.
+```bash
+git add src/tools/memory-relate.ts src/tools/memory-unrelate.ts README.md
+git commit -m "docs: fix tool descriptions and README workspace_id claim"
+```
 
 ---
 
-### Task 8: Test Helpers + Existing Test Fixes
-
-**Files:**
-
-- Modify: `tests/helpers.ts`
-- Modify: `tests/integration/relationships.test.ts`
-- Modify: `tests/integration/relationship-service.test.ts`
-- Modify: `tests/integration/consolidation.test.ts`
-
-- [ ] **Step 1: Update test helpers**
-
-No changes needed to the helpers themselves — the `createTestServiceWithRelationships` factory already works. But verify the `truncateAll` order is correct (relationships before memories due to FK).
-
-- [ ] **Step 2: Fix all `source: "..."` references in existing tests**
-
-In `tests/integration/relationships.test.ts`, update the `makeRelationship` helper:
-
-```typescript
-function makeRelationship(overrides: Partial<Relationship> = {}): Relationship {
-  return {
-    id: generateId(),
-    project_id: "test-project",
-    source_id: sourceId,
-    target_id: targetId,
-    type: "overrides",
-    description: null,
-    confidence: 1.0,
-    created_by: "alice",
-    created_via: "manual",
-    archived_at: null,
-    created_at: new Date(),
-    ...overrides,
-  };
-}
-```
-
-In `tests/integration/relationship-service.test.ts`, update the consolidation-sourced relationship test to use `created_via: "consolidation"` instead of `source: "consolidation"`.
-
-- [ ] **Step 3: Run existing tests**
-
-Run: `npm test`
-Expected: All existing tests pass. Fix any remaining `source` → `created_via` references that surface.
-
----
-
-### Task 9: New Tests — Access Control, Filtering, Consolidation
+### Task 8: `createInternal` direct tests
 
 **Files:**
 
 - Modify: `tests/integration/relationship-service.test.ts`
-- Modify: `tests/integration/consolidation.test.ts`
 
-- [ ] **Step 1: Add negative test for `remove()` access control**
+- [ ] **Step 1: Add `createInternal` describe block**
 
-Add to the `remove` describe block in `tests/integration/relationship-service.test.ts`:
-
-```typescript
-it("throws NotFoundError when non-source-owner tries to remove non-consolidation relationship", async () => {
-  const db = getTestDb();
-  const memService = createTestService();
-
-  // Alice creates a user-scoped memory (source)
-  const aliceResult = await memService.create({
-    workspace_id: "test-ws",
-    content: "alice's private memory",
-    type: "fact",
-    author: "alice",
-    scope: "user",
-  });
-  assertMemory(aliceResult.data);
-  const aliceMemoryId = aliceResult.data.id;
-
-  // Bob creates a workspace memory (target — accessible to everyone)
-  const bobResult = await memService.create({
-    workspace_id: "test-ws",
-    content: "workspace memory by bob",
-    type: "fact",
-    author: "bob",
-    scope: "workspace",
-  });
-  assertMemory(bobResult.data);
-  const bobMemoryId = bobResult.data.id;
-
-  // Alice creates a manual relationship (source = her private memory)
-  const rel = await service.create({
-    sourceId: aliceMemoryId,
-    targetId: bobMemoryId,
-    type: "overrides",
-    userId: "alice",
-  });
-
-  // Bob can access the target but NOT the source — should be denied
-  await expect(service.remove(rel.id, "bob")).rejects.toThrow(NotFoundError);
-});
-```
-
-- [ ] **Step 2: Add `listForMemory` access control filtering test**
-
-Add a new describe block in `tests/integration/relationship-service.test.ts`:
+Add after the existing `create` describe block:
 
 ```typescript
-describe("listForMemory access control", () => {
-  it("excludes relationships where related memory is inaccessible", async () => {
+describe("createInternal", () => {
+  it("creates relationships across user-scoped memories without access checks", async () => {
     const memService = createTestService();
 
-    // Create a workspace memory
-    const wsResult = await memService.create({
+    // Create Alice's user-scoped memory
+    const aliceResult = await memService.create({
       workspace_id: "test-ws",
-      content: "workspace memory",
+      content: "alice's private memory",
       type: "fact",
       author: "alice",
-      scope: "workspace",
+      scope: "user",
     });
-    assertMemory(wsResult.data);
-    const wsMemoryId = wsResult.data.id;
+    assertMemory(aliceResult.data);
 
     // Create Bob's user-scoped memory
     const bobResult = await memService.create({
@@ -1049,45 +665,128 @@ describe("listForMemory access control", () => {
       scope: "user",
     });
     assertMemory(bobResult.data);
-    const bobMemoryId = bobResult.data.id;
 
-    // Bob creates a relationship from workspace → his private memory
-    await service.create({
-      sourceId: wsMemoryId,
-      targetId: bobMemoryId,
-      type: "refines",
-      userId: "bob",
+    // createInternal should succeed even though consolidation can't access either user-scoped memory
+    const rel = await service.createInternal({
+      sourceId: aliceResult.data.id,
+      targetId: bobResult.data.id,
+      type: "duplicates",
+      userId: "consolidation",
+      createdVia: "consolidation",
     });
 
-    // Alice lists relationships for the workspace memory — Bob's memory is inaccessible
-    const results = await service.listForMemory(
-      wsMemoryId,
-      "outgoing",
-      "alice",
+    expect(rel.id).toBeDefined();
+    expect(rel.source_id).toBe(aliceResult.data.id);
+    expect(rel.target_id).toBe(bobResult.data.id);
+  });
+
+  it("rejects self-referencing", async () => {
+    await expect(
+      service.createInternal({
+        sourceId,
+        targetId: sourceId,
+        type: "duplicates",
+        userId: "consolidation",
+      }),
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it("rejects non-existent memory IDs", async () => {
+    await expect(
+      service.createInternal({
+        sourceId: "non-existent-id",
+        targetId,
+        type: "duplicates",
+        userId: "consolidation",
+      }),
+    ).rejects.toThrow(NotFoundError);
+  });
+
+  it("deduplicates like create", async () => {
+    const first = await service.createInternal({
+      sourceId,
+      targetId,
+      type: "duplicates",
+      userId: "consolidation",
+    });
+    const second = await service.createInternal({
+      sourceId,
+      targetId,
+      type: "duplicates",
+      userId: "consolidation",
+    });
+    expect(second.id).toBe(first.id);
+  });
+
+  it("rejects memories from a different project", async () => {
+    // Create a service scoped to a different project
+    const db = getTestDb();
+    const relationshipRepo = new DrizzleRelationshipRepository(db);
+    const memoryRepo = new DrizzleMemoryRepository(db);
+    const otherProjectService = new RelationshipService(
+      relationshipRepo,
+      memoryRepo,
+      "other-project",
     );
-    expect(results).toHaveLength(0);
+
+    // sourceId and targetId belong to "test-project"
+    await expect(
+      otherProjectService.createInternal({
+        sourceId,
+        targetId,
+        type: "duplicates",
+        userId: "consolidation",
+      }),
+    ).rejects.toThrow(NotFoundError);
   });
 });
 ```
 
-- [ ] **Step 3: Strengthen consolidation relationship tests**
+- [ ] **Step 2: Run tests**
 
-In `tests/integration/consolidation.test.ts`, replace the weak assertion in "creates a duplicates relationship when flagging duplicates":
+Run: `npm test -- --grep "createInternal"`
+Expected: All 5 PASS
 
-The issue is that mock embeddings produce deterministic but potentially low-similarity results. Instead of testing through `consolidationService.run()` with uncertain thresholds, test the relationship creation directly through the service to verify the integration works:
+- [ ] **Step 3: Commit**
+
+```bash
+git add tests/integration/relationship-service.test.ts
+git commit -m "test: add direct tests for createInternal"
+```
+
+---
+
+### Task 9: Fix consolidation test assertions + add remaining test coverage
+
+**Files:**
+
+- Modify: `tests/integration/consolidation.test.ts`
+- Modify: `tests/integration/relationship-service.test.ts`
+
+- [ ] **Step 1: Fix conditional assertions in consolidation tests**
+
+In `tests/integration/consolidation.test.ts`, in the "creates a duplicates relationship when flagging duplicates" test, replace the conditional assertion:
 
 ```typescript
-it("creates a duplicates relationship when flagging duplicates", async () => {
+// Old: if (rels.length > 0) { ... }
+// New: test createInternal directly since mock embeddings can't reliably trigger thresholds
+```
+
+Replace the entire test body with a direct test that creates content-subset memories (which don't depend on embedding similarity):
+
+```typescript
+it("creates a duplicates relationship for content-subset auto-archive", async () => {
+  // Create a short memory and a longer one that contains it
   const m1 = await service.create({
     workspace_id: "test-ws",
-    content: "always use snake_case for database columns",
+    content: "use snake_case for columns",
     type: "decision",
     author: "alice",
   });
   assertMemory(m1.data);
   const m2 = await service.create({
     workspace_id: "test-ws",
-    content: "always use snake_case for db columns",
+    content: "use snake_case for columns and always add timestamps",
     type: "decision",
     author: "alice",
   });
@@ -1095,409 +794,119 @@ it("creates a duplicates relationship when flagging duplicates", async () => {
 
   await consolidationService.run();
 
-  // Check if any relationships were created between these memories
+  // m1 is a content subset of m2, so a "duplicates" relationship should exist
   const rels = await relationshipRepo.findByMemoryId(
     "test-project",
     m1.data.id,
     "both",
   );
-  // If mock embeddings triggered a threshold, verify the relationship is correct
-  if (rels.length > 0) {
-    expect(rels[0].type).toBe("duplicates");
-    expect(rels[0].created_via).toBe("consolidation");
-    expect([m1.data.id, m2.data.id].includes(rels[0].source_id)).toBe(true);
-    expect([m1.data.id, m2.data.id].includes(rels[0].target_id)).toBe(true);
-  }
+  expect(rels).toHaveLength(1);
+  expect(rels[0].type).toBe("duplicates");
+  expect(rels[0].created_via).toBe("consolidation");
+  // After direction fix: source = surviving (m2), target = archived (m1)
+  expect(rels[0].source_id).toBe(m2.data.id);
+  expect(rels[0].target_id).toBe(m1.data.id);
 });
 ```
 
-- [ ] **Step 4: Run all tests**
-
-Run: `npm test`
-Expected: All tests pass including the new ones.
-
----
-
-### Task 10: API Route Tests
-
-**Files:**
-
-- Create: `tests/integration/api-relationships.test.ts`
-
-Since this project has no `supertest` dependency and all existing tests are service-level, these tests will exercise the API schemas and service integration through the same pattern, focusing on the Zod validation and response shaping specific to the route layer.
-
-- [ ] **Step 1: Create `tests/integration/api-relationships.test.ts`**
+For the "creates overrides relationship for cross-scope supersedence" test, add an assertion comment that mock embeddings can't trigger this reliably, and keep it as a smoke test:
 
 ```typescript
-import { describe, it, expect, beforeEach, afterAll } from "vitest";
-import { z } from "zod";
-import {
-  getTestDb,
-  truncateAll,
-  closeDb,
-  assertMemory,
-  createTestService,
-  createTestServiceWithRelationships,
-} from "../helpers.js";
-import { DrizzleWorkspaceRepository } from "../../src/repositories/workspace-repository.js";
-import { toolSchemas } from "../../src/routes/api-schemas.js";
-
-describe("relationship API schemas", () => {
-  describe("memory_relate schema", () => {
-    const schema = toolSchemas.memory_relate;
-
-    it("accepts valid input with all fields", () => {
-      const result = schema.parse({
-        source_id: "mem_abc",
-        target_id: "mem_def",
-        type: "overrides",
-        description: "source supersedes target",
-        confidence: 0.95,
-        user_id: "alice",
-        created_via: "manual",
-      });
-      expect(result.source_id).toBe("mem_abc");
-      expect(result.confidence).toBe(0.95);
-      expect(result.created_via).toBe("manual");
-    });
-
-    it("accepts minimal input (only required fields)", () => {
-      const result = schema.parse({
-        source_id: "mem_abc",
-        target_id: "mem_def",
-        type: "overrides",
-        user_id: "alice",
-      });
-      expect(result.description).toBeUndefined();
-      expect(result.confidence).toBeUndefined();
-      expect(result.created_via).toBeUndefined();
-    });
-
-    it("rejects empty source_id", () => {
-      expect(() =>
-        schema.parse({
-          source_id: "",
-          target_id: "mem_def",
-          type: "overrides",
-          user_id: "alice",
-        }),
-      ).toThrow(z.ZodError);
-    });
-
-    it("rejects confidence outside 0-1 range", () => {
-      expect(() =>
-        schema.parse({
-          source_id: "mem_abc",
-          target_id: "mem_def",
-          type: "overrides",
-          user_id: "alice",
-          confidence: 1.5,
-        }),
-      ).toThrow(z.ZodError);
-    });
-
-    it("rejects type longer than 64 characters", () => {
-      expect(() =>
-        schema.parse({
-          source_id: "mem_abc",
-          target_id: "mem_def",
-          type: "a".repeat(65),
-          user_id: "alice",
-        }),
-      ).toThrow(z.ZodError);
-    });
+it("runs cross-scope check without errors (mock embeddings may not trigger threshold)", async () => {
+  const proj = await service.create({
+    workspace_id: "test-ws",
+    content: "Global rule about API naming",
+    type: "decision",
+    scope: "project",
+    author: "alice",
+    source: "manual",
   });
-
-  describe("memory_unrelate schema", () => {
-    const schema = toolSchemas.memory_unrelate;
-
-    it("accepts valid input", () => {
-      const result = schema.parse({ id: "rel_123", user_id: "alice" });
-      expect(result.id).toBe("rel_123");
-    });
-
-    it("rejects missing id", () => {
-      expect(() => schema.parse({ user_id: "alice" })).toThrow(z.ZodError);
-    });
+  assertMemory(proj.data);
+  const ws = await service.create({
+    workspace_id: "test-ws",
+    content: "Global rule about API naming conventions",
+    type: "decision",
+    author: "alice",
   });
+  assertMemory(ws.data);
 
-  describe("memory_relationships schema", () => {
-    const schema = toolSchemas.memory_relationships;
-
-    it("defaults direction to both", () => {
-      const result = schema.parse({ memory_id: "mem_abc", user_id: "alice" });
-      expect(result.direction).toBe("both");
-    });
-
-    it("accepts explicit direction", () => {
-      const result = schema.parse({
-        memory_id: "mem_abc",
-        user_id: "alice",
-        direction: "outgoing",
-      });
-      expect(result.direction).toBe("outgoing");
-    });
-
-    it("rejects invalid direction", () => {
-      expect(() =>
-        schema.parse({
-          memory_id: "mem_abc",
-          user_id: "alice",
-          direction: "sideways",
-        }),
-      ).toThrow(z.ZodError);
-    });
-  });
-});
-
-describe("relationship API response shaping", () => {
-  let memoryService: ReturnType<
-    typeof createTestServiceWithRelationships
-  >["memoryService"];
-  let relationshipService: ReturnType<
-    typeof createTestServiceWithRelationships
-  >["relationshipService"];
-
-  beforeEach(async () => {
-    await truncateAll();
-    const services = createTestServiceWithRelationships();
-    memoryService = services.memoryService;
-    relationshipService = services.relationshipService;
-
-    const workspaceRepo = new DrizzleWorkspaceRepository(getTestDb());
-    await workspaceRepo.findOrCreate("test-ws");
-  });
-
-  afterAll(async () => {
-    await closeDb();
-  });
-
-  it("memory_relate returns the created relationship with all fields", async () => {
-    const s = await memoryService.create({
-      workspace_id: "test-ws",
-      content: "source",
-      type: "fact",
-      author: "alice",
-    });
-    assertMemory(s.data);
-    const t = await memoryService.create({
-      workspace_id: "test-ws",
-      content: "target",
-      type: "fact",
-      author: "alice",
-    });
-    assertMemory(t.data);
-
-    const result = await relationshipService.create({
-      sourceId: s.data.id,
-      targetId: t.data.id,
-      type: "overrides",
-      description: "test",
-      confidence: 0.9,
-      userId: "alice",
-      createdVia: "manual",
-    });
-
-    expect(result).toMatchObject({
-      source_id: s.data.id,
-      target_id: t.data.id,
-      type: "overrides",
-      description: "test",
-      confidence: 0.9,
-      created_via: "manual",
-    });
-    expect(result.id).toBeDefined();
-    expect(result.created_at).toBeInstanceOf(Date);
-  });
-
-  it("memory_relationships returns enriched results with direction and related_memory", async () => {
-    const s = await memoryService.create({
-      workspace_id: "test-ws",
-      content: "source",
-      type: "fact",
-      author: "alice",
-    });
-    assertMemory(s.data);
-    const t = await memoryService.create({
-      workspace_id: "test-ws",
-      content: "target",
-      type: "fact",
-      author: "alice",
-    });
-    assertMemory(t.data);
-
-    await relationshipService.create({
-      sourceId: s.data.id,
-      targetId: t.data.id,
-      type: "overrides",
-      userId: "alice",
-    });
-
-    const results = await relationshipService.listForMemory(
-      s.data.id,
-      "both",
-      "alice",
-    );
-    expect(results).toHaveLength(1);
-    expect(results[0]).toMatchObject({
-      direction: "outgoing",
-      related_memory: {
-        id: t.data.id,
-        type: "fact",
-        scope: "workspace",
-      },
-    });
-    // Verify created_via is present in the response shape
-    expect(results[0]).toHaveProperty("created_via");
-  });
-
-  it("memory_unrelate soft-deletes (relationship no longer appears in queries)", async () => {
-    const s = await memoryService.create({
-      workspace_id: "test-ws",
-      content: "source",
-      type: "fact",
-      author: "alice",
-    });
-    assertMemory(s.data);
-    const t = await memoryService.create({
-      workspace_id: "test-ws",
-      content: "target",
-      type: "fact",
-      author: "alice",
-    });
-    assertMemory(t.data);
-
-    const rel = await relationshipService.create({
-      sourceId: s.data.id,
-      targetId: t.data.id,
-      type: "overrides",
-      userId: "alice",
-    });
-
-    await relationshipService.remove(rel.id, "alice");
-
-    const results = await relationshipService.listForMemory(
-      s.data.id,
-      "both",
-      "alice",
-    );
-    expect(results).toHaveLength(0);
-  });
+  const result = await consolidationService.run();
+  expect(result.errors).toBe(0);
 });
 ```
 
-- [ ] **Step 2: Run the new tests**
+- [ ] **Step 2: Add `listBetweenMemories` access control test**
 
-Run: `npx vitest tests/integration/api-relationships.test.ts`
-Expected: All tests pass.
+In `tests/integration/relationship-service.test.ts`, add to the `listBetweenMemories` describe block:
+
+```typescript
+it("excludes relationships where either side is inaccessible", async () => {
+  const memService = createTestService();
+
+  // Create a workspace memory
+  const wsResult = await memService.create({
+    workspace_id: "test-ws",
+    content: "shared workspace memory",
+    type: "fact",
+    author: "alice",
+    scope: "workspace",
+  });
+  assertMemory(wsResult.data);
+
+  // Create Bob's user-scoped memory
+  const bobResult = await memService.create({
+    workspace_id: "test-ws",
+    content: "bob's private memory",
+    type: "fact",
+    author: "bob",
+    scope: "user",
+  });
+  assertMemory(bobResult.data);
+
+  // Bob creates a relationship
+  await service.create({
+    sourceId: wsResult.data.id,
+    targetId: bobResult.data.id,
+    type: "refines",
+    userId: "bob",
+  });
+
+  // Alice calls listBetweenMemories — Bob's memory is inaccessible
+  const results = await service.listBetweenMemories(
+    [wsResult.data.id, bobResult.data.id],
+    "alice",
+  );
+  expect(results).toHaveLength(0);
+});
+```
+
+- [ ] **Step 3: Run all tests**
+
+Run: `npm test`
+Expected: All PASS
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add tests/integration/consolidation.test.ts tests/integration/relationship-service.test.ts
+git commit -m "test: fix conditional assertions, add createInternal and access control tests"
+```
 
 ---
 
-### Task 11: Documentation — README Updates
-
-**Files:**
-
-- Modify: `README.md`
-
-- [ ] **Step 1: Update the relationship section in README.md**
-
-Find the "Memory relationships" section and update:
-
-**Creating relationships** — expand signatures:
-
-```markdown
-### Creating relationships
-```
-
-memory_relate({ source_id, target_id, type, user_id, description?, confidence?, created_via? })
-memory_unrelate({ id: relationship_id, user_id })
-memory_relationships({ memory_id, user_id, direction?: "outgoing" | "incoming" | "both" })
-
-```
-
-```
-
-**Well-known relationship types** — reorder to match `WELL_KNOWN_RELATIONSHIP_TYPES` array:
-
-```markdown
-| Type          | Meaning                                                     |
-| ------------- | ----------------------------------------------------------- |
-| `overrides`   | Source supersedes or replaces the target                    |
-| `implements`  | Source implements a decision or pattern described in target |
-| `refines`     | Source adds detail or nuance to the target                  |
-| `contradicts` | Source conflicts with the target — needs human resolution   |
-| `duplicates`  | Source is a near-exact duplicate of the target              |
-```
-
-**How relationships work** — update bullets:
-
-```markdown
-- **Directional** — every relationship has an explicit source and target (`source_id → target_id`).
-- **Freeform type** — use well-known types for interoperability, or any string for novel relationships.
-- **Included in `memory_get`** — fetching a memory returns its outgoing and incoming relationships with a `direction` field and `related_memory` summary (id, title, type, scope).
-- **Surfaced in `memory_session_start`** — when two or more returned memories are linked, their relationships appear in `meta.relationships` as minimal summaries (id, type, description, confidence, source_id, target_id).
-- **Soft-deleted on archive or unrelate** — archiving a memory or calling `memory_unrelate` sets `archived_at` on the relationship, excluding it from all queries. No data is permanently destroyed.
-- **Consolidation-created** — the consolidation engine automatically creates `duplicates` and `overrides` relationships when it detects near-duplicate or superseded memories, providing a traceable record of its decisions.
-```
-
-- [ ] **Step 2: Update the tools table**
-
-In the tools table, update `memory_relate` description to mention `created_via`:
-
-```markdown
-| `memory_relate` | Create a directional relationship between two memories |
-| `memory_unrelate` | Remove (soft-delete) a relationship by relationship ID |
-| `memory_relationships` | List relationships for a memory |
-```
-
-- [ ] **Step 3: Verify README renders correctly**
-
-Skim through the changes to make sure the markdown table alignment and code blocks are correct.
-
----
-
-### Task 12: Run Full Test Suite + Lint + Commit
-
-**Files:**
-
-- All modified files
+### Task 10: Final verification
 
 - [ ] **Step 1: Run full test suite**
 
 Run: `npm test`
-Expected: All tests pass, including the 4 new tests and all existing tests.
+Expected: All PASS, 0 failures
 
-- [ ] **Step 2: Run linting and formatting**
+- [ ] **Step 2: Run linter**
 
-Run: `npm run lint && npm run format:check`
-Expected: No errors.
+Run: `npm run lint`
+Expected: No errors
 
-- [ ] **Step 3: Commit all changes as a single fix-up commit**
+- [ ] **Step 3: Verify no regressions in existing tests**
 
-```bash
-git add -A
-git commit -m "fix: address PR review findings for relationship tracking
-
-- Partial unique index (allows re-creation after soft-delete)
-- Rename source → created_via to avoid confusion with source_id
-- Add createInternal() for system actors (consolidation)
-- Switch memory_unrelate to soft-delete
-- Wrap relationship loading in try-catch (graceful degradation)
-- Add auto-archive cascade in consolidation
-- Batch-load memories (eliminate N+1 queries)
-- Add confidence validation and operation logging
-- Tighten types (WellKnownRelationshipType, MemoryType, MemoryScope)
-- Derive RelationshipWithMemory via Omit, extract RelationshipSummary
-- Fix README docs (signatures, response shapes, ordering)
-- Add tests: remove() access control, listForMemory filtering,
-  API schema validation, response shaping, consolidation assertions
-
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
-```
-
-- [ ] **Step 4: Verify clean git status**
-
-Run: `git status`
-Expected: Clean working tree, all changes committed.
-
----
+Run: `npm test -- --reporter=verbose 2>&1 | tail -30`
+Expected: All test suites pass
