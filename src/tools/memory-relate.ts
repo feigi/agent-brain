@@ -14,7 +14,7 @@ export function registerMemoryRelate(
   server.registerTool(
     "memory_relate",
     {
-      description: `Create a directional relationship between two memories. Well-known types: ${wellKnownList}. You may also use any descriptive string for novel relationship types.`,
+      description: `Create a directional relationship between two memories. Idempotent: if an identical relationship (same source, target, and type) already exists, returns the existing one. Well-known types: ${wellKnownList}. Any descriptive string is also valid.`,
       inputSchema: {
         source_id: z.string().describe("ID of the source memory"),
         target_id: z.string().describe("ID of the target memory"),
