@@ -794,6 +794,27 @@ export class MemoryService {
       }
     }
 
+    let relationshipsData: Envelope<
+      MemorySummaryWithRelevance[]
+    >["meta"]["relationships"];
+    if (this.relationshipService && result.data.length >= 2) {
+      const memoryIds = result.data.map((m) => m.id);
+      const rels = await this.relationshipService.listBetweenMemories(
+        memoryIds,
+        userId,
+      );
+      if (rels.length > 0) {
+        relationshipsData = rels.map((r) => ({
+          id: r.id,
+          type: r.type,
+          description: r.description,
+          confidence: r.confidence,
+          source_id: r.source_id,
+          target_id: r.target_id,
+        }));
+      }
+    }
+
     const timing = Date.now() - start;
     return {
       data: result.data,
@@ -803,6 +824,7 @@ export class MemoryService {
         team_activity: teamActivity,
         session_id: sessionId,
         flags: flagsData,
+        relationships: relationshipsData,
       },
     };
   }
