@@ -1,13 +1,17 @@
 import { Router } from "express";
 import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
+import type { RelationshipService } from "../services/relationship-service.js";
 import { config } from "../config.js";
 import { DomainError } from "../utils/errors.js";
 import { logger } from "../utils/logger.js";
 import { parseCursor } from "../utils/validation.js";
 import { toolSchemas, type ToolName } from "./api-schemas.js";
 
-export function createApiToolsRouter(memoryService: MemoryService): Router {
+export function createApiToolsRouter(
+  memoryService: MemoryService,
+  relationshipService: RelationshipService,
+): Router {
   const router = Router();
 
   router.use((req, res, next) => {
@@ -161,6 +165,40 @@ export function createApiToolsRouter(memoryService: MemoryService): Router {
             b.exclude_self,
           );
           res.json(result);
+          break;
+        }
+
+        case "memory_relate": {
+          const b = body as z.infer<typeof toolSchemas.memory_relate>;
+          const result = await relationshipService.create({
+            sourceId: b.source_id,
+            targetId: b.target_id,
+            type: b.type,
+            description: b.description,
+            confidence: b.confidence,
+            userId: b.user_id,
+            source: b.source,
+          });
+          res.json(result);
+          break;
+        }
+
+        case "memory_unrelate": {
+          const b = body as z.infer<typeof toolSchemas.memory_unrelate>;
+          await relationshipService.remove(b.id, b.user_id);
+          res.json({ success: true });
+          break;
+        }
+
+        case "memory_relationships": {
+          const b = body as z.infer<typeof toolSchemas.memory_relationships>;
+          const results = await relationshipService.listForMemory(
+            b.memory_id,
+            b.direction,
+            b.user_id,
+            b.type,
+          );
+          res.json({ data: results, meta: { count: results.length } });
           break;
         }
       }
