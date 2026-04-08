@@ -23,13 +23,16 @@ Long-term memory for AI agents. Agents read relevant memories at session start, 
 │  ├─ memory_create            ├─ FlagService          │
 │  ├─ memory_get               ├─ AuditService         │
 │  ├─ memory_update            ├─ EmbeddingProvider    │
-│  ├─ memory_verify            └─ Repositories        │
-│  ├─ memory_comment                                  │
-│  ├─ memory_archive           Providers              │
-│  ├─ memory_list              ├─ Amazon Titan V2      │
-│  ├─ memory_list_stale        ├─ Ollama (local)       │
-│  ├─ memory_list_recent       └─ Mock (dev/test)      │
-│  └─ memory_resolve_flag                             │
+│  ├─ memory_verify            ├─ RelationshipService  │
+│  ├─ memory_comment           └─ Repositories        │
+│  ├─ memory_archive                                  │
+│  ├─ memory_list              Providers              │
+│  ├─ memory_list_stale        ├─ Amazon Titan V2      │
+│  ├─ memory_list_recent       ├─ Ollama (local)       │
+│  ├─ memory_resolve_flag      └─ Mock (dev/test)      │
+│  ├─ memory_relate                                   │
+│  ├─ memory_unrelate                                 │
+│  └─ memory_relationships                            │
 └───────────────────┬─────────────────────────────────┘
                     │
 ┌───────────────────▼─────────────────────────────────┐
@@ -38,6 +41,7 @@ Long-term memory for AI agents. Agents read relevant memories at session start, 
 │  workspaces   memories (+ HNSW index)               │
 │  sessions     session_tracking                      │
 │  comments     flags       audit_log                 │
+│  relationships                                      │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -292,6 +296,9 @@ AWS_REGION=us-east-1
 | `memory_list_recent`   | Most recently created/updated memories                    |
 | `memory_consolidate`   | Run a full consolidation pass on demand (no cron needed)  |
 | `memory_resolve_flag`  | Resolve a consolidation flag (accept, dismiss, or defer)  |
+| `memory_relate`        | Create a directional relationship between two memories    |
+| `memory_unrelate`      | Remove a relationship                                     |
+| `memory_relationships` | List relationships for a memory                           |
 
 All tools require `workspace_id` and `user_id`. Workspaces are created automatically on first use.
 
@@ -328,6 +335,41 @@ The user resolves each flag via `memory_resolve_flag` with one of: `accepted` (a
 
 ---
 
+## Memory relationships
+
+Memories can be linked with directional, typed relationships to capture how knowledge evolves over time.
+
+### Creating relationships
+
+```
+memory_relate({ source_id, target_id, type, user_id })
+memory_unrelate({ id, user_id })
+memory_relationships({ memory_id, user_id, direction: "outgoing" | "incoming" | "both" })
+```
+
+### Well-known relationship types
+
+| Type          | Meaning                                                     |
+| ------------- | ----------------------------------------------------------- |
+| `overrides`   | Source supersedes or replaces the target                    |
+| `duplicates`  | Source is a near-exact duplicate of the target              |
+| `implements`  | Source implements a decision or pattern described in target |
+| `refines`     | Source adds detail or nuance to the target                  |
+| `contradicts` | Source conflicts with the target — needs human resolution   |
+
+The `type` field is freeform — any descriptive string is valid. The well-known types above have consistent semantics across tools and the consolidation engine.
+
+### How relationships work
+
+- **Directional** — every relationship has an explicit source and target (`source_id → target_id`).
+- **Freeform type** — use well-known types for interoperability, or any string for novel relationships.
+- **Included in `memory_get`** — fetching a memory returns its outgoing and incoming relationships with a `direction` field.
+- **Surfaced in `memory_session_start`** — when two or more returned memories are linked, their relationships appear in `meta.relationships` so agents can understand context without extra queries.
+- **Soft-deleted on archive** — when either memory in a relationship is archived, the relationship's `archived_at` is set and it is excluded from all queries.
+- **Consolidation-created** — the consolidation engine automatically creates `duplicates` and `overrides` relationships when it detects near-duplicate or superseded memories, providing a traceable record of its decisions.
+
+---
+
 ## Development
 
 ```bash
@@ -348,6 +390,9 @@ npm run db:studio
 
 # Seed with sample data
 npm run seed
+
+# Backfill relationships from pre-existing consolidation flags (one-time, idempotent)
+npm run migrate:flag-relationships
 ```
 
 ### Project structure
@@ -366,6 +411,7 @@ src/
 │   ├── memory-service.ts        # Core business logic
 │   ├── consolidation-service.ts # Duplicate/superseded detection
 │   ├── flag-service.ts          # Flag lifecycle management
+│   ├── relationship-service.ts  # Relationship CRUD + access control
 │   └── audit-service.ts         # Audit trail for archival actions
 ├── repositories/       # Data access layer (Drizzle)
 ├── providers/
