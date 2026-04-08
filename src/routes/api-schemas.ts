@@ -113,7 +113,7 @@ export const toolSchemas = {
   }),
 
   memory_relationships: z.object({
-    memory_ids: z.array(z.string().min(1)).min(1),
+    memory_ids: z.array(z.string().min(1)).min(1).max(100),
     direction: z.enum(["outgoing", "incoming", "both"]).default("both"),
     type: z.string().optional(),
     user_id: slugSchema,

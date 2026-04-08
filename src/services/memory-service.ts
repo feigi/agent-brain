@@ -437,15 +437,23 @@ export class MemoryService {
     if (!this.flagService) return new Map();
 
     const allFlags = await this.flagService.findByMemoryIds(memoryIds);
-    const map = new Map<string, MemoryGetResponse["flags"]>();
 
+    // Batch-fetch all related memories in one query instead of N+1
+    const relatedMemoryIds = allFlags
+      .map((f) => f.details.related_memory_id)
+      .filter((id): id is string => !!id);
+    const relatedMemories =
+      relatedMemoryIds.length > 0
+        ? await this.memoryRepo.findByIds([...new Set(relatedMemoryIds)])
+        : [];
+    const relatedMap = new Map(relatedMemories.map((m) => [m.id, m]));
+
+    const map = new Map<string, MemoryGetResponse["flags"]>();
     for (const f of allFlags) {
       if (f.resolved_at) continue;
       let relatedMem = null;
       if (f.details.related_memory_id) {
-        const related = await this.memoryRepo.findById(
-          f.details.related_memory_id,
-        );
+        const related = relatedMap.get(f.details.related_memory_id);
         if (related) {
           relatedMem = {
             id: related.id,
@@ -477,23 +485,22 @@ export class MemoryService {
   ): Promise<Map<string, RelationshipWithMemory[]>> {
     if (!this.relationshipService) return new Map();
 
-    const map = new Map<string, RelationshipWithMemory[]>();
-    await Promise.all(
-      memoryIds.map(async (id) => {
-        try {
-          const rels = await this.relationshipService!.listForMemory(
-            id,
-            "both",
-            userId,
-          );
-          if (rels.length > 0) {
-            map.set(id, rels);
-          }
-        } catch (error) {
-          logger.warn(`Failed to load relationships for memory ${id}:`, error);
-        }
-      }),
+    const rels = await this.relationshipService.listForMemories(
+      memoryIds,
+      "both",
+      userId,
     );
+    const map = new Map<string, RelationshipWithMemory[]>();
+    for (const rel of rels) {
+      const anchorId =
+        rel.direction === "outgoing" ? rel.source_id : rel.target_id;
+      const arr = map.get(anchorId);
+      if (arr) {
+        arr.push(rel);
+      } else {
+        map.set(anchorId, [rel]);
+      }
+    }
     return map;
   }
 

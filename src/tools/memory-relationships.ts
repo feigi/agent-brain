@@ -17,7 +17,8 @@ export function registerMemoryRelationships(
         memory_ids: z
           .array(z.string().min(1))
           .min(1)
-          .describe("Memory IDs to list relationships for"),
+          .max(100)
+          .describe("Memory IDs to list relationships for (max 100)"),
         direction: z
           .enum(["outgoing", "incoming", "both"])
           .default("both")
