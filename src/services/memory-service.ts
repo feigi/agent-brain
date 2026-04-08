@@ -489,8 +489,8 @@ export class MemoryService {
           if (rels.length > 0) {
             map.set(id, rels);
           }
-        } catch {
-          // Memory may have been archived between fetch and relationship lookup
+        } catch (error) {
+          logger.warn(`Failed to load relationships for memory ${id}:`, error);
         }
       }),
     );

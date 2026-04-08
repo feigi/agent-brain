@@ -150,8 +150,6 @@ export interface MemoryGetResponse extends MemoryDetail {
 
 // Response type for batch memory_get — detail with counts, optionally expanded joins
 export interface MemoryGetManyItem extends MemoryDetail {
-  flag_count: number;
-  relationship_count: number;
   can_comment: boolean;
   can_edit: boolean;
   can_archive: boolean;

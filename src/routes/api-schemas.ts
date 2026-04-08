@@ -28,7 +28,7 @@ export const toolSchemas = {
   }),
 
   memory_get: z.object({
-    ids: z.array(z.string().min(1)).min(1),
+    ids: z.array(z.string().min(1)).min(1).max(100),
     user_id: slugSchema,
     include: z.array(z.enum(["comments", "flags", "relationships"])).optional(),
   }),
