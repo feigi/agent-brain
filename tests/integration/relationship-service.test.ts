@@ -359,6 +359,66 @@ describe("RelationshipService", () => {
     });
   });
 
+  describe("confidence validation", () => {
+    it("rejects NaN confidence", async () => {
+      await expect(
+        service.create({
+          sourceId,
+          targetId,
+          type: "overrides",
+          confidence: NaN,
+          userId: "alice",
+        }),
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it("rejects negative confidence", async () => {
+      await expect(
+        service.create({
+          sourceId,
+          targetId,
+          type: "overrides",
+          confidence: -0.1,
+          userId: "alice",
+        }),
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it("rejects confidence above 1", async () => {
+      await expect(
+        service.create({
+          sourceId,
+          targetId,
+          type: "overrides",
+          confidence: 1.1,
+          userId: "alice",
+        }),
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it("accepts confidence of 0", async () => {
+      const rel = await service.create({
+        sourceId,
+        targetId,
+        type: "overrides",
+        confidence: 0,
+        userId: "alice",
+      });
+      expect(rel.confidence).toBe(0);
+    });
+
+    it("accepts confidence of 1", async () => {
+      const rel = await service.create({
+        sourceId,
+        targetId,
+        type: "overrides",
+        confidence: 1,
+        userId: "alice",
+      });
+      expect(rel.confidence).toBe(1);
+    });
+  });
+
   describe("archiveByMemoryId", () => {
     it("soft-deletes relationships", async () => {
       await service.create({
