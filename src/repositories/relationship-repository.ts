@@ -72,6 +72,44 @@ export class DrizzleRelationshipRepository implements RelationshipRepository {
     return rows as Relationship[];
   }
 
+  async findByMemoryIds(
+    projectId: string,
+    memoryIds: string[],
+    direction: "outgoing" | "incoming" | "both",
+    type?: string,
+  ): Promise<Relationship[]> {
+    if (memoryIds.length === 0) return [];
+    const conditions = [
+      eq(relationships.project_id, projectId),
+      isNull(relationships.archived_at),
+    ];
+
+    if (direction === "outgoing") {
+      conditions.push(inArray(relationships.source_id, memoryIds));
+    } else if (direction === "incoming") {
+      conditions.push(inArray(relationships.target_id, memoryIds));
+    } else {
+      conditions.push(
+        or(
+          inArray(relationships.source_id, memoryIds),
+          inArray(relationships.target_id, memoryIds),
+        )!,
+      );
+    }
+
+    if (type) {
+      conditions.push(eq(relationships.type, type));
+    }
+
+    const rows = await this.db
+      .select()
+      .from(relationships)
+      .where(and(...conditions))
+      .orderBy(relationships.created_at);
+
+    return rows as Relationship[];
+  }
+
   async findExisting(
     projectId: string,
     sourceId: string,

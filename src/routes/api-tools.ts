@@ -196,8 +196,8 @@ export function createApiToolsRouter(
 
         case "memory_relationships": {
           const b = body as z.infer<typeof toolSchemas.memory_relationships>;
-          const results = await relationshipService.listForMemory(
-            b.memory_id,
+          const results = await relationshipService.listForMemories(
+            b.memory_ids,
             b.direction,
             b.user_id,
             b.type,
