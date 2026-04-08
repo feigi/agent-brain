@@ -17,7 +17,8 @@ export function registerMemoryGet(
         ids: z
           .array(z.string().min(1))
           .min(1)
-          .describe("Memory IDs to retrieve"),
+          .max(100)
+          .describe("Memory IDs to retrieve (max 100)"),
         user_id: slugSchema.describe(
           "User identifier (e.g., 'alice'). Required for access control and capability computation.",
         ),
