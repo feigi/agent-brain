@@ -427,6 +427,45 @@ describe("RelationshipService", () => {
       expect(results[0].direction).toBe("outgoing");
       expect(results[0].related_memory.id).toBe(targetId);
     });
+
+    it("excludes relationships where either side is inaccessible", async () => {
+      const memService = createTestService();
+
+      // Create a workspace memory
+      const wsResult = await memService.create({
+        workspace_id: "test-ws",
+        content: "shared workspace memory",
+        type: "fact",
+        author: "alice",
+        scope: "workspace",
+      });
+      assertMemory(wsResult.data);
+
+      // Create Bob's user-scoped memory
+      const bobResult = await memService.create({
+        workspace_id: "test-ws",
+        content: "bob's private memory",
+        type: "fact",
+        author: "bob",
+        scope: "user",
+      });
+      assertMemory(bobResult.data);
+
+      // Bob creates a relationship
+      await service.create({
+        sourceId: wsResult.data.id,
+        targetId: bobResult.data.id,
+        type: "refines",
+        userId: "bob",
+      });
+
+      // Alice calls listBetweenMemories — Bob's memory is inaccessible
+      const results = await service.listBetweenMemories(
+        [wsResult.data.id, bobResult.data.id],
+        "alice",
+      );
+      expect(results).toHaveLength(0);
+    });
   });
 
   describe("listForMemory access control", () => {
