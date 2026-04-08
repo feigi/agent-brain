@@ -13,8 +13,8 @@
  * Historical relationships:
  *   - For flags with severity "auto_resolved", sets archived_at on the relationship
  *
- * Source/target convention (matches consolidation service):
- *   - source_id = relatedMemoryId (the newer/dominant memory)
+ * Source/target convention (consistent across all consolidation cases):
+ *   - source_id = relatedMemoryId (the surviving/dominant memory)
  *   - target_id = flag.memory_id   (the flagged/superseded memory)
  */
 
