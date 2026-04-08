@@ -199,7 +199,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       );
     }
 
-    // Re-fetch to get comment_count via correlated subquery
+    // Re-fetch to get correlated subquery counts (comment_count, flag_count, relationship_count)
     const updated = await this.findById(id);
     if (!updated) {
       throw new ConflictError(`Memory ${id} not found after update`);
@@ -503,7 +503,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       .returning({ id: memories.id });
 
     if (result.length === 0) return null;
-    // Re-fetch to get comment_count via correlated subquery
+    // Re-fetch to get correlated subquery counts (comment_count, flag_count, relationship_count)
     return this.findById(id);
   }
 
