@@ -595,7 +595,7 @@ export class MemoryService {
         try {
           await this.relationshipService.archiveByMemoryId(id);
         } catch (error) {
-          logger.warn(
+          logger.error(
             `Failed to archive relationships for memory ${id}:`,
             error,
           );
