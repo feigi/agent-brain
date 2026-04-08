@@ -1,3 +1,5 @@
+import type { RelationshipWithMemory } from "./relationship.js";
+
 // D-17: Predefined memory types
 export type MemoryType =
   | "fact"
@@ -127,21 +129,24 @@ export interface Comment {
   created_at: Date;
 }
 
+// Shared flag summary shape for memory_get responses
+export interface FlagSummary {
+  flag_id: string;
+  flag_type: string;
+  related_memory?: {
+    id: string;
+    title: string;
+    content: string;
+    scope: MemoryScope;
+  } | null;
+  reason: string;
+}
+
 // D-72, D-63: Enhanced response for memory_get with comments and capability flags
 export interface MemoryGetResponse extends MemoryDetail {
   comments: Comment[];
-  flags: Array<{
-    flag_id: string;
-    flag_type: string;
-    related_memory?: {
-      id: string;
-      title: string;
-      content: string;
-      scope: string;
-    } | null;
-    reason: string;
-  }>;
-  relationships: import("./relationship.js").RelationshipWithMemory[];
+  flags: FlagSummary[];
+  relationships: RelationshipWithMemory[];
   can_comment: boolean;
   can_edit: boolean;
   can_archive: boolean;
@@ -156,18 +161,8 @@ export interface MemoryGetManyItem extends MemoryDetail {
   can_verify: boolean;
   // Optional: populated when requested via include parameter
   comments?: Comment[];
-  flags?: Array<{
-    flag_id: string;
-    flag_type: string;
-    related_memory?: {
-      id: string;
-      title: string;
-      content: string;
-      scope: string;
-    } | null;
-    reason: string;
-  }>;
-  relationships?: import("./relationship.js").RelationshipWithMemory[];
+  flags?: FlagSummary[];
+  relationships?: RelationshipWithMemory[];
 }
 
 // Input type for creating a memory

@@ -36,5 +36,6 @@ export interface Envelope<T> {
       reason: string;
     }>;
     relationships?: RelationshipSummary[];
+    omitted?: string[]; // IDs requested but not returned (inaccessible/not found)
   };
 }

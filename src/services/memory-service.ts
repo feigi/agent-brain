@@ -6,6 +6,7 @@ import type {
   Comment,
   MemoryGetResponse,
   MemoryGetManyItem,
+  FlagSummary,
   CreateSkipResult,
   MemorySummary,
   MemorySummaryWithRelevance,
@@ -300,7 +301,7 @@ export class MemoryService {
       : [];
 
     // Open flags for this memory
-    const flagsList: MemoryGetResponse["flags"] = [];
+    const flagsList: FlagSummary[] = [];
     if (this.flagService) {
       const allFlags = await this.flagService.getFlagsByMemoryId(id);
       for (const f of allFlags) {
@@ -378,12 +379,28 @@ export class MemoryService {
       (m) => m.project_id === this.projectId && canAccessMemory(m, userId),
     );
 
+    const returnedIds = new Set(accessible.map((m) => m.id));
+    const omitted = ids.filter((id) => !returnedIds.has(id));
+
+    // Early return if no accessible memories
+    if (accessible.length === 0) {
+      const timing = Date.now() - start;
+      return {
+        data: [],
+        meta: {
+          count: 0,
+          timing,
+          omitted: omitted.length > 0 ? omitted : undefined,
+        },
+      };
+    }
+
     const accessibleIds = accessible.map((m) => m.id);
     const includeSet = new Set(include ?? []);
 
     // Batch-fetch optional joins
     let commentsByMemory = new Map<string, Comment[]>();
-    let flagsByMemory = new Map<string, MemoryGetResponse["flags"]>();
+    let flagsByMemory = new Map<string, FlagSummary[]>();
     let relsByMemory = new Map<string, RelationshipWithMemory[]>();
 
     if (includeSet.has("comments") && this.commentRepo) {
@@ -428,12 +445,19 @@ export class MemoryService {
     });
 
     const timing = Date.now() - start;
-    return { data: items, meta: { count: items.length, timing } };
+    return {
+      data: items,
+      meta: {
+        count: items.length,
+        timing,
+        omitted: omitted.length > 0 ? omitted : undefined,
+      },
+    };
   }
 
   private async batchFetchFlags(
     memoryIds: string[],
-  ): Promise<Map<string, MemoryGetResponse["flags"]>> {
+  ): Promise<Map<string, FlagSummary[]>> {
     if (!this.flagService) return new Map();
 
     const allFlags = await this.flagService.findByMemoryIds(memoryIds);
@@ -448,7 +472,7 @@ export class MemoryService {
         : [];
     const relatedMap = new Map(relatedMemories.map((m) => [m.id, m]));
 
-    const map = new Map<string, MemoryGetResponse["flags"]>();
+    const map = new Map<string, FlagSummary[]>();
     for (const f of allFlags) {
       if (f.resolved_at) continue;
       let relatedMem = null;
