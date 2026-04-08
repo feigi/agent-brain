@@ -210,6 +210,8 @@ export class MemoryService {
       verified_at: null,
       archived_at: null,
       comment_count: 0,
+      flag_count: 0,
+      relationship_count: 0,
       last_comment_at: null,
       verified_by: null,
     };

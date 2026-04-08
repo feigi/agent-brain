@@ -36,6 +36,8 @@ export interface Memory {
   verified_at: Date | null;
   archived_at: Date | null;
   comment_count: number; // D-61: computed via COUNT, present on all responses
+  flag_count: number; // computed via COUNT of open flags
+  relationship_count: number; // computed via COUNT of active relationships
   last_comment_at: Date | null; // D-62: for change_type detection
   verified_by: string | null; // D-19: who verified
 }
@@ -55,6 +57,8 @@ export interface MemorySummary {
   verified_at: Date | null;
   verified_by: string | null;
   comment_count: number;
+  flag_count: number;
+  relationship_count: number;
   last_comment_at: Date | null;
 }
 
@@ -84,6 +88,8 @@ export function toSummary(memory: Memory): MemorySummary {
     verified_at: memory.verified_at,
     verified_by: memory.verified_by,
     comment_count: memory.comment_count,
+    flag_count: memory.flag_count,
+    relationship_count: memory.relationship_count,
     last_comment_at: memory.last_comment_at,
   };
 }

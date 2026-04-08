@@ -52,6 +52,8 @@ describe("audit repository", () => {
       archived_at: null,
       verified_by: null,
       comment_count: 0,
+      flag_count: 0,
+      relationship_count: 0,
       last_comment_at: null,
       embedding,
     });
@@ -151,6 +153,8 @@ describe("audit service", () => {
       archived_at: null,
       verified_by: null,
       comment_count: 0,
+      flag_count: 0,
+      relationship_count: 0,
       last_comment_at: null,
       embedding,
     });
