@@ -57,9 +57,19 @@ const baseMemoryColumns = {
 function rowToMemory(row: Record<string, unknown>): Memory {
   const result = { ...row } as unknown as Memory;
   // Ensure comment_count is a number (PostgreSQL COUNT can return string via bigint)
-  const rawCount = (row as Record<string, unknown>).comment_count;
+  const rawCommentCount = (row as Record<string, unknown>).comment_count;
   result.comment_count =
-    rawCount !== undefined && rawCount !== null ? Number(rawCount) : 0;
+    rawCommentCount !== undefined && rawCommentCount !== null
+      ? Number(rawCommentCount)
+      : 0;
+  const rawFlagCount = (row as Record<string, unknown>).flag_count;
+  result.flag_count =
+    rawFlagCount !== undefined && rawFlagCount !== null
+      ? Number(rawFlagCount)
+      : 0;
+  const rawRelCount = (row as Record<string, unknown>).relationship_count;
+  result.relationship_count =
+    rawRelCount !== undefined && rawRelCount !== null ? Number(rawRelCount) : 0;
   return result;
 }
 
@@ -74,6 +84,14 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       comment_count:
         sql<number>`(SELECT COUNT(*)::int FROM comments WHERE comments.memory_id = memories.id)`.as(
           "comment_count",
+        ),
+      flag_count:
+        sql<number>`(SELECT COUNT(*)::int FROM flags WHERE flags.memory_id = memories.id AND flags.resolved_at IS NULL)`.as(
+          "flag_count",
+        ),
+      relationship_count:
+        sql<number>`(SELECT COUNT(*)::int FROM relationships WHERE (relationships.source_id = memories.id OR relationships.target_id = memories.id) AND relationships.archived_at IS NULL)`.as(
+          "relationship_count",
         ),
     };
   }
@@ -101,8 +119,13 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       })
       .returning(baseMemoryColumns);
 
-    // New memories have no comments yet -- set comment_count to 0 explicitly
-    return rowToMemory({ ...result[0], comment_count: 0 });
+    // New memories have no comments, flags, or relationships yet -- set counts to 0 explicitly
+    return rowToMemory({
+      ...result[0],
+      comment_count: 0,
+      flag_count: 0,
+      relationship_count: 0,
+    });
   }
 
   async findByIds(ids: string[]): Promise<Memory[]> {

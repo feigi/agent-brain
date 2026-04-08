@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import {
   createTestService,
+  createTestServiceWithRelationships,
   truncateAll,
   closeDb,
   assertMemory,
@@ -335,6 +336,39 @@ describe("Memory CRUD integration tests", () => {
 
     expect(result.data.length).toBe(1);
     expect(result.data[0].content).toBe("Deploy note");
+  });
+
+  it("returns flag_count and relationship_count on get", async () => {
+    const { memoryService, relationshipService } =
+      createTestServiceWithRelationships();
+
+    const m1 = await memoryService.create({
+      workspace_id: "test-project",
+      content: "Memory with counts",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(m1.data);
+
+    const m2 = await memoryService.create({
+      workspace_id: "test-project",
+      content: "Related memory for counting",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(m2.data);
+
+    await relationshipService.create({
+      sourceId: m1.data.id,
+      targetId: m2.data.id,
+      type: "refines",
+      userId: "alice",
+    });
+
+    const fetched = await memoryService.get(m1.data.id, "alice");
+    expect(fetched.data.flag_count).toBe(0);
+    expect(fetched.data.relationship_count).toBe(1);
+    expect(fetched.data.comment_count).toBe(0);
   });
 
   it("paginates with cursor", async () => {
