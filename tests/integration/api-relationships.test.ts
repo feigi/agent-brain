@@ -93,23 +93,33 @@ describe("relationship API schemas", () => {
     const schema = toolSchemas.memory_relationships;
 
     it("defaults direction to both", () => {
-      const result = schema.parse({ memory_id: "mem_abc", user_id: "alice" });
+      const result = schema.parse({
+        memory_ids: ["mem_abc"],
+        user_id: "alice",
+      });
       expect(result.direction).toBe("both");
     });
 
-    it("accepts explicit direction", () => {
+    it("accepts multiple memory_ids", () => {
       const result = schema.parse({
-        memory_id: "mem_abc",
+        memory_ids: ["mem_abc", "mem_def"],
         user_id: "alice",
         direction: "outgoing",
       });
+      expect(result.memory_ids).toEqual(["mem_abc", "mem_def"]);
       expect(result.direction).toBe("outgoing");
+    });
+
+    it("rejects empty memory_ids array", () => {
+      expect(() => schema.parse({ memory_ids: [], user_id: "alice" })).toThrow(
+        z.ZodError,
+      );
     });
 
     it("rejects invalid direction", () => {
       expect(() =>
         schema.parse({
-          memory_id: "mem_abc",
+          memory_ids: ["mem_abc"],
           user_id: "alice",
           direction: "sideways",
         }),

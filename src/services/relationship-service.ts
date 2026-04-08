@@ -218,6 +218,66 @@ export class RelationshipService {
     return result;
   }
 
+  async listForMemories(
+    memoryIds: string[],
+    direction: "outgoing" | "incoming" | "both",
+    userId: string,
+    type?: string,
+  ): Promise<RelationshipWithMemory[]> {
+    if (memoryIds.length === 0) return [];
+
+    // Verify access to all anchor memories
+    const anchorMemories = await this.memoryRepo.findByIds(memoryIds);
+    const accessibleAnchors = anchorMemories.filter(
+      (m) => m.project_id === this.projectId && canAccessMemory(m, userId),
+    );
+    const anchorIds = new Set(accessibleAnchors.map((m) => m.id));
+    if (anchorIds.size === 0) return [];
+
+    const relationships = await this.relationshipRepo.findByMemoryIds(
+      this.projectId,
+      [...anchorIds],
+      direction,
+      type,
+    );
+
+    // Collect related memory IDs (the "other end" of each relationship)
+    const relatedIds = new Set<string>();
+    for (const rel of relationships) {
+      if (anchorIds.has(rel.source_id)) relatedIds.add(rel.target_id);
+      if (anchorIds.has(rel.target_id)) relatedIds.add(rel.source_id);
+    }
+    // Remove anchor IDs that are already fetched
+    for (const id of anchorIds) relatedIds.delete(id);
+
+    // Batch-fetch related memories
+    const relatedMemories =
+      relatedIds.size > 0
+        ? await this.memoryRepo.findByIds([...relatedIds])
+        : [];
+    const memoryMap = new Map(
+      [...accessibleAnchors, ...relatedMemories].map((m) => [m.id, m]),
+    );
+
+    const result: RelationshipWithMemory[] = [];
+    for (const rel of relationships) {
+      const isSourceAnchor = anchorIds.has(rel.source_id);
+      const isTargetAnchor = anchorIds.has(rel.target_id);
+
+      if (isSourceAnchor) {
+        const related = memoryMap.get(rel.target_id);
+        if (!related || !canAccessMemory(related, userId)) continue;
+        result.push(this.toRelationshipWithMemory(rel, "outgoing", related));
+      }
+      if (isTargetAnchor && !isSourceAnchor) {
+        const related = memoryMap.get(rel.source_id);
+        if (!related || !canAccessMemory(related, userId)) continue;
+        result.push(this.toRelationshipWithMemory(rel, "incoming", related));
+      }
+    }
+    return result;
+  }
+
   async listBetweenMemories(
     memoryIds: string[],
     userId: string,

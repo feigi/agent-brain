@@ -487,6 +487,152 @@ describe("memory_get includes relationships", () => {
   });
 });
 
+describe("listForMemories — batch anchor query", () => {
+  let memoryService: ReturnType<
+    typeof createTestServiceWithRelationships
+  >["memoryService"];
+  let relationshipService: ReturnType<
+    typeof createTestServiceWithRelationships
+  >["relationshipService"];
+
+  beforeEach(async () => {
+    await truncateAll();
+    const services = createTestServiceWithRelationships();
+    memoryService = services.memoryService;
+    relationshipService = services.relationshipService;
+
+    const workspaceRepo = new DrizzleWorkspaceRepository(getTestDb());
+    await workspaceRepo.findOrCreate("test-ws");
+  });
+
+  afterAll(async () => {
+    await closeDb();
+  });
+
+  it("returns relationships for multiple anchor memories in a single call", async () => {
+    // Create 3 memories
+    const r1 = await memoryService.create({
+      workspace_id: "test-ws",
+      content: "memory one",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(r1.data);
+    const m1 = r1.data;
+
+    const r2 = await memoryService.create({
+      workspace_id: "test-ws",
+      content: "memory two",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(r2.data);
+    const m2 = r2.data;
+
+    const r3 = await memoryService.create({
+      workspace_id: "test-ws",
+      content: "memory three",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(r3.data);
+    const m3 = r3.data;
+
+    // m1 → m2 (outgoing from m1)
+    await relationshipService.create({
+      sourceId: m1.id,
+      targetId: m2.id,
+      type: "overrides",
+      userId: "alice",
+    });
+
+    // m3 → m1 (incoming to m1, outgoing from m3)
+    await relationshipService.create({
+      sourceId: m3.id,
+      targetId: m1.id,
+      type: "refines",
+      userId: "alice",
+    });
+
+    // Query for both m1 and m3 as anchors
+    const results = await relationshipService.listForMemories(
+      [m1.id, m3.id],
+      "both",
+      "alice",
+    );
+
+    // m1 has 2 relationships (outgoing to m2, incoming from m3)
+    // m3 has 1 relationship (outgoing to m1) — but m1 is also an anchor, so isSourceAnchor wins
+    // Total unique: m1→m2 (outgoing), m3→m1 (outgoing from m3 anchor perspective is covered
+    // by isSourceAnchor=true for m3; and incoming to m1 anchor but isTargetAnchor&&!isSourceAnchor skips it)
+    expect(results.length).toBeGreaterThanOrEqual(2);
+
+    const outgoingFromM1 = results.find(
+      (r) => r.source_id === m1.id && r.target_id === m2.id,
+    );
+    expect(outgoingFromM1).toBeDefined();
+    expect(outgoingFromM1!.direction).toBe("outgoing");
+
+    const outgoingFromM3 = results.find(
+      (r) => r.source_id === m3.id && r.target_id === m1.id,
+    );
+    expect(outgoingFromM3).toBeDefined();
+    expect(outgoingFromM3!.direction).toBe("outgoing");
+  });
+
+  it("returns empty array for empty input", async () => {
+    const results = await relationshipService.listForMemories(
+      [],
+      "both",
+      "alice",
+    );
+    expect(results).toHaveLength(0);
+  });
+
+  it("filters by direction across all anchors", async () => {
+    const r1 = await memoryService.create({
+      workspace_id: "test-ws",
+      content: "memory one",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(r1.data);
+    const m1 = r1.data;
+
+    const r2 = await memoryService.create({
+      workspace_id: "test-ws",
+      content: "memory two",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(r2.data);
+    const m2 = r2.data;
+
+    // m1 → m2
+    await relationshipService.create({
+      sourceId: m1.id,
+      targetId: m2.id,
+      type: "overrides",
+      userId: "alice",
+    });
+
+    const outgoing = await relationshipService.listForMemories(
+      [m1.id],
+      "outgoing",
+      "alice",
+    );
+    expect(outgoing).toHaveLength(1);
+    expect(outgoing[0].direction).toBe("outgoing");
+
+    const incoming = await relationshipService.listForMemories(
+      [m1.id],
+      "incoming",
+      "alice",
+    );
+    expect(incoming).toHaveLength(0);
+  });
+});
+
 describe("end-to-end: create relationship → get → archive → verify cleanup", () => {
   let memoryService: ReturnType<
     typeof createTestServiceWithRelationships

@@ -192,6 +192,12 @@ export interface RelationshipRepository {
     direction: "outgoing" | "incoming" | "both",
     type?: string,
   ): Promise<Relationship[]>;
+  findByMemoryIds(
+    projectId: string,
+    memoryIds: string[],
+    direction: "outgoing" | "incoming" | "both",
+    type?: string,
+  ): Promise<Relationship[]>;
   findExisting(
     projectId: string,
     sourceId: string,

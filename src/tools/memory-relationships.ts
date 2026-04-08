@@ -12,9 +12,12 @@ export function registerMemoryRelationships(
     "memory_relationships",
     {
       description:
-        'List relationships for a memory. Returns all relationships in the requested direction, optionally filtered by type. Example: memory_relationships({ memory_id: "abc123", user_id: "alice", direction: "both" })',
+        'List relationships for one or more memories. Returns all relationships in the requested direction, optionally filtered by type. Example: memory_relationships({ memory_ids: ["abc123", "def456"], user_id: "alice", direction: "both" })',
       inputSchema: {
-        memory_id: z.string().describe("Memory ID to list relationships for"),
+        memory_ids: z
+          .array(z.string().min(1))
+          .min(1)
+          .describe("Memory IDs to list relationships for"),
         direction: z
           .enum(["outgoing", "incoming", "both"])
           .default("both")
@@ -32,8 +35,8 @@ export function registerMemoryRelationships(
     },
     async (params) => {
       return withErrorHandling(async () => {
-        const results = await relationshipService.listForMemory(
-          params.memory_id,
+        const results = await relationshipService.listForMemories(
+          params.memory_ids,
           params.direction,
           params.user_id,
           params.type,
