@@ -454,38 +454,40 @@ describe("consolidation creates relationships", () => {
     await closeDb();
   });
 
-  it("creates a duplicates relationship when flagging duplicates", async () => {
+  it("creates a duplicates relationship for content-subset auto-archive", async () => {
+    // Create a short memory and a longer one that contains it
     const m1 = await service.create({
       workspace_id: "test-ws",
-      content: "always use snake_case for database columns",
+      content: "use snake_case for columns",
       type: "decision",
       author: "alice",
     });
     assertMemory(m1.data);
     const m2 = await service.create({
       workspace_id: "test-ws",
-      content: "always use snake_case for db columns",
+      content: "use snake_case for columns and always add timestamps",
       type: "decision",
       author: "alice",
     });
     assertMemory(m2.data);
+
     await consolidationService.run();
-    // With mock embeddings, similarity may not trigger, but verify no errors
+
+    // m1 is a content subset of m2, so a "duplicates" relationship should exist
     const rels = await relationshipRepo.findByMemoryId(
       "test-project",
-      m2.data.id,
+      m1.data.id,
       "both",
     );
-    // If mock embeddings triggered a threshold, verify the relationship is correct
-    if (rels.length > 0) {
-      expect(rels[0].type).toBe("duplicates");
-      expect(rels[0].created_via).toBe("consolidation");
-      expect([m1.data.id, m2.data.id].includes(rels[0].source_id)).toBe(true);
-      expect([m1.data.id, m2.data.id].includes(rels[0].target_id)).toBe(true);
-    }
+    expect(rels).toHaveLength(1);
+    expect(rels[0].type).toBe("duplicates");
+    expect(rels[0].created_via).toBe("consolidation");
+    // After direction fix: source = surviving (m2), target = archived (m1)
+    expect(rels[0].source_id).toBe(m2.data.id);
+    expect(rels[0].target_id).toBe(m1.data.id);
   });
 
-  it("creates overrides relationship for cross-scope supersedence", async () => {
+  it("runs cross-scope check without errors (mock embeddings may not trigger threshold)", async () => {
     const proj = await service.create({
       workspace_id: "test-ws",
       content: "Global rule about API naming",
@@ -502,7 +504,8 @@ describe("consolidation creates relationships", () => {
       author: "alice",
     });
     assertMemory(ws.data);
-    await consolidationService.run();
-    // Verify no errors (mock embeddings may not trigger thresholds)
+
+    const result = await consolidationService.run();
+    expect(result.errors).toBe(0);
   });
 });
