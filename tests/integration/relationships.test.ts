@@ -298,6 +298,73 @@ describe("relationship repository", () => {
   });
 });
 
+describe("session_start includes relationships between returned memories", () => {
+  let memoryService: ReturnType<
+    typeof createTestServiceWithRelationships
+  >["memoryService"];
+  let relationshipService: ReturnType<
+    typeof createTestServiceWithRelationships
+  >["relationshipService"];
+
+  beforeEach(async () => {
+    await truncateAll();
+    const services = createTestServiceWithRelationships();
+    memoryService = services.memoryService;
+    relationshipService = services.relationshipService;
+
+    const workspaceRepo = new DrizzleWorkspaceRepository(getTestDb());
+    await workspaceRepo.findOrCreate("test-ws");
+  });
+
+  afterAll(async () => {
+    await closeDb();
+  });
+
+  it("returns relationships between session_start memories in meta", async () => {
+    // Create two memories
+    const sourceResult = await memoryService.create({
+      workspace_id: "test-ws",
+      content: "session start source memory",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(sourceResult.data);
+    const sourceId = sourceResult.data.id;
+
+    const targetResult = await memoryService.create({
+      workspace_id: "test-ws",
+      content: "session start target memory",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(targetResult.data);
+    const targetId = targetResult.data.id;
+
+    // Create an overrides relationship between them
+    await relationshipService.create({
+      sourceId,
+      targetId,
+      type: "overrides",
+      userId: "alice",
+    });
+
+    // Call sessionStart
+    const result = await memoryService.sessionStart("test-ws", "alice");
+
+    // Both memories should be returned
+    const returnedIds = result.data.map((m) => m.id);
+    expect(returnedIds).toContain(sourceId);
+    expect(returnedIds).toContain(targetId);
+
+    // meta.relationships should contain the overrides relationship
+    expect(result.meta.relationships).toBeDefined();
+    expect(result.meta.relationships).toHaveLength(1);
+    expect(result.meta.relationships![0].type).toBe("overrides");
+    expect(result.meta.relationships![0].source_id).toBe(sourceId);
+    expect(result.meta.relationships![0].target_id).toBe(targetId);
+  });
+});
+
 describe("memory_get includes relationships", () => {
   let memoryService: ReturnType<
     typeof createTestServiceWithRelationships

@@ -33,5 +33,13 @@ export interface Envelope<T> {
       } | null;
       reason: string;
     }>;
+    relationships?: Array<{
+      id: string;
+      type: string;
+      description: string | null;
+      confidence: number;
+      source_id: string;
+      target_id: string;
+    }>;
   };
 }
