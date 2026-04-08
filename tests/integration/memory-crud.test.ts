@@ -528,4 +528,45 @@ describe("Memory CRUD integration tests", () => {
     expect(result.data).toHaveLength(1);
     expect(result.data[0].id).toBe(m1.data.id);
   });
+
+  it("supports the 2-call list→get pattern", async () => {
+    const { memoryService } = createTestServiceWithRelationships();
+
+    // Create memories across scopes
+    const m1 = await memoryService.create({
+      workspace_id: "test-project",
+      content: "E2E test workspace memory",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(m1.data);
+
+    const m2 = await memoryService.create({
+      workspace_id: "test-project",
+      content: "E2E test user memory",
+      type: "decision",
+      author: "alice",
+      scope: "user",
+    });
+    assertMemory(m2.data);
+
+    // Step 1: List across scopes
+    const listResult = await memoryService.list({
+      project_id: "test-project",
+      workspace_id: "test-project",
+      scope: ["workspace", "user"],
+      user_id: "alice",
+    });
+    expect(listResult.data.length).toBe(2);
+
+    // Step 2: Get full details for all listed IDs
+    const ids = listResult.data.map((m) => m.id);
+    const getResult = await memoryService.getMany(ids, "alice", [
+      "relationships",
+    ]);
+    expect(getResult.data.length).toBe(2);
+    expect(getResult.data[0]).toHaveProperty("can_edit");
+    expect(getResult.data[0]).toHaveProperty("relationships");
+    expect(getResult.data[0]).toHaveProperty("flag_count");
+  });
 });
