@@ -175,6 +175,16 @@ export class RelationshipService {
     userId: string,
     type?: string,
   ): Promise<RelationshipWithMemory[]> {
+    // Validate the requesting user can access the anchor memory
+    const anchorMemory = await this.memoryRepo.findById(memoryId);
+    if (
+      !anchorMemory ||
+      anchorMemory.project_id !== this.projectId ||
+      !this.canAccess(anchorMemory, userId)
+    ) {
+      throw new NotFoundError("Memory", memoryId);
+    }
+
     const relationships = await this.relationshipRepo.findByMemoryId(
       this.projectId,
       memoryId,
