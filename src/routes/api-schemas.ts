@@ -95,6 +95,28 @@ export const toolSchemas = {
     limit: z.number().int().min(1).max(100).default(10),
     exclude_self: z.boolean().default(false),
   }),
+
+  memory_relate: z.object({
+    source_id: z.string().min(1),
+    target_id: z.string().min(1),
+    type: z.string().min(1).max(64),
+    description: z.string().max(500).optional(),
+    confidence: z.number().min(0).max(1).optional(),
+    user_id: slugSchema,
+    source: z.string().optional(),
+  }),
+
+  memory_unrelate: z.object({
+    id: z.string().min(1),
+    user_id: slugSchema,
+  }),
+
+  memory_relationships: z.object({
+    memory_id: z.string().min(1),
+    direction: z.enum(["outgoing", "incoming", "both"]).default("both"),
+    type: z.string().optional(),
+    user_id: slugSchema,
+  }),
 } as const;
 
 export type ToolName = keyof typeof toolSchemas;

@@ -15,7 +15,9 @@ import {
 } from "./repositories/session-repository.js";
 import { DrizzleAuditRepository } from "./repositories/audit-repository.js";
 import { DrizzleFlagRepository } from "./repositories/flag-repository.js";
+import { DrizzleRelationshipRepository } from "./repositories/relationship-repository.js";
 import { MemoryService } from "./services/memory-service.js";
+import { RelationshipService } from "./services/relationship-service.js";
 import { AuditService } from "./services/audit-service.js";
 import { FlagService } from "./services/flag-service.js";
 import { ConsolidationService } from "./services/consolidation-service.js";
@@ -88,6 +90,12 @@ async function main() {
   const auditService = new AuditService(auditRepo, config.projectId);
   const flagRepo = new DrizzleFlagRepository(db);
   const flagService = new FlagService(flagRepo, auditService, config.projectId);
+  const relationshipRepo = new DrizzleRelationshipRepository(db);
+  const relationshipService = new RelationshipService(
+    relationshipRepo,
+    memoryRepo,
+    config.projectId,
+  );
   const memoryService = new MemoryService(
     memoryRepo,
     workspaceRepo,
@@ -132,7 +140,13 @@ async function main() {
       name: "agent-brain",
       version: config.version,
     });
-    registerAllTools(server, memoryService, flagService, consolidationService);
+    registerAllTools(
+      server,
+      memoryService,
+      flagService,
+      consolidationService,
+      relationshipService,
+    );
     registerMemoryGuidance(server);
     return server;
   }
@@ -149,7 +163,7 @@ async function main() {
   );
 
   // Register REST routes (health + hook API)
-  registerRoutes(app, memoryService);
+  registerRoutes(app, memoryService, relationshipService);
 
   // MCP Streamable HTTP: POST /mcp (stateless — no session tracking needed)
   app.post("/mcp", async (req, res) => {
