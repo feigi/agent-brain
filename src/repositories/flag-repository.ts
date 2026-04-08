@@ -1,4 +1,4 @@
-import { eq, and, isNull, desc, sql } from "drizzle-orm";
+import { eq, and, isNull, desc, sql, inArray } from "drizzle-orm";
 import type { Database } from "../db/index.js";
 import { flags, memories } from "../db/schema.js";
 import type { Flag, FlagResolution, FlagType } from "../types/flag.js";
@@ -90,6 +90,15 @@ export class DrizzleFlagRepository implements FlagRepository {
       .select()
       .from(flags)
       .where(eq(flags.memory_id, memoryId))
+      .orderBy(desc(flags.created_at))) as Flag[];
+  }
+
+  async findByMemoryIds(memoryIds: string[]): Promise<Flag[]> {
+    if (memoryIds.length === 0) return [];
+    return (await this.db
+      .select()
+      .from(flags)
+      .where(inArray(flags.memory_id, memoryIds))
       .orderBy(desc(flags.created_at))) as Flag[];
   }
 

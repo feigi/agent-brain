@@ -425,4 +425,107 @@ describe("Memory CRUD integration tests", () => {
     ];
     expect(new Set(allIds).size).toBe(5);
   });
+
+  it("batch gets multiple memories with counts", async () => {
+    const { memoryService } = createTestServiceWithRelationships();
+
+    const m1 = await memoryService.create({
+      workspace_id: "test-project",
+      content: "Batch get memory one",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(m1.data);
+
+    const m2 = await memoryService.create({
+      workspace_id: "test-project",
+      content: "Batch get memory two",
+      type: "decision",
+      author: "alice",
+    });
+    assertMemory(m2.data);
+
+    const result = await memoryService.getMany(
+      [m1.data.id, m2.data.id],
+      "alice",
+    );
+
+    expect(result.data).toHaveLength(2);
+    expect(result.data[0].comment_count).toBe(0);
+    expect(result.data[0].flag_count).toBe(0);
+    expect(result.data[0].relationship_count).toBe(0);
+    expect(result.data[0]).not.toHaveProperty("comments");
+    expect(result.data[0]).not.toHaveProperty("flags");
+    expect(result.data[0]).not.toHaveProperty("relationships");
+  });
+
+  it("batch gets with include returns full data for specified joins", async () => {
+    const { memoryService, relationshipService } =
+      createTestServiceWithRelationships();
+
+    const m1 = await memoryService.create({
+      workspace_id: "test-project",
+      content: "Memory with relationship for include test",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(m1.data);
+
+    const m2 = await memoryService.create({
+      workspace_id: "test-project",
+      content: "Related memory for include test",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(m2.data);
+
+    await relationshipService.create({
+      sourceId: m1.data.id,
+      targetId: m2.data.id,
+      type: "refines",
+      userId: "alice",
+    });
+
+    const result = await memoryService.getMany([m1.data.id], "alice", [
+      "relationships",
+    ]);
+
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].relationships).toHaveLength(1);
+    expect(result.data[0].relationships![0].type).toBe("refines");
+    expect(result.data[0].comment_count).toBe(0);
+    expect(result.data[0].flag_count).toBe(0);
+    expect(result.data[0]).not.toHaveProperty("comments");
+    expect(result.data[0]).not.toHaveProperty("flags");
+  });
+
+  it("batch get silently omits inaccessible memories", async () => {
+    const { memoryService } = createTestServiceWithRelationships();
+
+    const m1 = await memoryService.create({
+      workspace_id: "test-project",
+      content: "Accessible workspace memory",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(m1.data);
+
+    const m2 = await memoryService.create({
+      workspace_id: "test-project",
+      content: "Private user memory",
+      type: "fact",
+      author: "bob",
+      scope: "user",
+    });
+    assertMemory(m2.data);
+
+    // Alice should only see her own memory, not bob's user-scoped one
+    const result = await memoryService.getMany(
+      [m1.data.id, m2.data.id],
+      "alice",
+    );
+
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].id).toBe(m1.data.id);
+  });
 });

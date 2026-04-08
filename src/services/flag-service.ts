@@ -78,6 +78,10 @@ export class FlagService {
     );
   }
 
+  async findByMemoryIds(memoryIds: string[]): Promise<Flag[]> {
+    return this.flagRepo.findByMemoryIds(memoryIds);
+  }
+
   async getFlagsByMemoryId(memoryId: string): Promise<Flag[]> {
     return this.flagRepo.findByMemoryId(memoryId);
   }

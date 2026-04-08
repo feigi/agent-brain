@@ -127,6 +127,7 @@ export interface CommentRepository {
     content: string;
   }): Promise<Comment>;
   findByMemoryId(memoryId: string): Promise<Comment[]>;
+  findByMemoryIds(memoryIds: string[]): Promise<Comment[]>;
   countByMemoryId(memoryId: string): Promise<number>;
 }
 
@@ -173,6 +174,7 @@ export interface FlagRepository {
     resolution: FlagResolution,
   ): Promise<Flag | null>;
   findByMemoryId(memoryId: string): Promise<Flag[]>;
+  findByMemoryIds(memoryIds: string[]): Promise<Flag[]>;
   autoResolveByMemoryId(memoryId: string): Promise<number>;
   hasOpenFlag(
     memoryId: string,
