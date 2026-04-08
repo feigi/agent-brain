@@ -37,7 +37,7 @@ export function registerMemoryRelate(
           .optional()
           .describe("Confidence score between 0 and 1 (default: 1.0)"),
         user_id: slugSchema.describe("Who is creating the relationship"),
-        source: z
+        created_via: z
           .string()
           .optional()
           .describe("System or tool that created this relationship"),
@@ -52,7 +52,7 @@ export function registerMemoryRelate(
           description: params.description,
           confidence: params.confidence,
           userId: params.user_id,
-          source: params.source,
+          createdVia: params.created_via,
         });
         return toolResponse({ data: result, meta: {} });
       });

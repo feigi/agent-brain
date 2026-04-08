@@ -476,7 +476,13 @@ describe("consolidation creates relationships", () => {
       m2.data.id,
       "both",
     );
-    expect(rels.length).toBeGreaterThanOrEqual(0);
+    // If mock embeddings triggered a threshold, verify the relationship is correct
+    if (rels.length > 0) {
+      expect(rels[0].type).toBe("duplicates");
+      expect(rels[0].created_via).toBe("consolidation");
+      expect([m1.data.id, m2.data.id].includes(rels[0].source_id)).toBe(true);
+      expect([m1.data.id, m2.data.id].includes(rels[0].target_id)).toBe(true);
+    }
   });
 
   it("creates overrides relationship for cross-scope supersedence", async () => {

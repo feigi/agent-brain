@@ -227,13 +227,52 @@ describe("RelationshipService", () => {
         description: null,
         confidence: 1.0,
         created_by: "system",
-        source: "consolidation",
+        created_via: "consolidation",
         archived_at: null,
         created_at: new Date(),
       });
 
       // Alice can remove it — she can access the workspace side (aliceMemoryId) but not bob's user-scoped side
       await expect(service.remove(rel.id, "alice")).resolves.toBeUndefined();
+    });
+
+    it("throws NotFoundError when non-source-owner tries to remove non-consolidation relationship", async () => {
+      const memService = createTestService();
+
+      // Alice creates a user-scoped memory (source)
+      const aliceResult = await memService.create({
+        workspace_id: "test-ws",
+        content: "alice's private memory",
+        type: "fact",
+        author: "alice",
+        scope: "user",
+      });
+      assertMemory(aliceResult.data);
+      const aliceMemoryId = aliceResult.data.id;
+
+      // Bob creates a workspace memory (target — accessible to everyone)
+      const bobResult = await memService.create({
+        workspace_id: "test-ws",
+        content: "workspace memory by bob",
+        type: "fact",
+        author: "bob",
+        scope: "workspace",
+      });
+      assertMemory(bobResult.data);
+      const bobMemoryId = bobResult.data.id;
+
+      // Alice creates a manual relationship (source = her private memory)
+      const rel = await service.create({
+        sourceId: aliceMemoryId,
+        targetId: bobMemoryId,
+        type: "overrides",
+        userId: "alice",
+      });
+
+      // Bob can access the target but NOT the source — should be denied
+      await expect(service.remove(rel.id, "bob")).rejects.toThrow(
+        NotFoundError,
+      );
     });
   });
 
@@ -254,6 +293,50 @@ describe("RelationshipService", () => {
       expect(results).toHaveLength(1);
       expect(results[0].direction).toBe("outgoing");
       expect(results[0].related_memory.id).toBe(targetId);
+    });
+  });
+
+  describe("listForMemory access control", () => {
+    it("excludes relationships where related memory is inaccessible", async () => {
+      const memService = createTestService();
+
+      // Create a workspace memory
+      const wsResult = await memService.create({
+        workspace_id: "test-ws",
+        content: "workspace memory",
+        type: "fact",
+        author: "alice",
+        scope: "workspace",
+      });
+      assertMemory(wsResult.data);
+      const wsMemoryId = wsResult.data.id;
+
+      // Create Bob's user-scoped memory
+      const bobResult = await memService.create({
+        workspace_id: "test-ws",
+        content: "bob's private memory",
+        type: "fact",
+        author: "bob",
+        scope: "user",
+      });
+      assertMemory(bobResult.data);
+      const bobMemoryId = bobResult.data.id;
+
+      // Bob creates a relationship from workspace → his private memory
+      await service.create({
+        sourceId: wsMemoryId,
+        targetId: bobMemoryId,
+        type: "refines",
+        userId: "bob",
+      });
+
+      // Alice lists relationships for the workspace memory — Bob's memory is inaccessible
+      const results = await service.listForMemory(
+        wsMemoryId,
+        "outgoing",
+        "alice",
+      );
+      expect(results).toHaveLength(0);
     });
   });
 

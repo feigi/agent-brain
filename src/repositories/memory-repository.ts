@@ -105,6 +105,15 @@ export class DrizzleMemoryRepository implements MemoryRepository {
     return rowToMemory({ ...result[0], comment_count: 0 });
   }
 
+  async findByIds(ids: string[]): Promise<Memory[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.db
+      .select(this.memoryColumns())
+      .from(memories)
+      .where(and(inArray(memories.id, ids), isNull(memories.archived_at)));
+    return rows.map(rowToMemory);
+  }
+
   async findById(id: string): Promise<Memory | null> {
     const result = await this.db
       .select(this.memoryColumns())

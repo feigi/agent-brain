@@ -103,7 +103,7 @@ export const toolSchemas = {
     description: z.string().max(500).optional(),
     confidence: z.number().min(0).max(1).optional(),
     user_id: slugSchema,
-    source: z.string().optional(),
+    created_via: z.string().optional(),
   }),
 
   memory_unrelate: z.object({

@@ -62,7 +62,7 @@ describe("relationship repository", () => {
       description: null,
       confidence: 1.0,
       created_by: "alice",
-      source: "manual",
+      created_via: "manual",
       archived_at: null,
       created_at: new Date(),
       ...overrides,
@@ -197,20 +197,20 @@ describe("relationship repository", () => {
     expect(incoming).toHaveLength(0);
   });
 
-  it("deletes a relationship by id", async () => {
+  it("archives a relationship by id", async () => {
     const rel = makeRelationship();
     await repo.create(rel);
 
-    const deleted = await repo.deleteById(rel.id);
-    expect(deleted).toBe(true);
+    const archived = await repo.archiveById(rel.id);
+    expect(archived).toBe(true);
 
     const found = await repo.findById(rel.id);
     expect(found).toBeNull();
   });
 
-  it("deleteById returns false for non-existent id", async () => {
-    const deleted = await repo.deleteById("non-existent-id");
-    expect(deleted).toBe(false);
+  it("archiveById returns false for non-existent id", async () => {
+    const archived = await repo.archiveById("non-existent-id");
+    expect(archived).toBe(false);
   });
 
   it("filters by type", async () => {
