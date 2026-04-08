@@ -234,19 +234,16 @@ export const relationships = pgTable(
     description: text("description"),
     confidence: real("confidence").notNull().default(1.0),
     created_by: text("created_by").notNull(),
-    source: text("source"),
+    created_via: text("created_via"),
     archived_at: timestamp("archived_at", { withTimezone: true }),
     created_at: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
   (table) => [
-    uniqueIndex("relationships_unique_edge").on(
-      table.project_id,
-      table.source_id,
-      table.target_id,
-      table.type,
-    ),
+    uniqueIndex("relationships_unique_active_edge")
+      .on(table.project_id, table.source_id, table.target_id, table.type)
+      .where(sql`archived_at IS NULL`),
     index("relationships_source_idx").on(table.source_id),
     index("relationships_target_idx").on(table.target_id),
     index("relationships_project_type_idx").on(table.project_id, table.type),

@@ -123,7 +123,7 @@ async function migrate() {
         description: details.reason,
         confidence: details.similarity ?? 1.0,
         created_by: "migration",
-        source: "consolidation",
+        created_via: "consolidation",
         archived_at: archivedAt,
         created_at: flag.created_at,
       });

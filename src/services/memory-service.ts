@@ -329,10 +329,20 @@ export class MemoryService {
       }
     }
 
-    // Relationships for this memory
-    const relationshipsList = this.relationshipService
-      ? await this.relationshipService.listForMemory(id, "both", userId)
-      : [];
+    // Relationships for this memory (best-effort enrichment)
+    let relationshipsList: import("../types/relationship.js").RelationshipWithMemory[] =
+      [];
+    if (this.relationshipService) {
+      try {
+        relationshipsList = await this.relationshipService.listForMemory(
+          id,
+          "both",
+          userId,
+        );
+      } catch (error) {
+        logger.warn(`Failed to load relationships for memory ${id}:`, error);
+      }
+    }
 
     // D-72: Capability booleans
     const isOwner = memory.author === userId;
@@ -582,7 +592,14 @@ export class MemoryService {
 
     if (this.relationshipService) {
       for (const id of verifiedIds) {
-        await this.relationshipService.archiveByMemoryId(id);
+        try {
+          await this.relationshipService.archiveByMemoryId(id);
+        } catch (error) {
+          logger.warn(
+            `Failed to archive relationships for memory ${id}:`,
+            error,
+          );
+        }
       }
     }
 
@@ -804,20 +821,24 @@ export class MemoryService {
       MemorySummaryWithRelevance[]
     >["meta"]["relationships"];
     if (this.relationshipService && result.data.length >= 2) {
-      const memoryIds = result.data.map((m) => m.id);
-      const rels = await this.relationshipService.listBetweenMemories(
-        memoryIds,
-        userId,
-      );
-      if (rels.length > 0) {
-        relationshipsData = rels.map((r) => ({
-          id: r.id,
-          type: r.type,
-          description: r.description,
-          confidence: r.confidence,
-          source_id: r.source_id,
-          target_id: r.target_id,
-        }));
+      try {
+        const memoryIds = result.data.map((m) => m.id);
+        const rels = await this.relationshipService.listBetweenMemories(
+          memoryIds,
+          userId,
+        );
+        if (rels.length > 0) {
+          relationshipsData = rels.map((r) => ({
+            id: r.id,
+            type: r.type,
+            description: r.description,
+            confidence: r.confidence,
+            source_id: r.source_id,
+            target_id: r.target_id,
+          }));
+        }
+      } catch (error) {
+        logger.warn("Failed to load relationships for session_start:", error);
       }
     }
 

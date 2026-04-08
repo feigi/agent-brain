@@ -9,15 +9,17 @@ import type {
 import type { Memory } from "../types/memory.js";
 import { generateId } from "../utils/id.js";
 import { NotFoundError, ValidationError } from "../utils/errors.js";
+import { logger } from "../utils/logger.js";
 
 export interface CreateRelationshipInput {
   sourceId: string;
   targetId: string;
   type: string;
   description?: string;
+  /** Value between 0 and 1 inclusive */
   confidence?: number;
   userId: string;
-  source?: string;
+  createdVia?: string;
 }
 
 export class RelationshipService {
@@ -32,9 +34,37 @@ export class RelationshipService {
     return memory.author === userId;
   }
 
+  private validateConfidence(confidence: number): void {
+    if (confidence < 0 || confidence > 1) {
+      throw new ValidationError(
+        `Confidence must be between 0 and 1, got ${confidence}`,
+      );
+    }
+  }
+
+  private buildRelationship(input: CreateRelationshipInput): Relationship {
+    return {
+      id: generateId(),
+      project_id: this.projectId,
+      source_id: input.sourceId,
+      target_id: input.targetId,
+      type: input.type,
+      description: input.description ?? null,
+      confidence: input.confidence ?? 1.0,
+      created_by: input.userId,
+      created_via: input.createdVia ?? null,
+      archived_at: null,
+      created_at: new Date(),
+    };
+  }
+
   async create(input: CreateRelationshipInput): Promise<Relationship> {
     if (input.sourceId === input.targetId) {
       throw new ValidationError("Source and target must be different memories");
+    }
+
+    if (input.confidence !== undefined) {
+      this.validateConfidence(input.confidence);
     }
 
     const source = await this.memoryRepo.findById(input.sourceId);
@@ -63,21 +93,58 @@ export class RelationshipService {
     );
     if (existing) return existing;
 
-    const relationship: Relationship = {
-      id: generateId(),
-      project_id: this.projectId,
-      source_id: input.sourceId,
-      target_id: input.targetId,
-      type: input.type,
-      description: input.description ?? null,
-      confidence: input.confidence ?? 1.0,
-      created_by: input.userId,
-      source: input.source ?? null,
-      archived_at: null,
-      created_at: new Date(),
-    };
+    const relationship = this.buildRelationship(input);
+    const created = await this.relationshipRepo.create(relationship);
+    logger.debug(
+      `Created relationship ${created.id} (${input.type}) between ${input.sourceId} → ${input.targetId}`,
+    );
+    return created;
+  }
 
-    return this.relationshipRepo.create(relationship);
+  /**
+   * Create a relationship without per-user access control.
+   *
+   * Used by system actors (consolidation engine, migration scripts) that operate
+   * across all memories regardless of scope. The consolidation engine is reachable
+   * via the `memory_consolidate` MCP tool, which already operates without per-user
+   * access control — this method extends that existing privilege model to
+   * relationship creation.
+   *
+   * Still validates: both memories exist, belong to this project, self-ref check, dedup.
+   */
+  async createInternal(input: CreateRelationshipInput): Promise<Relationship> {
+    if (input.sourceId === input.targetId) {
+      throw new ValidationError("Source and target must be different memories");
+    }
+
+    if (input.confidence !== undefined) {
+      this.validateConfidence(input.confidence);
+    }
+
+    const source = await this.memoryRepo.findById(input.sourceId);
+    if (!source || source.project_id !== this.projectId) {
+      throw new NotFoundError("Memory", input.sourceId);
+    }
+
+    const target = await this.memoryRepo.findById(input.targetId);
+    if (!target || target.project_id !== this.projectId) {
+      throw new NotFoundError("Memory", input.targetId);
+    }
+
+    const existing = await this.relationshipRepo.findExisting(
+      this.projectId,
+      input.sourceId,
+      input.targetId,
+      input.type,
+    );
+    if (existing) return existing;
+
+    const relationship = this.buildRelationship(input);
+    const created = await this.relationshipRepo.create(relationship);
+    logger.debug(
+      `Created internal relationship ${created.id} (${input.type}) between ${input.sourceId} → ${input.targetId}`,
+    );
+    return created;
   }
 
   async remove(id: string, userId: string): Promise<void> {
@@ -91,14 +158,15 @@ export class RelationshipService {
 
     const canEditSource = source && this.canAccess(source, userId);
     const canEditEitherSide =
-      relationship.source === "consolidation" &&
+      relationship.created_via === "consolidation" &&
       (canEditSource || (target && this.canAccess(target, userId)));
 
     if (!canEditSource && !canEditEitherSide) {
       throw new NotFoundError("Relationship", id);
     }
 
-    await this.relationshipRepo.deleteById(id);
+    await this.relationshipRepo.archiveById(id);
+    logger.debug(`Archived relationship ${id}`);
   }
 
   async listForMemory(
@@ -114,11 +182,20 @@ export class RelationshipService {
       type,
     );
 
+    const relatedIds = new Set<string>();
+    for (const rel of relationships) {
+      const relatedId =
+        rel.source_id === memoryId ? rel.target_id : rel.source_id;
+      relatedIds.add(relatedId);
+    }
+    const relatedMemories = await this.memoryRepo.findByIds([...relatedIds]);
+    const memoryMap = new Map(relatedMemories.map((m) => [m.id, m]));
+
     const result: RelationshipWithMemory[] = [];
     for (const rel of relationships) {
       const isOutgoing = rel.source_id === memoryId;
       const relatedId = isOutgoing ? rel.target_id : rel.source_id;
-      const related = await this.memoryRepo.findById(relatedId);
+      const related = memoryMap.get(relatedId);
       if (!related || !this.canAccess(related, userId)) continue;
 
       result.push({
@@ -129,7 +206,7 @@ export class RelationshipService {
         description: rel.description,
         confidence: rel.confidence,
         created_by: rel.created_by,
-        source: rel.source,
+        created_via: rel.created_via,
         direction: isOutgoing ? "outgoing" : "incoming",
         related_memory: {
           id: related.id,
@@ -152,14 +229,24 @@ export class RelationshipService {
       memoryIds,
     );
 
+    const relatedIds = new Set<string>();
+    for (const rel of relationships) {
+      relatedIds.add(rel.source_id);
+      relatedIds.add(rel.target_id);
+    }
+    const relatedMemories = await this.memoryRepo.findByIds([...relatedIds]);
+    const memoryMap = new Map(relatedMemories.map((m) => [m.id, m]));
+
     const result: RelationshipWithMemory[] = [];
     for (const rel of relationships) {
-      const source = await this.memoryRepo.findById(rel.source_id);
-      const target = await this.memoryRepo.findById(rel.target_id);
+      const source = memoryMap.get(rel.source_id);
+      const target = memoryMap.get(rel.target_id);
       // Skip if either side is inaccessible
       if (!source || !this.canAccess(source, userId)) continue;
       if (!target || !this.canAccess(target, userId)) continue;
 
+      // Direction is always "outgoing" — we're showing the graph edge between
+      // session memories, not a per-memory perspective.
       result.push({
         id: rel.id,
         source_id: rel.source_id,
@@ -168,7 +255,7 @@ export class RelationshipService {
         description: rel.description,
         confidence: rel.confidence,
         created_by: rel.created_by,
-        source: rel.source,
+        created_via: rel.created_via,
         direction: "outgoing",
         related_memory: {
           id: target.id,
@@ -183,6 +270,10 @@ export class RelationshipService {
   }
 
   async archiveByMemoryId(memoryId: string): Promise<number> {
-    return this.relationshipRepo.archiveByMemoryId(memoryId);
+    const count = await this.relationshipRepo.archiveByMemoryId(memoryId);
+    if (count > 0) {
+      logger.info(`Archived ${count} relationship(s) for memory ${memoryId}`);
+    }
+    return count;
   }
 }

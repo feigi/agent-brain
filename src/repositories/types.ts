@@ -46,6 +46,7 @@ export interface StaleOptions {
 export interface MemoryRepository {
   create(memory: Memory & { embedding: number[] }): Promise<Memory>;
   findById(id: string): Promise<Memory | null>;
+  findByIds(ids: string[]): Promise<Memory[]>;
   update(
     id: string,
     expectedVersion: number,
@@ -199,7 +200,7 @@ export interface RelationshipRepository {
     memoryIds: string[],
   ): Promise<Relationship[]>;
   archiveByMemoryId(memoryId: string): Promise<number>;
-  deleteById(id: string): Promise<boolean>;
+  archiveById(id: string): Promise<boolean>;
 }
 
 export interface RecentActivityOptions {

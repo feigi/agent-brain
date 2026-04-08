@@ -297,7 +297,7 @@ AWS_REGION=us-east-1
 | `memory_consolidate`   | Run a full consolidation pass on demand (no cron needed)  |
 | `memory_resolve_flag`  | Resolve a consolidation flag (accept, dismiss, or defer)  |
 | `memory_relate`        | Create a directional relationship between two memories    |
-| `memory_unrelate`      | Remove a relationship                                     |
+| `memory_unrelate`      | Remove (soft-delete) a relationship by relationship ID    |
 | `memory_relationships` | List relationships for a memory                           |
 
 All tools require `workspace_id` and `user_id`. Workspaces are created automatically on first use.
@@ -342,9 +342,9 @@ Memories can be linked with directional, typed relationships to capture how know
 ### Creating relationships
 
 ```
-memory_relate({ source_id, target_id, type, user_id })
-memory_unrelate({ id, user_id })
-memory_relationships({ memory_id, user_id, direction: "outgoing" | "incoming" | "both" })
+memory_relate({ source_id, target_id, type, user_id, description?, confidence?, created_via? })
+memory_unrelate({ id: relationship_id, user_id })
+memory_relationships({ memory_id, user_id, direction?: "outgoing" | "incoming" | "both" })
 ```
 
 ### Well-known relationship types
@@ -352,10 +352,10 @@ memory_relationships({ memory_id, user_id, direction: "outgoing" | "incoming" | 
 | Type          | Meaning                                                     |
 | ------------- | ----------------------------------------------------------- |
 | `overrides`   | Source supersedes or replaces the target                    |
-| `duplicates`  | Source is a near-exact duplicate of the target              |
 | `implements`  | Source implements a decision or pattern described in target |
 | `refines`     | Source adds detail or nuance to the target                  |
 | `contradicts` | Source conflicts with the target — needs human resolution   |
+| `duplicates`  | Source is a near-exact duplicate of the target              |
 
 The `type` field is freeform — any descriptive string is valid. The well-known types above have consistent semantics across tools and the consolidation engine.
 
@@ -363,9 +363,9 @@ The `type` field is freeform — any descriptive string is valid. The well-known
 
 - **Directional** — every relationship has an explicit source and target (`source_id → target_id`).
 - **Freeform type** — use well-known types for interoperability, or any string for novel relationships.
-- **Included in `memory_get`** — fetching a memory returns its outgoing and incoming relationships with a `direction` field.
-- **Surfaced in `memory_session_start`** — when two or more returned memories are linked, their relationships appear in `meta.relationships` so agents can understand context without extra queries.
-- **Soft-deleted on archive** — when either memory in a relationship is archived, the relationship's `archived_at` is set and it is excluded from all queries.
+- **Included in `memory_get`** — fetching a memory returns its outgoing and incoming relationships with a `direction` field and `related_memory` summary (id, title, type, scope).
+- **Surfaced in `memory_session_start`** — when two or more returned memories are linked, their relationships appear in `meta.relationships` as minimal summaries (id, type, description, confidence, source_id, target_id).
+- **Soft-deleted on archive or unrelate** — archiving a memory or calling `memory_unrelate` sets `archived_at` on the relationship, excluding it from all queries. No data is permanently destroyed.
 - **Consolidation-created** — the consolidation engine automatically creates `duplicates` and `overrides` relationships when it detects near-duplicate or superseded memories, providing a traceable record of its decisions.
 
 ---
