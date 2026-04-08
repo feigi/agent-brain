@@ -297,6 +297,25 @@ describe("RelationshipService", () => {
   });
 
   describe("listForMemory access control", () => {
+    it("throws NotFoundError when querying another user's user-scoped memory", async () => {
+      const memService = createTestService();
+
+      // Create Bob's user-scoped memory
+      const bobResult = await memService.create({
+        workspace_id: "test-ws",
+        content: "bob's private memory",
+        type: "fact",
+        author: "bob",
+        scope: "user",
+      });
+      assertMemory(bobResult.data);
+
+      // Alice tries to list relationships for Bob's private memory
+      await expect(
+        service.listForMemory(bobResult.data.id, "both", "alice"),
+      ).rejects.toThrow(NotFoundError);
+    });
+
     it("excludes relationships where related memory is inaccessible", async () => {
       const memService = createTestService();
 
