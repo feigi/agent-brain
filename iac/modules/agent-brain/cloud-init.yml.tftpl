@@ -1,0 +1,70 @@
+#cloud-config
+package_update: true
+
+packages:
+  - docker
+
+write_files:
+  - path: /opt/agent-brain/docker-compose.yml
+    permissions: "0644"
+    content: |
+      services:
+        postgres:
+          image: pgvector/pgvector:pg17
+          restart: unless-stopped
+          environment:
+            POSTGRES_USER: agentic
+            POSTGRES_PASSWORD: agentic
+            POSTGRES_DB: agent_brain
+          volumes:
+            - pgdata:/var/lib/postgresql/data
+            - ./init-extensions.sql:/docker-entrypoint-initdb.d/01-extensions.sql
+          healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U agentic -d agent_brain"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+
+        agent-brain:
+          image: ${ecr_image}
+          restart: unless-stopped
+          ports:
+            - "19898:19898"
+          environment:
+            PROJECT_ID: "${project_id}"
+            DATABASE_URL: postgres://agentic:agentic@postgres:5432/agent_brain
+            EMBEDDING_PROVIDER: titan
+            AWS_REGION: "${aws_region}"
+            HOST: 0.0.0.0
+            PORT: "19898"
+          entrypoint: ["/bin/sh", "-c", "npx drizzle-kit migrate && npx tsx src/server.ts"]
+          depends_on:
+            postgres:
+              condition: service_healthy
+          healthcheck:
+            test: ["CMD", "curl", "-sf", "http://localhost:19898/health"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+
+      volumes:
+        pgdata:
+
+  - path: /opt/agent-brain/init-extensions.sql
+    permissions: "0644"
+    content: |
+      CREATE EXTENSION IF NOT EXISTS vector;
+
+runcmd:
+  - systemctl enable docker
+  - systemctl start docker
+  - |
+    mkdir -p /usr/local/lib/docker/cli-plugins
+    ARCH=$(uname -m)
+    curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$${ARCH}" \
+      -o /usr/local/lib/docker/cli-plugins/docker-compose
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+  - |
+    aws ecr get-login-password --region ${aws_region} \
+      | docker login --username AWS --password-stdin ${ecr_url}
+  - cd /opt/agent-brain && docker compose up -d
