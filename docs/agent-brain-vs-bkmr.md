@@ -27,10 +27,9 @@ The criteria, in priority order:
 
 The following are explicitly excluded from this comparison:
 
-- **bkmr's non-memory features** -- bookmarks, shell scripts, snippets, markdown rendering, LSP server, and editor plugins are not evaluated. We focus solely on the `_mem_` use case.
 - **Migration cost** -- This is a one-time cost and should not drive the long-term architectural decision.
 - **Programming language choice** -- Not a deciding factor.
-- **Jinja2 template interpolation** -- Useful for general bookmarks; not relevant for agent memory.
+- **bkmr as a general-purpose document retrieval system** -- We evaluate bkmr both as an agent memory backend and as a broader developer knowledge management tool; bkmr's value in domains completely unrelated to developer workflow (e.g., as a bookmark manager for personal media) is not evaluated.
 
 ## Agent-Brain
 
@@ -253,6 +252,27 @@ For a solo developer with no shared memory requirement, bkmr's operational profi
 
 **bkmr wins** on solo-developer operational simplicity. **Agent-brain wins** for team deployment patterns.
 
+### Developer knowledge management beyond memory
+
+This is where bkmr has genuine, unique value that agent-brain does not address at all. Agent-brain is a memory system for AI agents -- it stores free-text knowledge records. It has no concept of executable scripts, clipboard snippets, environment variable sets, or rendered markdown. bkmr covers the entire developer knowledge surface:
+
+| Content type         | bkmr feature                                      | Agent-brain equivalent |
+| -------------------- | ------------------------------------------------- | ---------------------- |
+| Web bookmarks        | `bkmr add <url>` with auto-metadata extraction    | None                   |
+| Code snippets        | `_snip_` → copies to clipboard on open            | None                   |
+| Shell scripts        | `_shell_` → interactive edit + execute            | None                   |
+| Markdown docs        | `_md_` → renders in browser with TOC              | None                   |
+| Environment var sets | `_env_` → `eval "$(bkmr open <id>)"`              | None                   |
+| Local files          | `import-files` with frontmatter + change tracking | None                   |
+| Editor completion    | Built-in LSP server + Neovim/IntelliJ plugins     | None                   |
+| Dynamic content      | Jinja2 template interpolation in any bookmark     | None                   |
+
+The hybrid search (`hsearch`) applies across all content types simultaneously, meaning a single query can surface a bookmark, a snippet, a shell command, and an agent memory in ranked order. This unified semantic search over heterogeneous developer content is a capability that neither agent-brain nor any other tool in this comparison provides.
+
+For a solo developer, bkmr can consolidate content currently scattered across browser bookmarks, notes apps, dotfiles, shell history, and code comments into a single, semantically searchable local database. The LSP server turns this into in-editor snippet completion without context switching. The `_shell_` type with interactive edit-before-execute replaces ad-hoc script management. The `_env_` type eliminates manually sourcing environment files.
+
+**bkmr wins** decisively on developer knowledge management breadth. Agent-brain is not in this space.
+
 ## Scenarios
 
 ### Use bkmr as agent memory (replace agent-brain)
@@ -281,20 +301,23 @@ Replace the MCP server with bkmr + the bkmr-memory skill loaded into agent conte
 
 ### Use bkmr alongside agent-brain
 
-Keep agent-brain as the primary team memory store. Use bkmr as a personal local knowledge base for non-team content (bookmarks, snippets, shell commands, personal notes).
+Keep agent-brain as the primary team memory store. Adopt bkmr as a personal developer knowledge management tool for everything agent-brain does not handle.
 
 **What you gain:**
 
-- A fast, local tool for personal developer productivity (code snippets, shell commands, bookmarks).
-- No conflict with the team memory system.
-- Each tool does what it is best at: agent-brain for structured team memory via MCP; bkmr for interactive personal knowledge management.
+- A fast, local tool for personal developer productivity: code snippets copied to clipboard via LSP or CLI, shell scripts stored and executed interactively, web bookmarks found by meaning rather than folder hierarchy, environment variable sets switched with a single `eval` command, markdown documents rendered in-browser.
+- Unified semantic search over all personal knowledge content (bookmarks, snippets, scripts, notes, and agent memories for solo use) via `hsearch`.
+- In-editor snippet completion via the built-in LSP server (VS Code, Vim, Emacs) or plugins (Neovim, IntelliJ) -- no context switching to find a code pattern.
+- No conflict with the team memory system. Agent-brain handles structured team memory via MCP; bkmr handles personal knowledge management interactively.
+- The two tools are fully independent: different databases, different interfaces, no shared state.
+- `import-files` can index existing scripts, documentation, and configs from the filesystem, making them semantically searchable without moving them.
 
 **What you lose:**
 
-- Two separate tools to maintain and explain.
-- Context split: agent memories live in agent-brain; personal notes live in bkmr. Agents must know which tool to use.
+- Two separate tools to install and explain to new team members.
+- Cognitive split: for a solo developer, agent memories could live in either system. A convention is needed (e.g., bkmr for personal productivity content; agent-brain for AI agent memories).
 
-**Verdict:** A natural separation of concerns if bkmr's non-memory features (snippets, bookmarks, shell scripts) are valuable. Low integration risk. The two systems do not conflict.
+**Verdict:** The strongest scenario if any of bkmr's non-memory features address a real pain point. The two tools are complementary, not competing. Low integration risk. Recommended for developers who currently manage bookmarks, snippets, or scripts in ad-hoc ways (browser folders, dotfiles, random gists).
 
 ### Agent-brain only (continue unchanged)
 
@@ -308,25 +331,29 @@ Keep the current architecture. No changes to the MCP server, data model, or depl
 
 **What you lose:**
 
-- Nothing. Potentially miss bkmr's personal knowledge management value (out of scope for this comparison).
+- Nothing regarding agent memory. Potentially miss the developer productivity gains bkmr offers (snippets, scripts, bookmarks, LSP completion) if those are pain points not yet addressed by other tools.
 
-**Verdict:** The default recommendation for team deployments. If personal bookmark/snippet management is a pain point, adopting bkmr alongside is the lowest-risk addition.
+**Verdict:** The safe default if none of bkmr's non-memory features address a real pain point. If snippets, scripts, bookmarks, or in-editor completion are already well-handled by existing tools, there is no reason to add bkmr.
 
 ## Recommendation
 
-**Continue with agent-brain. Optionally adopt bkmr alongside for personal knowledge management.**
+**For agent memory: continue with agent-brain. For developer knowledge management: adopt bkmr alongside.**
+
+The two tools serve different purposes and are genuinely complementary. The question is not which to choose but which to use for what.
 
 ### Rationale
 
-The analysis surfaces a fundamental mismatch between bkmr and agent-brain's use case:
+**Agent memory**: agent-brain remains the correct choice for AI agent memory. Three blocking issues prevent bkmr from replacing it:
 
-1. **Agent API surface is the blocking issue.** bkmr has no MCP server. Agents must shell out, construct command strings, parse JSON from stdout, and carry the skill document in context. Agent-brain's MCP tools are discoverable, structured, and require zero prompt engineering. For a tool used by AI coding assistants as their primary memory interface, this difference is decisive.
+1. **Agent API surface.** bkmr has no MCP server. Agents must shell out, construct command strings, parse JSON from stdout, and carry the skill document in context. Agent-brain's MCP tools are discoverable, structured, and require zero prompt engineering. For a tool used by AI coding assistants as their primary memory interface, this difference is decisive.
 
 2. **Safety guarantees cannot be retrofitted cheaply.** The seven safety features that agent-brain provides (write budget, dedup, soft-delete, locking, staleness, verification, comments) would each require custom wrapper logic on top of bkmr. The combined effort approaches reimplementing agent-brain's service layer in a different language.
 
 3. **Multi-user is a non-starter.** If memory is shared across a team -- the primary motivation for agent-brain -- bkmr's SQLite file model is architecturally incompatible.
 
-4. **bkmr's strengths are orthogonal to agent-brain's purpose.** Local-first simplicity, hybrid RRF search, LSP editor integration, and multi-format content management are genuinely useful, but they address personal developer productivity, not team AI agent memory.
+**Developer knowledge management**: bkmr fills a gap that agent-brain was never designed for. Code snippets, shell scripts, web bookmarks, environment variable sets, and markdown documents are all content types that developers currently manage in fragmented, poorly searchable ways. bkmr unifies them in a single local database with hybrid semantic search. The LSP server adds in-editor snippet completion with no additional tooling. None of this overlaps with agent-brain.
+
+The two tools coexist without conflict: agent-brain runs as a server for MCP clients; bkmr runs as a local CLI for interactive and automated personal workflows. Different databases, different interfaces, no shared state.
 
 ### Ideas worth porting from bkmr
 
@@ -340,6 +367,6 @@ Despite the architectural mismatch, bkmr introduces several ideas worth consider
 ### Next steps
 
 1. **No migration required.** Continue running agent-brain as the primary agent memory system.
-2. **Evaluate bkmr for personal use.** If personal bookmark/snippet management is a friction point, install bkmr and use it independently. The two tools coexist without conflict.
+2. **Try bkmr for personal developer productivity.** Install bkmr (`brew install bkmr` or `pip install bkmr`) and migrate one category of fragmented content into it -- shell scripts from dotfiles, or browser bookmarks, or code snippets. Evaluate the LSP server for in-editor completion. The tool costs nothing to try and nothing to remove.
 3. **Consider taxonomy update.** Add `episode` and `gotcha` to agent-brain's type enum (or rename existing types). This is a minor schema migration with a clear user-facing benefit.
-4. **Consider FTS hybrid search.** Add a full-text search pass to the agent-brain search pipeline and fuse with vector results via RRF. This would close the one area where bkmr's search is arguably better.
+4. **Consider hybrid FTS+vector search.** Add a full-text search pass to the agent-brain search pipeline and fuse with vector results via RRF. This would close the one area where bkmr's `hsearch` is arguably superior to agent-brain's pure-vector search.
