@@ -16,7 +16,11 @@ import {
 import type { SQL } from "drizzle-orm";
 import type { Database } from "../db/index.js";
 import { memories, comments } from "../db/schema.js";
-import type { Memory, MemoryWithRelevance } from "../types/memory.js";
+import type {
+  Memory,
+  MemoryWithRelevance,
+  MemoryScope,
+} from "../types/memory.js";
 import { ConflictError, ValidationError } from "../utils/errors.js";
 import type {
   MemoryRepository,
@@ -584,7 +588,12 @@ export class DrizzleMemoryRepository implements MemoryRepository {
     userId: string;
     threshold: number;
   }): Promise<
-    Array<{ id: string; title: string; relevance: number; scope: string }>
+    Array<{
+      id: string;
+      title: string;
+      relevance: number;
+      scope: MemoryScope;
+    }>
   > {
     const distance = cosineDistance(memories.embedding, options.embedding);
     const similarity = sql<number>`(1 - (${distance}))`;

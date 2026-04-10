@@ -31,13 +31,13 @@ export interface FlagWithMemory extends Flag {
     id: string;
     title: string;
     content: string;
-    scope: string;
+    scope: import("./memory.js").MemoryScope;
   };
   related_memory?: {
     id: string;
     title: string;
     content: string;
-    scope: string;
+    scope: import("./memory.js").MemoryScope;
   } | null;
 }
 
@@ -45,12 +45,17 @@ export interface FlagWithMemory extends Flag {
 export interface FlagResponse {
   flag_id: string;
   flag_type: FlagType;
-  memory: { id: string; title: string; content: string; scope: string };
+  memory: {
+    id: string;
+    title: string;
+    content: string;
+    scope: import("./memory.js").MemoryScope;
+  };
   related_memory?: {
     id: string;
     title: string;
     content: string;
-    scope: string;
+    scope: import("./memory.js").MemoryScope;
   } | null;
   reason: string;
 }

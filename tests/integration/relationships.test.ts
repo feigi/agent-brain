@@ -555,11 +555,12 @@ describe("listForMemories — batch anchor query", () => {
     });
 
     // Query for both m1 and m3 as anchors
-    const results = await relationshipService.listForMemories(
-      [m1.id, m3.id],
-      "both",
-      "alice",
-    );
+    const { relationships: results } =
+      await relationshipService.listForMemories(
+        [m1.id, m3.id],
+        "both",
+        "alice",
+      );
 
     // m1 has 2 relationships (outgoing to m2, incoming from m3)
     // m3 has 1 relationship (outgoing to m1) — but m1 is also an anchor, so isSourceAnchor wins
@@ -581,11 +582,8 @@ describe("listForMemories — batch anchor query", () => {
   });
 
   it("returns empty array for empty input", async () => {
-    const results = await relationshipService.listForMemories(
-      [],
-      "both",
-      "alice",
-    );
+    const { relationships: results } =
+      await relationshipService.listForMemories([], "both", "alice");
     expect(results).toHaveLength(0);
   });
 
@@ -616,19 +614,13 @@ describe("listForMemories — batch anchor query", () => {
       userId: "alice",
     });
 
-    const outgoing = await relationshipService.listForMemories(
-      [m1.id],
-      "outgoing",
-      "alice",
-    );
+    const { relationships: outgoing } =
+      await relationshipService.listForMemories([m1.id], "outgoing", "alice");
     expect(outgoing).toHaveLength(1);
     expect(outgoing[0].direction).toBe("outgoing");
 
-    const incoming = await relationshipService.listForMemories(
-      [m1.id],
-      "incoming",
-      "alice",
-    );
+    const { relationships: incoming } =
+      await relationshipService.listForMemories([m1.id], "incoming", "alice");
     expect(incoming).toHaveLength(0);
   });
 });

@@ -223,8 +223,13 @@ export class RelationshipService {
     direction: "outgoing" | "incoming" | "both",
     userId: string,
     type?: string,
-  ): Promise<RelationshipWithMemory[]> {
-    if (memoryIds.length === 0) return [];
+  ): Promise<{
+    relationships: RelationshipWithMemory[];
+    accessibleAnchorIds: Set<string>;
+  }> {
+    if (memoryIds.length === 0) {
+      return { relationships: [], accessibleAnchorIds: new Set() };
+    }
 
     // Verify access to all anchor memories
     const anchorMemories = await this.memoryRepo.findByIds(memoryIds);
@@ -232,7 +237,9 @@ export class RelationshipService {
       (m) => m.project_id === this.projectId && canAccessMemory(m, userId),
     );
     const anchorIds = new Set(accessibleAnchors.map((m) => m.id));
-    if (anchorIds.size === 0) return [];
+    if (anchorIds.size === 0) {
+      return { relationships: [], accessibleAnchorIds: new Set() };
+    }
 
     const relationships = await this.relationshipRepo.findByMemoryIds(
       this.projectId,
@@ -275,7 +282,7 @@ export class RelationshipService {
         result.push(this.toRelationshipWithMemory(rel, "incoming", related));
       }
     }
-    return result;
+    return { relationships: result, accessibleAnchorIds: anchorIds };
   }
 
   async listBetweenMemories(

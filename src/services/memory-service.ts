@@ -509,11 +509,8 @@ export class MemoryService {
   ): Promise<Map<string, RelationshipWithMemory[]>> {
     if (!this.relationshipService) return new Map();
 
-    const rels = await this.relationshipService.listForMemories(
-      memoryIds,
-      "both",
-      userId,
-    );
+    const { relationships: rels } =
+      await this.relationshipService.listForMemories(memoryIds, "both", userId);
     const map = new Map<string, RelationshipWithMemory[]>();
     for (const rel of rels) {
       const anchorId =

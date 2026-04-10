@@ -36,13 +36,25 @@ export function registerMemoryRelationships(
     },
     async (params) => {
       return withErrorHandling(async () => {
-        const results = await relationshipService.listForMemories(
-          params.memory_ids,
-          params.direction,
-          params.user_id,
-          params.type,
+        const start = Date.now();
+        const { relationships, accessibleAnchorIds } =
+          await relationshipService.listForMemories(
+            params.memory_ids,
+            params.direction,
+            params.user_id,
+            params.type,
+          );
+        const omitted = params.memory_ids.filter(
+          (id) => !accessibleAnchorIds.has(id),
         );
-        return toolResponse({ data: results, meta: { count: results.length } });
+        return toolResponse({
+          data: relationships,
+          meta: {
+            count: relationships.length,
+            timing: Date.now() - start,
+            omitted: omitted.length > 0 ? omitted : undefined,
+          },
+        });
       });
     },
   );
