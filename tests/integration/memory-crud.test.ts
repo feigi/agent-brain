@@ -527,6 +527,48 @@ describe("Memory CRUD integration tests", () => {
 
     expect(result.data).toHaveLength(1);
     expect(result.data[0].id).toBe(m1.data.id);
+    // meta.omitted should list the inaccessible ID
+    expect(result.meta.omitted).toEqual([m2.data.id]);
+  });
+
+  it("batch get returns empty with omitted when all IDs are nonexistent", async () => {
+    const { memoryService } = createTestServiceWithRelationships();
+
+    const result = await memoryService.getMany(
+      ["nonexistent-1", "nonexistent-2"],
+      "alice",
+    );
+
+    expect(result.data).toHaveLength(0);
+    expect(result.meta.omitted).toEqual(["nonexistent-1", "nonexistent-2"]);
+  });
+
+  it("batch get does not set omitted when all IDs are accessible", async () => {
+    const { memoryService } = createTestServiceWithRelationships();
+
+    const m1 = await memoryService.create({
+      workspace_id: "test-project",
+      content: "All accessible one",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(m1.data);
+
+    const m2 = await memoryService.create({
+      workspace_id: "test-project",
+      content: "All accessible two",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(m2.data);
+
+    const result = await memoryService.getMany(
+      [m1.data.id, m2.data.id],
+      "alice",
+    );
+
+    expect(result.data).toHaveLength(2);
+    expect(result.meta.omitted).toBeUndefined();
   });
 
   it("supports the 2-call list→get pattern", async () => {

@@ -1,4 +1,5 @@
 import type { RelationshipSummary } from "./relationship.js";
+import type { MemoryScope } from "./memory.js";
 
 // D-02: Envelope response structure
 export interface Envelope<T> {
@@ -26,12 +27,17 @@ export interface Envelope<T> {
     flags?: Array<{
       flag_id: string;
       flag_type: string;
-      memory: { id: string; title: string; content: string; scope: string };
+      memory: {
+        id: string;
+        title: string;
+        content: string;
+        scope: MemoryScope;
+      };
       related_memory?: {
         id: string;
         title: string;
         content: string;
-        scope: string;
+        scope: MemoryScope;
       } | null;
       reason: string;
     }>;

@@ -82,7 +82,12 @@ export interface MemoryRepository {
     userId: string;
     threshold: number;
   }): Promise<
-    Array<{ id: string; title: string; relevance: number; scope: string }>
+    Array<{
+      id: string;
+      title: string;
+      relevance: number;
+      scope: import("../types/memory.js").MemoryScope;
+    }>
   >;
 
   findPairwiseSimilar(options: {

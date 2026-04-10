@@ -196,13 +196,25 @@ export function createApiToolsRouter(
 
         case "memory_relationships": {
           const b = body as z.infer<typeof toolSchemas.memory_relationships>;
-          const results = await relationshipService.listForMemories(
-            b.memory_ids,
-            b.direction,
-            b.user_id,
-            b.type,
+          const relStart = Date.now();
+          const { relationships, accessibleAnchorIds } =
+            await relationshipService.listForMemories(
+              b.memory_ids,
+              b.direction,
+              b.user_id,
+              b.type,
+            );
+          const omittedIds = b.memory_ids.filter(
+            (id) => !accessibleAnchorIds.has(id),
           );
-          res.json({ data: results, meta: { count: results.length } });
+          res.json({
+            data: relationships,
+            meta: {
+              count: relationships.length,
+              timing: Date.now() - relStart,
+              omitted: omittedIds.length > 0 ? omittedIds : undefined,
+            },
+          });
           break;
         }
       }
