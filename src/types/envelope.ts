@@ -1,5 +1,5 @@
 import type { RelationshipSummary } from "./relationship.js";
-import type { MemoryScope } from "./memory.js";
+import type { FlagResponse } from "./flag.js";
 
 // D-02: Envelope response structure
 export interface Envelope<T> {
@@ -24,23 +24,7 @@ export interface Envelope<T> {
       limit: number;
       exceeded: boolean;
     };
-    flags?: Array<{
-      flag_id: string;
-      flag_type: string;
-      memory: {
-        id: string;
-        title: string;
-        content: string;
-        scope: MemoryScope;
-      };
-      related_memory?: {
-        id: string;
-        title: string;
-        content: string;
-        scope: MemoryScope;
-      } | null;
-      reason: string;
-    }>;
+    flags?: FlagResponse[];
     relationships?: RelationshipSummary[];
     omitted?: string[]; // IDs requested but not returned (inaccessible/not found)
   };

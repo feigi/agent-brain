@@ -1,3 +1,5 @@
+import type { MemoryScope } from "./memory.js";
+
 export type FlagType =
   | "duplicate"
   | "contradiction"
@@ -31,13 +33,13 @@ export interface FlagWithMemory extends Flag {
     id: string;
     title: string;
     content: string;
-    scope: import("./memory.js").MemoryScope;
+    scope: MemoryScope;
   };
   related_memory?: {
     id: string;
     title: string;
     content: string;
-    scope: import("./memory.js").MemoryScope;
+    scope: MemoryScope;
   } | null;
 }
 
@@ -49,13 +51,13 @@ export interface FlagResponse {
     id: string;
     title: string;
     content: string;
-    scope: import("./memory.js").MemoryScope;
+    scope: MemoryScope;
   };
   related_memory?: {
     id: string;
     title: string;
     content: string;
-    scope: import("./memory.js").MemoryScope;
+    scope: MemoryScope;
   } | null;
   reason: string;
 }

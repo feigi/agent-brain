@@ -1,6 +1,7 @@
 import type {
   Memory,
   MemoryCreate,
+  MemoryScope,
   MemoryUpdate,
   MemoryWithRelevance,
   Comment,
@@ -300,34 +301,8 @@ export class MemoryService {
       ? await this.commentRepo.findByMemoryId(id)
       : [];
 
-    // Open flags for this memory
-    const flagsList: FlagSummary[] = [];
-    if (this.flagService) {
-      const allFlags = await this.flagService.getFlagsByMemoryId(id);
-      for (const f of allFlags) {
-        if (f.resolved_at) continue;
-        let relatedMem = null;
-        if (f.details.related_memory_id) {
-          const related = await this.memoryRepo.findById(
-            f.details.related_memory_id,
-          );
-          if (related) {
-            relatedMem = {
-              id: related.id,
-              title: related.title,
-              content: related.content,
-              scope: related.scope,
-            };
-          }
-        }
-        flagsList.push({
-          flag_id: f.id,
-          flag_type: f.flag_type,
-          related_memory: relatedMem,
-          reason: f.details.reason,
-        });
-      }
-    }
+    const flagsMap = await this.batchFetchFlags([id]);
+    const flagsList: FlagSummary[] = flagsMap.get(id) ?? [];
 
     let relationshipsList: RelationshipWithMemory[] = [];
     if (this.relationshipService) {
@@ -389,7 +364,6 @@ export class MemoryService {
     const returnedIds = new Set(accessible.map((m) => m.id));
     const omitted = [...new Set(ids)].filter((id) => !returnedIds.has(id));
 
-    // Early return if no accessible memories
     if (accessible.length === 0) {
       const timing = Date.now() - start;
       return {
@@ -469,7 +443,6 @@ export class MemoryService {
 
     const allFlags = await this.flagService.findByMemoryIds(memoryIds);
 
-    // Batch-fetch all related memories in one query instead of N+1
     const relatedMemoryIds = allFlags
       .map((f) => f.details.related_memory_id)
       .filter((id): id is string => !!id);
@@ -769,7 +742,7 @@ export class MemoryService {
   async search(
     query: string,
     workspace_id: string,
-    scope: Array<"workspace" | "user" | "project">,
+    scope: MemoryScope[],
     user_id: string,
     limit?: number,
     min_similarity?: number,

@@ -15,8 +15,11 @@ export function registerMemoryArchive(
         'Archive one or more memories (soft delete). Archived memories are excluded from search. user_id is required for access control -- only the owner can archive user-scoped memories. Example: memory_archive({ ids: "abc123", user_id: "alice" }) or memory_archive({ ids: ["abc123", "def456"], user_id: "alice" })',
       inputSchema: {
         ids: z
-          .union([z.string(), z.array(z.string())])
-          .describe("Memory ID or array of IDs to archive"),
+          .union([
+            z.string().min(1),
+            z.array(z.string().min(1)).min(1).max(100),
+          ])
+          .describe("Memory ID or array of IDs to archive (max 100)"),
         user_id: slugSchema.describe(
           "Who is archiving (e.g., 'alice'). Required for access control.",
         ),

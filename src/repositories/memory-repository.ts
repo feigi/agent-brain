@@ -584,7 +584,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
     embedding: number[];
     projectId: string;
     workspaceId: string | null;
-    scope: "workspace" | "user" | "project";
+    scope: MemoryScope;
     userId: string;
     threshold: number;
   }): Promise<
@@ -714,7 +714,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
   async listWithEmbeddings(options: {
     projectId: string;
     workspaceId: string | null;
-    scope: "workspace" | "user" | "project";
+    scope: MemoryScope;
     userId?: string;
     limit: number;
   }): Promise<Array<Memory & { embedding: number[] }>> {

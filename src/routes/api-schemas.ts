@@ -45,7 +45,10 @@ export const toolSchemas = {
   }),
 
   memory_archive: z.object({
-    ids: z.union([z.string().min(1), z.array(z.string().min(1))]),
+    ids: z.union([
+      z.string().min(1),
+      z.array(z.string().min(1)).min(1).max(100),
+    ]),
     user_id: slugSchema,
   }),
 

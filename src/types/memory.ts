@@ -198,5 +198,10 @@ export interface CreateSkipResult {
   skipped: true;
   reason: "budget_exceeded" | "duplicate";
   message: string;
-  duplicate?: { id: string; title: string; relevance: number; scope?: string };
+  duplicate?: {
+    id: string;
+    title: string;
+    relevance: number;
+    scope?: MemoryScope;
+  };
 }

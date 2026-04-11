@@ -37,16 +37,13 @@ export function registerMemoryRelationships(
     async (params) => {
       return withErrorHandling(async () => {
         const start = Date.now();
-        const { relationships, accessibleAnchorIds } =
+        const { relationships, omitted } =
           await relationshipService.listForMemories(
             params.memory_ids,
             params.direction,
             params.user_id,
             params.type,
           );
-        const omitted = [...new Set(params.memory_ids)].filter(
-          (id) => !accessibleAnchorIds.has(id),
-        );
         return toolResponse({
           data: relationships,
           meta: {

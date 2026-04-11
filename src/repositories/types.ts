@@ -1,4 +1,9 @@
-import type { Memory, MemoryWithRelevance, Comment } from "../types/memory.js";
+import type {
+  Memory,
+  MemoryScope,
+  MemoryWithRelevance,
+  Comment,
+} from "../types/memory.js";
 import type { AuditEntry } from "../types/audit.js";
 import type { Flag, FlagResolution, FlagType } from "../types/flag.js";
 import type { Relationship } from "../types/relationship.js";
@@ -8,7 +13,7 @@ import type { Relationship } from "../types/relationship.js";
 export interface ListOptions {
   project_id: string; // deployment project (from server config)
   workspace_id?: string; // optional for project-scope listing (cross-workspace)
-  scope: Array<"workspace" | "user" | "project">; // non-empty (enforced by Zod .min(1) + runtime guard); project-scoped memories are auto-included when any non-project scope is requested
+  scope: MemoryScope[]; // non-empty; project-scoped memories are auto-included when any non-project scope is requested
   user_id?: string;
   type?: string;
   tags?: string[];
@@ -22,7 +27,7 @@ export interface SearchOptions {
   embedding: number[];
   project_id: string; // deployment project
   workspace_id: string; // workspace to search within
-  scope: Array<"workspace" | "user" | "project">; // non-empty (enforced by Zod .min(1) + runtime guard); project-scoped memories are auto-included when any non-project scope is requested
+  scope: MemoryScope[]; // non-empty; project-scoped memories are auto-included when any non-project scope is requested
   user_id?: string;
   limit?: number;
   min_similarity?: number;
@@ -78,7 +83,7 @@ export interface MemoryRepository {
     embedding: number[];
     projectId: string;
     workspaceId: string | null;
-    scope: "workspace" | "user" | "project";
+    scope: MemoryScope;
     userId: string;
     threshold: number;
   }): Promise<
@@ -86,7 +91,7 @@ export interface MemoryRepository {
       id: string;
       title: string;
       relevance: number;
-      scope: import("../types/memory.js").MemoryScope;
+      scope: MemoryScope;
     }>
   >;
 
@@ -108,7 +113,7 @@ export interface MemoryRepository {
   listWithEmbeddings(options: {
     projectId: string;
     workspaceId: string | null;
-    scope: "workspace" | "user" | "project";
+    scope: MemoryScope;
     userId?: string;
     limit: number;
   }): Promise<Array<Memory & { embedding: number[] }>>;
