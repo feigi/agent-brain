@@ -44,7 +44,7 @@ export function registerMemoryRelationships(
             params.user_id,
             params.type,
           );
-        const omitted = params.memory_ids.filter(
+        const omitted = [...new Set(params.memory_ids)].filter(
           (id) => !accessibleAnchorIds.has(id),
         );
         return toolResponse({

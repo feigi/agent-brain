@@ -21,7 +21,7 @@ export function registerMemorySearch(
         scope: z
           .array(memoryScopeEnum)
           .min(1)
-          .catch(["workspace"])
+          .default(["workspace"])
           .describe(
             'Scopes to search, e.g. ["workspace", "user"]. Defaults to ["workspace"]. Project-scoped memories are always included.',
           ),

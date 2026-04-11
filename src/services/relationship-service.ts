@@ -285,6 +285,80 @@ export class RelationshipService {
     return { relationships: result, accessibleAnchorIds: anchorIds };
   }
 
+  // Per-anchor map for memory_get batch include:relationships.
+  // Unlike listForMemories, both ends of a cross-anchor relationship get an entry
+  // so each memory's relationships array is complete from its own perspective.
+  async listByAnchor(
+    memoryIds: string[],
+    userId: string,
+    type?: string,
+  ): Promise<{
+    byAnchor: Map<string, RelationshipWithMemory[]>;
+    accessibleAnchorIds: Set<string>;
+  }> {
+    if (memoryIds.length === 0) {
+      return { byAnchor: new Map(), accessibleAnchorIds: new Set() };
+    }
+
+    const anchorMemories = await this.memoryRepo.findByIds(memoryIds);
+    const accessibleAnchors = anchorMemories.filter(
+      (m) => m.project_id === this.projectId && canAccessMemory(m, userId),
+    );
+    const anchorIds = new Set(accessibleAnchors.map((m) => m.id));
+    if (anchorIds.size === 0) {
+      return { byAnchor: new Map(), accessibleAnchorIds: new Set() };
+    }
+
+    const relationships = await this.relationshipRepo.findByMemoryIds(
+      this.projectId,
+      [...anchorIds],
+      "both",
+      type,
+    );
+
+    const relatedIds = new Set<string>();
+    for (const rel of relationships) {
+      if (anchorIds.has(rel.source_id)) relatedIds.add(rel.target_id);
+      if (anchorIds.has(rel.target_id)) relatedIds.add(rel.source_id);
+    }
+    for (const id of anchorIds) relatedIds.delete(id);
+
+    const relatedMemories =
+      relatedIds.size > 0
+        ? await this.memoryRepo.findByIds([...relatedIds])
+        : [];
+    const memoryMap = new Map(
+      [...accessibleAnchors, ...relatedMemories].map((m) => [m.id, m]),
+    );
+
+    const byAnchor = new Map<string, RelationshipWithMemory[]>();
+    for (const rel of relationships) {
+      const isSourceAnchor = anchorIds.has(rel.source_id);
+      const isTargetAnchor = anchorIds.has(rel.target_id);
+
+      if (isSourceAnchor) {
+        const related = memoryMap.get(rel.target_id);
+        if (related && canAccessMemory(related, userId)) {
+          const entry = this.toRelationshipWithMemory(rel, "outgoing", related);
+          const arr = byAnchor.get(rel.source_id) ?? [];
+          arr.push(entry);
+          byAnchor.set(rel.source_id, arr);
+        }
+      }
+      // No !isSourceAnchor guard — both anchors get their own perspective
+      if (isTargetAnchor) {
+        const related = memoryMap.get(rel.source_id);
+        if (related && canAccessMemory(related, userId)) {
+          const entry = this.toRelationshipWithMemory(rel, "incoming", related);
+          const arr = byAnchor.get(rel.target_id) ?? [];
+          arr.push(entry);
+          byAnchor.set(rel.target_id, arr);
+        }
+      }
+    }
+    return { byAnchor, accessibleAnchorIds: anchorIds };
+  }
+
   async listBetweenMemories(
     memoryIds: string[],
     userId: string,

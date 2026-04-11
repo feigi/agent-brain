@@ -571,6 +571,58 @@ describe("Memory CRUD integration tests", () => {
     expect(result.meta.omitted).toBeUndefined();
   });
 
+  it("batch get with include:relationships shows relationship on both anchor memories", async () => {
+    const { memoryService, relationshipService } =
+      createTestServiceWithRelationships();
+
+    const mA = await memoryService.create({
+      workspace_id: "test-project",
+      content: "Anchor A",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(mA.data);
+
+    const mB = await memoryService.create({
+      workspace_id: "test-project",
+      content: "Anchor B",
+      type: "fact",
+      author: "alice",
+    });
+    assertMemory(mB.data);
+
+    await relationshipService.create({
+      sourceId: mA.data.id,
+      targetId: mB.data.id,
+      type: "refines",
+      userId: "alice",
+    });
+
+    const result = await memoryService.getMany(
+      [mA.data.id, mB.data.id],
+      "alice",
+      ["relationships"],
+    );
+
+    expect(result.data).toHaveLength(2);
+    const itemA = result.data.find((m) => m.id === mA.data.id)!;
+    const itemB = result.data.find((m) => m.id === mB.data.id)!;
+
+    // A sees the relationship as outgoing to B
+    expect(itemA.relationships).toHaveLength(1);
+    expect(itemA.relationships![0].direction).toBe("outgoing");
+    expect(itemA.relationships![0].related_memory.id).toBe(mB.data.id);
+
+    // B sees the same relationship as incoming from A
+    expect(itemB.relationships).toHaveLength(1);
+    expect(itemB.relationships![0].direction).toBe("incoming");
+    expect(itemB.relationships![0].related_memory.id).toBe(mA.data.id);
+
+    // Counts agree
+    expect(itemA.relationship_count).toBe(1);
+    expect(itemB.relationship_count).toBe(1);
+  });
+
   it("supports the 2-call list→get pattern", async () => {
     const { memoryService } = createTestServiceWithRelationships();
 

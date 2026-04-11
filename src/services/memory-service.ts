@@ -338,7 +338,14 @@ export class MemoryService {
           userId,
         );
       } catch (error) {
-        logger.warn(`Failed to load relationships for memory ${id}:`, error);
+        if (error instanceof NotFoundError) {
+          // Memory was archived between the access check and this call — treat as no relationships
+          logger.debug(
+            `Relationships skipped — memory ${id} no longer accessible`,
+          );
+        } else {
+          throw error;
+        }
       }
     }
 
@@ -380,7 +387,7 @@ export class MemoryService {
     );
 
     const returnedIds = new Set(accessible.map((m) => m.id));
-    const omitted = ids.filter((id) => !returnedIds.has(id));
+    const omitted = [...new Set(ids)].filter((id) => !returnedIds.has(id));
 
     // Early return if no accessible memories
     if (accessible.length === 0) {
@@ -509,20 +516,11 @@ export class MemoryService {
   ): Promise<Map<string, RelationshipWithMemory[]>> {
     if (!this.relationshipService) return new Map();
 
-    const { relationships: rels } =
-      await this.relationshipService.listForMemories(memoryIds, "both", userId);
-    const map = new Map<string, RelationshipWithMemory[]>();
-    for (const rel of rels) {
-      const anchorId =
-        rel.direction === "outgoing" ? rel.source_id : rel.target_id;
-      const arr = map.get(anchorId);
-      if (arr) {
-        arr.push(rel);
-      } else {
-        map.set(anchorId, [rel]);
-      }
-    }
-    return map;
+    const { byAnchor } = await this.relationshipService.listByAnchor(
+      memoryIds,
+      userId,
+    );
+    return byAnchor;
   }
 
   // D-44 through D-50: Add comment to a project memory authored by another user
@@ -995,7 +993,9 @@ export class MemoryService {
           }));
         }
       } catch (error) {
-        logger.warn("Failed to load relationships for session_start:", error);
+        if (!(error instanceof NotFoundError)) {
+          throw error;
+        }
       }
     }
 

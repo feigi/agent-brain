@@ -28,27 +28,23 @@ export function registerMemoryList(
         scope: z
           .array(memoryScopeEnum)
           .min(1)
-          .catch(["workspace"])
+          .default(["workspace"])
           .describe(
             'Scopes to include, e.g. ["workspace", "user"]. Defaults to ["workspace"]. Project-scoped memories are always included.',
           ),
         user_id: slugSchema.describe(
           "User identifier (e.g., 'alice'). Required for access control.",
         ),
-        type: memoryTypeEnum
-          .optional()
-          .catch(undefined)
-          .describe("Filter by memory type"),
+        type: memoryTypeEnum.optional().describe("Filter by memory type"),
         tags: z
           .array(z.string())
           .optional()
-          .catch(undefined)
           .describe("Filter by tags (memories matching ANY of these tags)"),
         sort_by: z
           .enum(["created_at", "updated_at"])
-          .catch("created_at")
+          .default("created_at")
           .describe("Sort field"),
-        order: z.enum(["asc", "desc"]).catch("desc").describe("Sort order"),
+        order: z.enum(["asc", "desc"]).default("desc").describe("Sort order"),
         cursor: z
           .string()
           .optional()
