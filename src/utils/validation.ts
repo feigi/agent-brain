@@ -14,6 +14,11 @@ export const slugSchema = z
     "Must be lowercase alphanumeric with hyphens (e.g., 'my-project')",
   );
 
+// Shared schema for user_id parameters — instructs agents to pass the OS username in lowercase
+export const userIdSchema = slugSchema.describe(
+  "Your OS username in lowercase. Run 'whoami' and convert to lowercase if needed (e.g., 'alice', not 'Alice' or 'ALICE'). Required for access control and to load user-scoped memories.",
+);
+
 // D-75: Non-empty content validation for memory_create, memory_update, memory_comment
 export const contentSchema = z
   .string()

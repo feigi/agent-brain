@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { RelationshipService } from "../services/relationship-service.js";
-import { slugSchema } from "../utils/validation.js";
+import { userIdSchema } from "../utils/validation.js";
 import { toolResponse, withErrorHandling } from "./tool-utils.js";
 import { WELL_KNOWN_RELATIONSHIP_TYPES } from "../types/relationship.js";
 
@@ -36,7 +36,7 @@ export function registerMemoryRelate(
           .max(1)
           .optional()
           .describe("Confidence score between 0 and 1 (default: 1.0)"),
-        user_id: slugSchema.describe("Who is creating the relationship"),
+        user_id: userIdSchema,
         created_via: z
           .string()
           .optional()

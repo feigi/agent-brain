@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
-import { slugSchema } from "../utils/validation.js";
+import { slugSchema, userIdSchema } from "../utils/validation.js";
 import { toolResponse, withErrorHandling } from "./tool-utils.js";
 
 export function registerMemorySessionStart(
@@ -13,16 +13,14 @@ export function registerMemorySessionStart(
     {
       description:
         "Load relevant memories at session start. Searches both project and user scopes. " +
-        "user_id is required to load your private memories alongside shared project memories. " +
+        "user_id is required -- use your OS username in lowercase (run 'whoami' and convert to lowercase if needed). " +
         "Provide context for relevance-ranked results, or omit for recent memories. " +
         'Example: memory_session_start({ workspace_id: "my-project", user_id: "alice" })',
       inputSchema: {
         workspace_id: slugSchema.describe(
           "Workspace slug (e.g., 'my-project')",
         ),
-        user_id: slugSchema.describe(
-          "User identifier (e.g., 'alice'). Required to load user-scoped memories.",
-        ),
+        user_id: userIdSchema,
         context: z
           .string()
           .optional()

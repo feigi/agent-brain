@@ -1,7 +1,11 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
-import { slugSchema, memoryScopeEnum } from "../utils/validation.js";
+import {
+  slugSchema,
+  userIdSchema,
+  memoryScopeEnum,
+} from "../utils/validation.js";
 import { toolResponse, withErrorHandling } from "./tool-utils.js";
 
 export function registerMemorySearch(
@@ -25,9 +29,7 @@ export function registerMemorySearch(
           .describe(
             'Scopes to search, e.g. ["workspace", "user"]. Defaults to ["workspace"]. Project-scoped memories are always included.',
           ),
-        user_id: slugSchema.describe(
-          "User identifier (e.g., 'alice'). Required for access control and user-scope filtering.",
-        ),
+        user_id: userIdSchema,
         limit: z
           .number()
           .int()

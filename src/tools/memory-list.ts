@@ -4,6 +4,7 @@ import type { MemoryService } from "../services/memory-service.js";
 import { config } from "../config.js";
 import {
   slugSchema,
+  userIdSchema,
   memoryTypeEnum,
   memoryScopeEnum,
   parseCursor,
@@ -32,9 +33,7 @@ export function registerMemoryList(
           .describe(
             'Scopes to include, e.g. ["workspace", "user"]. Defaults to ["workspace"]. Project-scoped memories are always included.',
           ),
-        user_id: slugSchema.describe(
-          "User identifier (e.g., 'alice'). Required for access control.",
-        ),
+        user_id: userIdSchema,
         type: memoryTypeEnum.optional().describe("Filter by memory type"),
         tags: z
           .array(z.string())

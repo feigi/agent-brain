@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
-import { slugSchema } from "../utils/validation.js";
+import { userIdSchema } from "../utils/validation.js";
 import { toolResponse, withErrorHandling } from "./tool-utils.js";
 
 export function registerMemoryArchive(
@@ -20,9 +20,7 @@ export function registerMemoryArchive(
             z.array(z.string().min(1)).min(1).max(100),
           ])
           .describe("Memory ID or array of IDs to archive (max 100)"),
-        user_id: slugSchema.describe(
-          "Who is archiving (e.g., 'alice'). Required for access control.",
-        ),
+        user_id: userIdSchema,
       },
     },
     async (params) => {

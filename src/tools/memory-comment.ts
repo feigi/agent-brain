@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
 import { toolResponse, withErrorHandling } from "./tool-utils.js";
-import { slugSchema, contentSchema } from "../utils/validation.js";
+import { userIdSchema, contentSchema } from "../utils/validation.js";
 
 export function registerMemoryComment(
   server: McpServer,
@@ -23,7 +23,7 @@ export function registerMemoryComment(
         content: contentSchema.describe(
           "Comment text. Soft limit ~1000 chars.",
         ),
-        user_id: slugSchema.describe("Who is commenting (e.g., 'bob')"),
+        user_id: userIdSchema,
       },
     },
     async (params) => {

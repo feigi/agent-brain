@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
 import {
-  slugSchema,
+  userIdSchema,
   contentSchema,
   memoryTypeEnum,
 } from "../utils/validation.js";
@@ -42,9 +42,7 @@ export function registerMemoryUpdate(
           .record(z.string(), z.unknown())
           .optional()
           .describe("New metadata (replaces existing)"),
-        user_id: slugSchema.describe(
-          "Who is making this update (e.g., 'alice'). Required for access control.",
-        ),
+        user_id: userIdSchema,
       },
     },
     async (params) => {

@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
-import { slugSchema } from "../utils/validation.js";
+import { userIdSchema } from "../utils/validation.js";
 import { toolResponse, withErrorHandling } from "./tool-utils.js";
 
 export function registerMemoryGet(
@@ -19,9 +19,7 @@ export function registerMemoryGet(
           .min(1)
           .max(100)
           .describe("Memory IDs to retrieve (max 100)"),
-        user_id: slugSchema.describe(
-          "User identifier (e.g., 'alice'). Required for access control and capability computation.",
-        ),
+        user_id: userIdSchema,
         include: z
           .array(z.enum(["comments", "flags", "relationships"]))
           .optional()

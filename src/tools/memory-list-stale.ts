@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
-import { slugSchema, parseCursor } from "../utils/validation.js";
+import { slugSchema, userIdSchema, parseCursor } from "../utils/validation.js";
 import { toolResponse, withErrorHandling } from "./tool-utils.js";
 
 export function registerMemoryListStale(
@@ -17,9 +17,7 @@ export function registerMemoryListStale(
         workspace_id: slugSchema.describe(
           "Workspace slug (e.g., 'my-project')",
         ),
-        user_id: slugSchema.describe(
-          "User identifier (e.g., 'alice'). Required for scope-based access control.",
-        ),
+        user_id: userIdSchema,
         threshold_days: z
           .number()
           .int()

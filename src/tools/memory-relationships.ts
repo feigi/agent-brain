@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { RelationshipService } from "../services/relationship-service.js";
-import { slugSchema } from "../utils/validation.js";
+import { userIdSchema } from "../utils/validation.js";
 import { toolResponse, withErrorHandling } from "./tool-utils.js";
 
 export function registerMemoryRelationships(
@@ -29,9 +29,7 @@ export function registerMemoryRelationships(
           .string()
           .optional()
           .describe("Optional relationship type filter"),
-        user_id: slugSchema.describe(
-          "User identifier (required for access control)",
-        ),
+        user_id: userIdSchema,
       },
     },
     async (params) => {

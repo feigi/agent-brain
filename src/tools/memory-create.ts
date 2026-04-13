@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
 import {
   slugSchema,
+  userIdSchema,
   contentSchema,
   memoryTypeEnum,
   memoryScopeEnum,
@@ -42,9 +43,7 @@ export function registerMemoryCreate(
           .describe(
             "'workspace' scopes to this workspace (shared with team), 'user' is private to you, 'project' is visible across all workspaces (user-confirmed only, not for autonomous sources)",
           ),
-        user_id: slugSchema.describe(
-          "Who is creating this memory (e.g., 'alice'). Required for provenance and access control.",
-        ),
+        user_id: userIdSchema,
         source: z
           .string()
           .optional()

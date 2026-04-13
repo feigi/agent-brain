@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
 import { toolResponse, withErrorHandling } from "./tool-utils.js";
-import { slugSchema } from "../utils/validation.js";
+import { slugSchema, userIdSchema } from "../utils/validation.js";
 
 export function registerMemoryListRecent(
   server: McpServer,
@@ -17,9 +17,7 @@ export function registerMemoryListRecent(
         'Example: memory_list_recent({ workspace_id: "my-project", user_id: "alice", since: "2026-03-20T00:00:00Z" })',
       inputSchema: {
         workspace_id: slugSchema.describe("Workspace slug"),
-        user_id: slugSchema.describe(
-          "User identifier (required for scope-based privacy)",
-        ),
+        user_id: userIdSchema,
         since: z
           .string()
           .datetime()
