@@ -1,12 +1,11 @@
 #!/bin/bash
-# Copilot CLI preToolUse hook (v1.0.24+): three responsibilities in one pass.
+# Copilot CLI preToolUse hook (v1.0.24+): two responsibilities per tool call.
 #   1. Auto-fill user_id/workspace_id on mcp__agent-brain__* calls via modifiedArgs.
-#   2. Inject session-start memories as additionalContext on the first call of a session.
-#   3. Emit a periodic save-memories nudge every 20 tool calls via additionalContext.
-# Fails silently (exit 0 empty) when the agent-brain server is unreachable.
+#   2. Emit a periodic save-memories nudge every 20 tool calls via additionalContext.
+# Session-start memory injection is handled by memory-session-start.sh.
+# Fails silently (exit 0 empty) when nothing needs to be emitted.
 
 INPUT=$(cat)
-AGENT_BRAIN_URL="${AGENT_BRAIN_URL:-http://localhost:19898}"
 
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // ""')
 CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
@@ -16,50 +15,26 @@ SESSION_KEY="${COPILOT_SESSION_ID:-$(echo "$INPUT" | jq -r '.session_id // ""')}
 USER_ID=$(whoami)
 WORKSPACE_ID=$(basename "$CWD")
 
-# Server down → let the tool run unchanged
-if ! curl -sf "${AGENT_BRAIN_URL}/health" >/dev/null 2>&1; then
-  exit 0
-fi
-
 OUTPUT_CONTEXT=""
 OUTPUT_MODIFIED_ARGS=""
 
-# ---- 1. Session-start memory inject (once per session) ----
-SESSION_MARKER="/tmp/copilot-memory-session-${SESSION_KEY}"
-if [ ! -f "$SESSION_MARKER" ]; then
-  touch "$SESSION_MARKER"
-  RESPONSE=$(curl -s -X POST "${AGENT_BRAIN_URL}/api/tools/memory_session_start" \
-    -H 'Content-Type: application/json' \
-    -d "{\"workspace_id\":\"${WORKSPACE_ID}\",\"user_id\":\"${USER_ID}\",\"limit\":10}")
-  if [ -n "$RESPONSE" ]; then
-    OUTPUT_CONTEXT="$RESPONSE"
-    AB_SESSION_ID=$(echo "$RESPONSE" | jq -r '.meta.session_id // ""')
-    [ -n "$AB_SESSION_ID" ] && echo "$AB_SESSION_ID" > "/tmp/agent-brain-sid-${SESSION_KEY}"
-  fi
-fi
-
-# ---- 2. Nudge counter (every 20 calls) ----
+# ---- 1. Nudge counter (every 20 calls) ----
 COUNTER_FILE="/tmp/copilot-memory-nudge-${SESSION_KEY}"
 if [ -f "$COUNTER_FILE" ]; then
   COUNT=$(cat "$COUNTER_FILE")
 else
   COUNT=0
 fi
+# Guard against corrupted/non-numeric counter file (e.g. shared /tmp clobber).
+[[ "$COUNT" =~ ^[0-9]+$ ]] || COUNT=0
 COUNT=$((COUNT + 1))
 echo "$COUNT" > "$COUNTER_FILE"
 
 if (( COUNT % 20 == 0 )); then
-  NUDGE="Memory check: if the user shared decisions, conventions, gotchas, or preferences worth remembering across sessions, suggest saving via memory_create. Skip if nothing notable."
-  if [ -n "$OUTPUT_CONTEXT" ]; then
-    OUTPUT_CONTEXT="${OUTPUT_CONTEXT}
-
-${NUDGE}"
-  else
-    OUTPUT_CONTEXT="$NUDGE"
-  fi
+  OUTPUT_CONTEXT="Memory check: if the user shared decisions, conventions, gotchas, or preferences worth remembering across sessions, suggest saving via memory_create. Skip if nothing notable."
 fi
 
-# ---- 3. Auto-fill IDs on agent-brain MCP calls ----
+# ---- 2. Auto-fill IDs on agent-brain MCP calls ----
 if [[ "$TOOL_NAME" == mcp__agent-brain__* ]]; then
   TOOL_INPUT=$(echo "$INPUT" | jq -c '.tool_input // {}')
   MODIFIED=$(echo "$TOOL_INPUT" | jq -c \

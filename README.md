@@ -15,21 +15,21 @@ Long-term memory for AI agents. Agents read relevant memories at session start, 
 └───────────────────┬─────────────────────────────────┘
                     │ HTTP (JSON-RPC)
 ┌───────────────────▼─────────────────────────────────┐
-│                Agent Brain MCP Server                │
+│                Agent Brain MCP Server               │
 │                                                     │
 │  Tools                      Services                │
-│  ├─ memory_session_start     ├─ MemoryService        │
-│  ├─ memory_search            ├─ ConsolidationService │
-│  ├─ memory_create            ├─ FlagService          │
-│  ├─ memory_get               ├─ AuditService         │
-│  ├─ memory_update            ├─ EmbeddingProvider    │
-│  ├─ memory_verify            ├─ RelationshipService  │
+│  ├─ memory_session_start     ├─ MemoryService       │
+│  ├─ memory_search            ├─ ConsolidationService│
+│  ├─ memory_create            ├─ FlagService         │
+│  ├─ memory_get               ├─ AuditService        │
+│  ├─ memory_update            ├─ EmbeddingProvider   │
+│  ├─ memory_verify            ├─ RelationshipService │
 │  ├─ memory_comment           └─ Repositories        │
 │  ├─ memory_archive                                  │
 │  ├─ memory_list              Providers              │
-│  ├─ memory_list_stale        ├─ Amazon Titan V2      │
-│  ├─ memory_list_recent       ├─ Ollama (local)       │
-│  ├─ memory_resolve_flag      └─ Mock (dev/test)      │
+│  ├─ memory_list_stale        ├─ Amazon Titan V2     │
+│  ├─ memory_list_recent       ├─ Ollama (local)      │
+│  ├─ memory_resolve_flag      └─ Mock (dev/test)     │
 │  ├─ memory_relate                                   │
 │  ├─ memory_unrelate                                 │
 │  └─ memory_relationships                            │
