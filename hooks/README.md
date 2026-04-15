@@ -11,13 +11,14 @@ hook setup.
 
 ### Included Templates
 
-| File                              | Purpose                                                       |
-| --------------------------------- | ------------------------------------------------------------- |
-| `claude/memory-session-start.sh`  | SessionStart hook that loads memories at session start        |
-| `claude/memory-guard.sh`          | PreToolUse hook that blocks writes to Claude Code auto-memory |
-| `claude/memory-nudge.sh`          | PostToolUse hook that periodically reminds to save memories   |
-| `claude/memory-session-review.sh` | Stop hook that triggers memory review before Claude exits     |
-| `claude/settings-snippet.json`    | Hook configuration to merge into `.claude/settings.json`      |
+| File                              | Purpose                                                                    |
+| --------------------------------- | -------------------------------------------------------------------------- |
+| `claude/memory-session-start.sh`  | SessionStart hook that loads memories at session start                     |
+| `claude/memory-guard.sh`          | PreToolUse hook that blocks writes to Claude Code auto-memory              |
+| `claude/memory-autofill.sh`       | PreToolUse hook that auto-fills `user_id`/`workspace_id` on MCP tool calls |
+| `claude/memory-nudge.sh`          | PostToolUse hook that periodically reminds to save memories                |
+| `claude/memory-session-review.sh` | Stop hook that triggers memory review before Claude exits                  |
+| `claude/settings-snippet.json`    | Hook configuration to merge into `.claude/settings.json`                   |
 
 ### Prerequisites
 
@@ -34,6 +35,7 @@ hook setup.
 mkdir -p ~/.claude/hooks
 cp hooks/claude/memory-session-start.sh ~/.claude/hooks/
 cp hooks/claude/memory-guard.sh ~/.claude/hooks/
+cp hooks/claude/memory-autofill.sh ~/.claude/hooks/
 cp hooks/claude/memory-nudge.sh ~/.claude/hooks/
 cp hooks/claude/memory-session-review.sh ~/.claude/hooks/
 ```
@@ -71,6 +73,12 @@ from `hooks/claude/settings-snippet.json`. Your settings file should contain:
 If you already have hooks configured, merge this Stop hook array into your existing settings.
 
 ### How It Works
+
+#### ID Autofill (PreToolUse)
+
+The autofill hook matches `mcp__agent-brain__.*` and rewrites `tool_input` via
+`hookSpecificOutput.updatedInput` to populate `user_id` (from `whoami`) and `workspace_id`
+(from `basename $cwd`) when missing. This prevents the model from guessing identity values.
 
 #### Memory Nudge (PostToolUse)
 
@@ -110,33 +118,35 @@ fi
 
 ### Included Templates
 
-| File                              | Purpose                                                                 |
-| --------------------------------- | ----------------------------------------------------------------------- |
-| `copilot/hooks.json`              | Hook configuration template for `.github/hooks/` or `~/.copilot/hooks/` |
-| `copilot/mcp-snippet.json`        | MCP server configuration to merge into `~/.copilot/mcp-config.json`     |
-| `copilot/memory-session-start.sh` | sessionStart hook — pre-warms Agent Brain session via REST API          |
-| `copilot/memory-nudge.sh`         | postToolUse hook — tracks tool invocation count for audit logging       |
-| `copilot/memory-session-end.sh`   | sessionEnd hook that cleans up temp files                               |
+| File                              | Purpose                                                                                        |
+| --------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `copilot/hooks.json`              | Hook configuration template for `.github/hooks/` or `~/.copilot/hooks/`                        |
+| `copilot/mcp-snippet.json`        | MCP server configuration to merge into `~/.copilot/mcp-config.json`                            |
+| `copilot/memory-session-start.sh` | sessionStart hook — pre-warms Agent Brain server                                               |
+| `copilot/memory-pretool.sh`       | preToolUse hook — injects session memories, auto-fills IDs, emits periodic save-memories nudge |
+| `copilot/memory-session-end.sh`   | sessionEnd hook that cleans up temp files                                                      |
 
 ### Prerequisites
 
-- GitHub Copilot CLI (v0.0.422+ for personal hooks support)
+- GitHub Copilot CLI **v1.0.24+** (for `preToolUse` `modifiedArgs`/`additionalContext` support)
 - `jq` installed (`brew install jq` on macOS, `apt install jq` on Linux)
 - Agent Brain server running (default `http://localhost:19898`, override with `AGENT_BRAIN_URL` env var)
 
-### Key Differences from Claude Code
+### Parity with Claude Code
 
-Copilot CLI hooks have important limitations compared to Claude Code hooks:
+With Copilot CLI v1.0.24+, `preToolUse` output is honored for context injection and tool input
+mutation. This closes most of the former feature gap:
 
-| Capability                      | Claude Code                | Copilot CLI       |
-| ------------------------------- | -------------------------- | ----------------- |
-| Inject context at session start | ✅ via `additionalContext` | ❌ Output ignored |
-| Block tool execution            | ✅ via `decision: block`   | ❌ Not used       |
-| Remind agent mid-session        | ✅ via `additionalContext` | ❌ Output ignored |
-| Block session end for review    | ✅ via `decision: block`   | ❌ Output ignored |
+| Capability                      | Claude Code              | Copilot CLI                                  |
+| ------------------------------- | ------------------------ | -------------------------------------------- |
+| Inject context at session start | ✅ via SessionStart      | ✅ via first `preToolUse` (v1.0.24+)         |
+| Auto-fill MCP tool args         | ✅ via `updatedInput`    | ✅ via `modifiedArgs` (v1.0.24+)             |
+| Remind agent mid-session        | ✅ via PostToolUse       | ✅ via `preToolUse` every N calls (v1.0.24+) |
+| Block tool execution            | ✅ via `decision: block` | ⚠️ supported but not used in these templates |
+| Block session end for review    | ✅ via Stop              | ❌ no equivalent `sessionEnd` blocking       |
 
-Copilot CLI hooks are used only for side-effects (pre-warming, logging, cleanup). The
-`memory_session_start` requirement is enforced via custom instructions rather than hooks.
+Session-end blocking (to force a review before the agent stops) has no Copilot equivalent yet —
+custom instructions cover that case on a best-effort basis.
 
 ### Installation
 
@@ -165,7 +175,7 @@ Copy the hook scripts and configuration into your project's `.github/hooks/` dir
 mkdir -p .github/hooks
 cp hooks/copilot/hooks.json .github/hooks/hooks.json
 cp hooks/copilot/memory-session-start.sh .github/hooks/
-cp hooks/copilot/memory-nudge.sh .github/hooks/
+cp hooks/copilot/memory-pretool.sh .github/hooks/
 cp hooks/copilot/memory-session-end.sh .github/hooks/
 chmod +x .github/hooks/memory-*.sh
 ```
@@ -177,7 +187,7 @@ Copilot CLI automatically loads hooks from `.github/hooks/` in your working dire
 ```bash
 mkdir -p ~/.copilot/hooks
 cp hooks/copilot/memory-session-start.sh ~/.copilot/hooks/
-cp hooks/copilot/memory-nudge.sh ~/.copilot/hooks/
+cp hooks/copilot/memory-pretool.sh ~/.copilot/hooks/
 cp hooks/copilot/memory-session-end.sh ~/.copilot/hooks/
 chmod +x ~/.copilot/hooks/memory-*.sh
 ```
@@ -195,11 +205,11 @@ Then create `~/.copilot/hooks/hooks.json` with absolute paths:
         "timeoutSec": 10
       }
     ],
-    "postToolUse": [
+    "preToolUse": [
       {
         "type": "command",
-        "bash": "$HOME/.copilot/hooks/memory-nudge.sh",
-        "timeoutSec": 5
+        "bash": "$HOME/.copilot/hooks/memory-pretool.sh",
+        "timeoutSec": 10
       }
     ],
     "sessionEnd": [
@@ -223,23 +233,28 @@ is at `hooks/copilot/instructions-snippet.md`.
 
 #### Session Start (pre-warm)
 
-The `memory-session-start.sh` hook fires when a new Copilot CLI session begins (and on each
-subsequent turn). It pre-warms the Agent Brain server by calling the session start REST API,
-so subsequent MCP tool calls are faster. The hook also stashes the Agent Brain session ID for
-the session-end cleanup hook.
+The `memory-session-start.sh` hook fires when a new Copilot CLI session begins. It warms the
+Agent Brain server by hitting the health endpoint. Copilot CLI still ignores `sessionStart`
+output, so actual memory injection is handled by the `preToolUse` hook on the first tool call.
 
-Note: Copilot CLI ignores sessionStart output — the agent must still call `memory_session_start`
-via MCP tools. Custom instructions enforce this requirement.
+#### Pre-Tool-Use (memory-pretool.sh)
 
-#### Post-Tool-Use (audit log)
+The `preToolUse` hook is the workhorse. On every tool invocation it:
 
-The `memory-nudge.sh` hook fires after each tool call and maintains a counter of tool
-invocations in a temp file for audit logging purposes.
+1. **First call of the session** — calls `memory_session_start` via REST and injects the
+   response as `additionalContext`. Replaces the old instructions-driven manual call.
+2. **Every 20 calls** — emits a save-memories reminder as `additionalContext`.
+3. **On `mcp__agent-brain__*` tool calls** — fills missing `user_id` and `workspace_id` in
+   `tool_input` via `modifiedArgs`. Uses `whoami` and `basename $cwd` as canonical values so
+   the agent can't guess wrong casing.
+
+If the Agent Brain server is unreachable, the hook exits silently and the tool call proceeds
+unchanged.
 
 #### Session End
 
 The `memory-session-end.sh` hook fires when the session ends. It cleans up temp files (session
-ID and nudge counter) created during the session.
+ID, nudge counter, session marker) created during the session.
 
 ---
 

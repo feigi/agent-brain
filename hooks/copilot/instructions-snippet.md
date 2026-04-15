@@ -2,20 +2,18 @@
 
 This project uses [agent-brain](https://github.com/feigi/agent-brain) (MCP server) for shared team knowledge.
 
-## REQUIRED: Session Start
+## Session Start
 
-**STOP. Before processing any task — including plan mode, research, or simple questions:**
-Have you called `memory_session_start` this session?
+If the `memory-pretool.sh` hook (Copilot CLI v1.0.24+) is installed, recent memories are injected as `additionalContext` on the first tool call of each session — no manual call needed.
 
-- **NO →** Call `memory_session_start` right now. Do not read further until you have.
-- **YES →** Continue.
-
-This applies to EVERY first message in a session, with no exceptions.
+If you are unsure whether the hook is active and no memories have appeared by the time of your first response, call `memory_session_start` yourself.
 
 ## Identity Parameters
 
-- **`user_id`**: The OS username, i.e. the output of `whoami`. This is the user's identity across all memory tools.
+- **`user_id`**: The OS username (output of `whoami`).
 - **`workspace_id`**: The repository directory name (e.g., `agent-brain` for `/Users/chris/dev/agent-brain`).
+
+When `memory-pretool.sh` is installed, these are auto-filled on every `mcp__agent-brain__*` call via `modifiedArgs`. Without the hook, you must provide them explicitly.
 
 ## When to Call `memory_search`
 

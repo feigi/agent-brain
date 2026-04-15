@@ -8,11 +8,11 @@
         "timeoutSec": 10
       }
     ],
-    "postToolUse": [
+    "preToolUse": [
       {
         "type": "command",
-        "bash": "$HOME/.copilot/hooks/memory-nudge.sh",
-        "timeoutSec": 5
+        "bash": "$HOME/.copilot/hooks/memory-pretool.sh",
+        "timeoutSec": 10
       }
     ],
     "sessionEnd": [

@@ -26,6 +26,16 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "mcp__agent-brain__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/memory-autofill.sh",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "PostToolUse": [

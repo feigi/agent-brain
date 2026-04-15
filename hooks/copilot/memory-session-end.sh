@@ -10,4 +10,7 @@ rm -f "/tmp/agent-brain-sid-${SESSION_KEY}" 2>/dev/null
 # Clean up nudge counter
 rm -f "/tmp/copilot-memory-nudge-${SESSION_KEY}" 2>/dev/null
 
+# Clean up session-start marker (set by memory-pretool.sh)
+rm -f "/tmp/copilot-memory-session-${SESSION_KEY}" 2>/dev/null
+
 exit 0
