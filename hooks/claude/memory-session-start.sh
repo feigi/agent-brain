@@ -15,9 +15,11 @@ if ! curl -sf "${AGENT_BRAIN_URL}/health" >/dev/null 2>&1; then
   exit 0
 fi
 
-RESPONSE=$(curl -s -X POST "${AGENT_BRAIN_URL}/api/tools/memory_session_start" \
+# -f makes curl exit non-zero on HTTP 4xx/5xx so error bodies don't leak into
+# additionalContext as fake "memories".
+RESPONSE=$(curl -sf -X POST "${AGENT_BRAIN_URL}/api/tools/memory_session_start" \
   -H 'Content-Type: application/json' \
-  -d "{\"workspace_id\":\"${WORKSPACE_ID}\",\"user_id\":\"${USER_ID}\",\"limit\":10}")
+  -d "{\"workspace_id\":\"${WORKSPACE_ID}\",\"user_id\":\"${USER_ID}\",\"limit\":10}") || exit 0
 
 if [ -z "$RESPONSE" ]; then
   exit 0

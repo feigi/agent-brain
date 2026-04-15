@@ -118,28 +118,32 @@ fi
 
 ### Included Templates
 
-| File                              | Purpose                                                                                        |
-| --------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `copilot/hooks.json`              | Hook configuration template for `.github/hooks/` or `~/.copilot/hooks/`                        |
-| `copilot/mcp-snippet.json`        | MCP server configuration to merge into `~/.copilot/mcp-config.json`                            |
-| `copilot/memory-session-start.sh` | sessionStart hook — pre-warms Agent Brain server                                               |
-| `copilot/memory-pretool.sh`       | preToolUse hook — injects session memories, auto-fills IDs, emits periodic save-memories nudge |
-| `copilot/memory-session-end.sh`   | sessionEnd hook that cleans up temp files                                                      |
+| File                              | Purpose                                                                 |
+| --------------------------------- | ----------------------------------------------------------------------- |
+| `copilot/hooks.json`              | Hook configuration template for `.github/hooks/` or `~/.copilot/hooks/` |
+| `copilot/mcp-snippet.json`        | MCP server configuration to merge into `~/.copilot/mcp-config.json`     |
+| `copilot/memory-session-start.sh` | sessionStart hook — loads memories and injects as `additionalContext`   |
+| `copilot/memory-pretool.sh`       | preToolUse hook — auto-fills IDs and emits periodic save-memories nudge |
+| `copilot/memory-session-end.sh`   | sessionEnd hook that cleans up temp files                               |
 
 ### Prerequisites
 
-- GitHub Copilot CLI **v1.0.24+** (for `preToolUse` `modifiedArgs`/`additionalContext` support)
+- GitHub Copilot CLI **v1.0.24+** — the minimum version for the full template set.
+  The templates rely on three capabilities that landed across these releases:
+  - v1.0.11+ — `sessionStart` honors `additionalContext` output ([issue #2142](https://github.com/github/copilot-cli/issues/2142))
+  - v1.0.22+ — `sessionStart`/`sessionEnd` fire once per session in interactive mode
+  - v1.0.24+ — `preToolUse` honors `modifiedArgs` and `additionalContext`
 - `jq` installed (`brew install jq` on macOS, `apt install jq` on Linux)
 - Agent Brain server running (default `http://localhost:19898`, override with `AGENT_BRAIN_URL` env var)
 
 ### Parity with Claude Code
 
-With Copilot CLI v1.0.24+, `preToolUse` output is honored for context injection and tool input
-mutation. This closes most of the former feature gap:
+With Copilot CLI v1.0.24+, both `sessionStart` and `preToolUse` outputs are honored for
+context injection and tool input mutation. This closes most of the former feature gap:
 
 | Capability                      | Claude Code              | Copilot CLI                                  |
 | ------------------------------- | ------------------------ | -------------------------------------------- |
-| Inject context at session start | ✅ via SessionStart      | ✅ via first `preToolUse` (v1.0.24+)         |
+| Inject context at session start | ✅ via SessionStart      | ✅ via `sessionStart` (v1.0.11+)             |
 | Auto-fill MCP tool args         | ✅ via `updatedInput`    | ✅ via `modifiedArgs` (v1.0.24+)             |
 | Remind agent mid-session        | ✅ via PostToolUse       | ✅ via `preToolUse` every N calls (v1.0.24+) |
 | Block tool execution            | ✅ via `decision: block` | ⚠️ supported but not used in these templates |
@@ -231,30 +235,28 @@ is at `hooks/copilot/instructions-snippet.md`.
 
 ### How It Works
 
-#### Session Start (pre-warm)
+#### Session Start
 
-The `memory-session-start.sh` hook fires when a new Copilot CLI session begins. It warms the
-Agent Brain server by hitting the health endpoint. Copilot CLI still ignores `sessionStart`
-output, so actual memory injection is handled by the `preToolUse` hook on the first tool call.
+The `memory-session-start.sh` hook fires once when a new Copilot CLI session begins. It calls
+`memory_session_start` on the Agent Brain server and emits the response as `additionalContext`
+so the agent has recent memories available before its first tool call. If the server is
+unreachable the hook exits silently and the session proceeds without memories.
 
 #### Pre-Tool-Use (memory-pretool.sh)
 
-The `preToolUse` hook is the workhorse. On every tool invocation it:
+The `preToolUse` hook runs on every tool invocation. It does two things:
 
-1. **First call of the session** — calls `memory_session_start` via REST and injects the
-   response as `additionalContext`. Replaces the old instructions-driven manual call.
-2. **Every 20 calls** — emits a save-memories reminder as `additionalContext`.
-3. **On `mcp__agent-brain__*` tool calls** — fills missing `user_id` and `workspace_id` in
+1. **Every 20 calls** — emits a save-memories reminder as `additionalContext`.
+2. **On `mcp__agent-brain__*` tool calls** — fills missing `user_id` and `workspace_id` in
    `tool_input` via `modifiedArgs`. Uses `whoami` and `basename $cwd` as canonical values so
    the agent can't guess wrong casing.
 
-If the Agent Brain server is unreachable, the hook exits silently and the tool call proceeds
-unchanged.
+If neither applies the hook emits no output and the tool call proceeds unchanged.
 
 #### Session End
 
-The `memory-session-end.sh` hook fires when the session ends. It cleans up temp files (session
-ID, nudge counter, session marker) created during the session.
+The `memory-session-end.sh` hook fires when the session ends. It cleans up temp files (the
+session ID stash and the nudge counter) created during the session.
 
 ---
 

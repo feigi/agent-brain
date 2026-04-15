@@ -4,7 +4,7 @@ This project uses [agent-brain](https://github.com/feigi/agent-brain) (MCP serve
 
 ## Session Start
 
-If the `memory-pretool.sh` hook (Copilot CLI v1.0.24+) is installed, recent memories are injected as `additionalContext` on the first tool call of each session — no manual call needed.
+If the `memory-session-start.sh` hook (Copilot CLI v1.0.11+) is installed, recent memories are injected as `additionalContext` at session start — no manual call needed.
 
 If you are unsure whether the hook is active and no memories have appeared by the time of your first response, call `memory_session_start` yourself.
 
