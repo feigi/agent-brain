@@ -1,6 +1,8 @@
 #!/bin/bash
 # Claude Code SessionStart Hook: Load agent-brain memories
-# Calls the REST API on the persistent HTTP server
+# Calls the REST API on the persistent HTTP server.
+# On failure, emits a fallback additionalContext so the agent knows to call
+# memory_search explicitly instead of assuming no memories exist.
 
 INPUT=$(cat)
 AGENT_BRAIN_URL="${AGENT_BRAIN_URL:-http://localhost:19898}"
@@ -10,19 +12,29 @@ CLIENT_SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // .sessionId // ""')
 USER_ID=$(whoami)
 WORKSPACE_ID=$(basename "$CWD")
 
-# Check server health — fail gracefully if server is down
-if ! curl -sf "${AGENT_BRAIN_URL}/health" >/dev/null 2>&1; then
+FALLBACK_MSG="Agent Brain session_start did not succeed — memories were not loaded this session. Call memory_search explicitly when team knowledge or prior context is relevant."
+
+emit_fallback() {
+  local reason="$1"
+  echo "agent-brain SessionStart: ${reason}" >&2
+  jq -cn --arg ctx "$FALLBACK_MSG" \
+    '{hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: $ctx}}'
   exit 0
+}
+
+if ! curl -sf "${AGENT_BRAIN_URL}/health" >/dev/null 2>&1; then
+  emit_fallback "server unreachable (${AGENT_BRAIN_URL}/health)"
 fi
 
 # -f makes curl exit non-zero on HTTP 4xx/5xx so error bodies don't leak into
 # additionalContext as fake "memories".
 RESPONSE=$(curl -sf -X POST "${AGENT_BRAIN_URL}/api/tools/memory_session_start" \
   -H 'Content-Type: application/json' \
-  -d "{\"workspace_id\":\"${WORKSPACE_ID}\",\"user_id\":\"${USER_ID}\",\"limit\":10}") || exit 0
+  -d "{\"workspace_id\":\"${WORKSPACE_ID}\",\"user_id\":\"${USER_ID}\",\"limit\":10}") \
+  || emit_fallback "memory_session_start POST failed (HTTP 4xx/5xx or network error)"
 
 if [ -z "$RESPONSE" ]; then
-  exit 0
+  emit_fallback "memory_session_start returned empty body"
 fi
 
 # Stash agent-brain session_id for the stop hook to read
