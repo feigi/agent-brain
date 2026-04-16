@@ -12,7 +12,7 @@ export function registerMemorySessionStart(
     "memory_session_start",
     {
       description:
-        "Load relevant memories at session start. Searches both project and user scopes. " +
+        "Load relevant memories at session start. Searches workspace + user scopes (ranked) and always includes all project-scoped (global) memories. " +
         "user_id is required -- use your OS username in lowercase (run 'whoami' and convert to lowercase if needed). " +
         "Provide context for relevance-ranked results, or omit for recent memories. " +
         'Example: memory_session_start({ workspace_id: "my-project", user_id: "alice" })',
@@ -33,7 +33,18 @@ export function registerMemorySessionStart(
           .min(1)
           .max(50)
           .default(10)
-          .describe("Max memories to return (default 10)"),
+          .describe(
+            "Max workspace/user memories to return (default 10). Project-scoped memories are always included in addition, bounded by project_limit.",
+          ),
+        project_limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(200)
+          .default(50)
+          .describe(
+            "Max project-scoped (global) memories to always include (default 50)",
+          ),
       },
     },
     async (params) => {
@@ -43,6 +54,7 @@ export function registerMemorySessionStart(
           params.user_id,
           params.context,
           params.limit,
+          params.project_limit,
         );
         return toolResponse(result);
       });

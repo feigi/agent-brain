@@ -498,6 +498,26 @@ export class DrizzleMemoryRepository implements MemoryRepository {
     };
   }
 
+  async listProjectScoped(options: {
+    project_id: string;
+    limit: number;
+  }): Promise<Memory[]> {
+    const result = await this.db
+      .select(this.memoryColumns())
+      .from(memories)
+      .where(
+        and(
+          eq(memories.project_id, options.project_id),
+          isNull(memories.archived_at),
+          eq(memories.scope, "project"),
+        ),
+      )
+      .orderBy(desc(memories.created_at), desc(memories.id))
+      .limit(options.limit);
+
+    return result.map(rowToMemory);
+  }
+
   async listRecentBothScopes(
     options: RecentBothScopesOptions,
   ): Promise<Memory[]> {

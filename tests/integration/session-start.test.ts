@@ -163,6 +163,67 @@ describe("memory_session_start integration tests", () => {
     expect(found).toBeUndefined();
   });
 
+  it("always includes project-scoped memories beyond ranked limit", async () => {
+    // Two project-scoped "global instructions"
+    await service.create({
+      content: "Global instruction: never commit secrets",
+      type: "decision",
+      scope: "project",
+      author: "alice",
+    });
+    await service.create({
+      content: "Global instruction: always run migrations before deploy",
+      type: "decision",
+      scope: "project",
+      author: "alice",
+    });
+
+    // Fill workspace with more memories than the ranked limit
+    for (let i = 1; i <= 5; i++) {
+      await service.create({
+        workspace_id: "test-project",
+        content: `Workspace memory number ${i}`,
+        type: "fact",
+        author: "alice",
+      });
+    }
+
+    // limit=2 on ranked portion; project memories must still be present
+    const result = await service.sessionStart(
+      "test-project",
+      "alice",
+      undefined,
+      2,
+    );
+
+    const projectScoped = result.data.filter((m) => m.scope === "project");
+    expect(projectScoped.length).toBe(2);
+    // Total = 2 workspace (ranked) + 2 project (always included)
+    expect(result.data.length).toBe(4);
+  });
+
+  it("project_limit caps project-scoped memories", async () => {
+    for (let i = 1; i <= 5; i++) {
+      await service.create({
+        content: `Global instruction number ${i}`,
+        type: "decision",
+        scope: "project",
+        author: "alice",
+      });
+    }
+
+    const result = await service.sessionStart(
+      "test-project",
+      "alice",
+      undefined,
+      10,
+      3,
+    );
+
+    const projectScoped = result.data.filter((m) => m.scope === "project");
+    expect(projectScoped.length).toBe(3);
+  });
+
   it("response envelope has count and timing (D-18)", async () => {
     await service.create({
       workspace_id: "test-project",

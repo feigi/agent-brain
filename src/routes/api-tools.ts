@@ -42,6 +42,7 @@ export function createApiToolsRouter(
             b.user_id,
             b.context,
             b.limit,
+            b.project_limit,
           );
           res.json(result);
           break;

@@ -12,6 +12,7 @@ export const toolSchemas = {
     user_id: slugSchema,
     context: z.string().optional(),
     limit: z.number().int().min(1).max(50).default(10),
+    project_limit: z.number().int().min(1).max(200).default(50),
   }),
 
   memory_create: z.object({
