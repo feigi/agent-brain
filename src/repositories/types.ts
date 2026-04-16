@@ -71,6 +71,10 @@ export interface MemoryRepository {
     cursor?: { created_at: string; id: string };
   }>;
   listRecentBothScopes(options: RecentBothScopesOptions): Promise<Memory[]>;
+  listProjectScoped(options: {
+    project_id: string;
+    limit: number;
+  }): Promise<Memory[]>;
   verify(id: string, verifiedBy: string): Promise<Memory | null>;
   findRecentActivity(options: RecentActivityOptions): Promise<Memory[]>;
   countTeamActivity(
