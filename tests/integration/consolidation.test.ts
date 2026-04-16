@@ -81,6 +81,32 @@ describe("consolidation repository support", () => {
     expect(workspaces).toContain("ws-b");
   });
 
+  it("findDuplicates workspace scope excludes user-scoped memories in same workspace", async () => {
+    // Regression: userScopeCheck calls findDuplicates({scope: "workspace"}) for a
+    // user-scoped memory; without a scope filter the user memory matched itself,
+    // which the relationship service then rejected with "Source and target must
+    // be different memories".
+    const userMem = await service.create({
+      workspace_id: "test-ws",
+      content: "user memory content about auth patterns",
+      type: "learning",
+      author: "alice",
+      scope: "user",
+    });
+    assertMemory(userMem.data);
+
+    const dups = await memoryRepo.findDuplicates({
+      embedding: new Array(768).fill(0),
+      projectId: "test-project",
+      workspaceId: "test-ws",
+      scope: "workspace",
+      userId: "alice",
+      threshold: 0,
+    });
+
+    expect(dups.find((d) => d.id === userMem.data.id)).toBeUndefined();
+  });
+
   it("lists memories with embeddings for a workspace", async () => {
     const m1 = await service.create({
       workspace_id: "test-ws",

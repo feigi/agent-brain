@@ -610,7 +610,10 @@ export class DrizzleMemoryRepository implements MemoryRepository {
           "workspaceId is required for workspace-scoped dedup",
         );
       }
-      conditions.push(eq(memories.workspace_id, options.workspaceId));
+      conditions.push(
+        eq(memories.workspace_id, options.workspaceId),
+        eq(memories.scope, "workspace"),
+      );
     } else if (options.scope === "project") {
       // Project-scoped dedup checks all project-scoped memories
       conditions.push(eq(memories.scope, "project"));
