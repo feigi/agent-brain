@@ -660,7 +660,6 @@ describe("end-to-end: create relationship → get → archive → verify cleanup
     const newId = newResult.data.id;
 
     const oldResult = await memoryService.create({
-      workspace_id: "test-ws",
       content: "old decision about caching strategy",
       type: "decision",
       author: "alice",

@@ -71,6 +71,13 @@
       "when": 1775653200000,
       "tag": "0009_relationship_rename_source_partial_index",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1776466860746,
+      "tag": "0010_stiff_wither",
+      "breakpoints": true
     }
   ]
 }

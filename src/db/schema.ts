@@ -85,6 +85,10 @@ export const memories = pgTable(
     index("memories_author_idx").on(table.author),
     index("memories_type_idx").on(table.type),
     index("memories_created_at_idx").on(table.created_at),
+    check(
+      "memories_project_scope_null_workspace",
+      sql`scope != 'project' OR workspace_id IS NULL`,
+    ),
   ],
 );
 
