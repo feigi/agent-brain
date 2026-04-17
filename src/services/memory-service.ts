@@ -880,26 +880,16 @@ export class MemoryService {
       result = { data: scored, meta: { count: scored.length, timing } };
     }
 
-    // Always include project-scoped memories (global instructions) up to projectLimit.
-    // Ranked query above may already include some (via listRecentBothScopes / search
-    // auto-include); union, dedupe, and cap the project portion.
+    // Project-scoped memories (global instructions) served exclusively by
+    // listProjectScoped. Discard any that leaked in via search auto-include.
     const nonProject = result.data.filter((m) => m.scope !== "project");
-    const rankedProject = result.data.filter((m) => m.scope === "project");
-    const rankedProjectIds = new Set(rankedProject.map((m) => m.id));
 
-    const slotsLeft = Math.max(0, projectLimit - rankedProject.length);
-    const extraProjectMemories =
-      slotsLeft > 0
-        ? await this.memoryRepo.listProjectScoped({
-            project_id: this.projectId,
-            limit: projectLimit,
-          })
-        : [];
-
-    const extraScored: MemorySummaryWithRelevance[] = extraProjectMemories
-      .filter((m) => !rankedProjectIds.has(m.id))
-      .slice(0, slotsLeft)
-      .map((m) => ({
+    const projectMemories = await this.memoryRepo.listProjectScoped({
+      project_id: this.projectId,
+      limit: projectLimit,
+    });
+    const projectScored: MemorySummaryWithRelevance[] = projectMemories.map(
+      (m) => ({
         ...toSummary(m),
         relevance: computeRelevance(
           1.0,
@@ -907,10 +897,10 @@ export class MemoryService {
           m.verified_at,
           config.recencyHalfLifeDays,
         ),
-      }));
+      }),
+    );
 
-    const cappedRankedProject = rankedProject.slice(0, projectLimit);
-    result.data = [...nonProject, ...cappedRankedProject, ...extraScored];
+    result.data = [...nonProject, ...projectScored];
     result.data.sort((a, b) => b.relevance - a.relevance);
     result.meta.count = result.data.length;
 
