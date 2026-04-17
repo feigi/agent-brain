@@ -3,3 +3,5 @@ set -e
 npm run format
 npm run lint -- --fix
 git add -u
+npm run typecheck
+npm run test:unit
