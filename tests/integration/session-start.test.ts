@@ -200,6 +200,9 @@ describe("memory_session_start integration tests", () => {
     expect(projectScoped.length).toBe(2);
     // Total = 2 workspace (ranked) + 2 project (always included)
     expect(result.data.length).toBe(4);
+    // No duplicate IDs
+    const ids = result.data.map((m) => m.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it("project_limit caps project-scoped memories", async () => {
@@ -222,6 +225,36 @@ describe("memory_session_start integration tests", () => {
 
     const projectScoped = result.data.filter((m) => m.scope === "project");
     expect(projectScoped.length).toBe(3);
+  });
+
+  it("includes project-scoped memories with context search", async () => {
+    await service.create({
+      content: "Global instruction: always use parameterized queries",
+      type: "decision",
+      scope: "project",
+      author: "alice",
+    });
+    await service.create({
+      workspace_id: "test-project",
+      content: "PostgreSQL parameterized query patterns for security",
+      type: "fact",
+      scope: "workspace",
+      author: "alice",
+    });
+
+    const result = await service.sessionStart(
+      "test-project",
+      "alice",
+      "database security",
+    );
+
+    const projectScoped = result.data.filter((m) => m.scope === "project");
+    expect(projectScoped.length).toBe(1);
+    // Workspace memory also present from semantic search
+    expect(result.data.length).toBeGreaterThanOrEqual(2);
+    // No duplicates
+    const ids = result.data.map((m) => m.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it("no duplicate memories in response", async () => {
