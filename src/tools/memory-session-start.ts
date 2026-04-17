@@ -34,7 +34,7 @@ export function registerMemorySessionStart(
           .max(50)
           .default(10)
           .describe(
-            "Max workspace/user memories to return (default 10). Project-scoped memories are always included in addition, bounded by project_limit.",
+            "Max workspace/user-scoped memories to return (default 10). Project-scoped memories are returned separately, bounded by project_limit. Total response may contain up to limit + project_limit memories.",
           ),
         project_limit: z
           .number()
