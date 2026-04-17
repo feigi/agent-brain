@@ -224,6 +224,27 @@ describe("memory_session_start integration tests", () => {
     expect(projectScoped.length).toBe(3);
   });
 
+  it("no duplicate memories in response", async () => {
+    // Create project + workspace memories
+    await service.create({
+      content: "Global instruction for dedup test",
+      type: "decision",
+      scope: "project",
+      author: "alice",
+    });
+    await service.create({
+      workspace_id: "test-project",
+      content: "Workspace memory for dedup test",
+      type: "fact",
+      author: "alice",
+    });
+
+    const result = await service.sessionStart("test-project", "alice");
+
+    const ids = result.data.map((m) => m.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it("response envelope has count and timing (D-18)", async () => {
     await service.create({
       workspace_id: "test-project",

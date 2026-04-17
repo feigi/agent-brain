@@ -529,12 +529,14 @@ export class DrizzleMemoryRepository implements MemoryRepository {
           eq(memories.project_id, options.project_id),
           isNull(memories.archived_at),
           or(
-            eq(memories.workspace_id, options.workspace_id),
+            and(
+              eq(memories.workspace_id, options.workspace_id),
+              eq(memories.scope, "workspace"),
+            ),
             and(
               eq(memories.author, options.user_id),
               eq(memories.scope, "user"),
             ),
-            eq(memories.scope, "project"),
           )!,
         ),
       )
