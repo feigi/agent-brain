@@ -28,6 +28,7 @@ import type {
   SearchOptions,
   StaleOptions,
   RecentBothScopesOptions,
+  ProjectScopedOptions,
   RecentActivityOptions,
   TeamActivityCounts,
 } from "./types.js";
@@ -245,7 +246,6 @@ export class DrizzleMemoryRepository implements MemoryRepository {
     // SCOP-01: workspace scope queries workspace_id
     // SCOP-02: user scope queries author + scope column
     // SCOP-03: array scope uses OR for each requested scope
-    // All search modes also include project-scoped memories (cross-workspace)
     if (options.scope.length === 0) {
       throw new ValidationError("scope must contain at least one value");
     }
@@ -274,11 +274,6 @@ export class DrizzleMemoryRepository implements MemoryRepository {
       } else {
         scopeConditions.push(eq(memories.scope, "project"));
       }
-    }
-    // Always include project-scoped if any non-project scope requested
-    const hasNonProjectScope = options.scope.some((s) => s !== "project");
-    if (hasNonProjectScope && !options.scope.includes("project")) {
-      scopeConditions.push(eq(memories.scope, "project"));
     }
     if (scopeConditions.length === 1) {
       conditions.push(scopeConditions[0]);
@@ -358,11 +353,6 @@ export class DrizzleMemoryRepository implements MemoryRepository {
           )!,
         );
       }
-    }
-    // Always include project-scoped memories if any non-project scope requested
-    const hasNonProjectScope = options.scope.some((s) => s !== "project");
-    if (hasNonProjectScope && !options.scope.includes("project")) {
-      scopeConditions.push(eq(memories.scope, "project"));
     }
     if (scopeConditions.length === 1) {
       conditions.push(scopeConditions[0]);
@@ -498,10 +488,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
     };
   }
 
-  async listProjectScoped(options: {
-    project_id: string;
-    limit: number;
-  }): Promise<Memory[]> {
+  async listProjectScoped(options: ProjectScopedOptions): Promise<Memory[]> {
     const result = await this.db
       .select(this.memoryColumns())
       .from(memories)

@@ -1,11 +1,15 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import {
   createTestService,
+  getTestDb,
   truncateAll,
   closeDb,
   assertMemory,
 } from "../helpers.js";
 import type { MemoryService } from "../../src/services/memory-service.js";
+import { ValidationError } from "../../src/utils/errors.js";
+import { memories } from "../../src/db/schema.js";
+import { config } from "../../src/config.js";
 
 describe("memory_session_start integration tests", () => {
   let service: MemoryService;
@@ -227,6 +231,46 @@ describe("memory_session_start integration tests", () => {
     expect(projectScoped.length).toBe(3);
   });
 
+  it("context search fills ranked limit with workspace/user only, project memories added on top", async () => {
+    // 5 workspace memories — ranked pool should not be displaced by project
+    for (let i = 1; i <= 5; i++) {
+      await service.create({
+        workspace_id: "test-project",
+        content: `Workspace memory about databases number ${i}`,
+        type: "fact",
+        author: "alice",
+      });
+    }
+    // 2 project-scoped memories
+    await service.create({
+      content: "Global instruction about databases one",
+      type: "decision",
+      scope: "project",
+      author: "alice",
+    });
+    await service.create({
+      content: "Global instruction about databases two",
+      type: "decision",
+      scope: "project",
+      author: "alice",
+    });
+
+    const result = await service.sessionStart(
+      "test-project",
+      "alice",
+      "databases",
+      3,
+    );
+
+    const workspaceScoped = result.data.filter((m) => m.scope === "workspace");
+    const projectScoped = result.data.filter((m) => m.scope === "project");
+    // Ranked limit=3 fully populated by workspace memories (not displaced)
+    expect(workspaceScoped.length).toBe(3);
+    // Both project memories added on top of ranked results
+    expect(projectScoped.length).toBe(2);
+    expect(result.data.length).toBe(5);
+  });
+
   it("includes project-scoped memories with context search", async () => {
     await service.create({
       content: "Global instruction: always use parameterized queries",
@@ -276,6 +320,158 @@ describe("memory_session_start integration tests", () => {
 
     const ids = result.data.map((m) => m.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("excludes archived project-scoped memories", async () => {
+    const { data: created } = await service.create({
+      content: "Archived global instruction",
+      type: "decision",
+      scope: "project",
+      author: "alice",
+    });
+    assertMemory(created);
+    await service.archive(created.id, "alice");
+
+    const result = await service.sessionStart("test-project", "alice");
+
+    expect(result.data.find((m) => m.id === created.id)).toBeUndefined();
+  });
+
+  it("behaves identically when no project-scoped memories exist", async () => {
+    await service.create({
+      workspace_id: "test-project",
+      content: "Workspace-only memory",
+      type: "fact",
+      author: "alice",
+    });
+
+    const result = await service.sessionStart("test-project", "alice");
+
+    expect(result.data.length).toBe(1);
+    expect(result.data[0].scope).toBe("workspace");
+    expect(result.meta.project_truncated).toBeUndefined();
+  });
+
+  it("project memories ordered by recency when project_limit truncates", async () => {
+    const created: string[] = [];
+    for (let i = 1; i <= 5; i++) {
+      const { data } = await service.create({
+        content: `Project memory ${i}`,
+        type: "decision",
+        scope: "project",
+        author: "alice",
+      });
+      assertMemory(data);
+      created.push(data.id);
+      // Ensure deterministic creation order for the recency assertion
+      await new Promise((r) => setTimeout(r, 5));
+    }
+
+    const result = await service.sessionStart(
+      "test-project",
+      "alice",
+      undefined,
+      10,
+      2,
+    );
+
+    const projectIds = result.data
+      .filter((m) => m.scope === "project")
+      .map((m) => m.id);
+    expect(projectIds).toHaveLength(2);
+    // Newest two (last two created) must be the ones returned
+    expect(new Set(projectIds)).toEqual(new Set(created.slice(-2)));
+  });
+
+  it("sets meta.project_truncated when project memory count hits project_limit", async () => {
+    for (let i = 1; i <= 3; i++) {
+      await service.create({
+        content: `Global instruction ${i}`,
+        type: "decision",
+        scope: "project",
+        author: "alice",
+      });
+    }
+
+    const result = await service.sessionStart(
+      "test-project",
+      "alice",
+      undefined,
+      10,
+      3,
+    );
+
+    expect(result.meta.project_truncated).toBe(true);
+  });
+
+  it("does not set project_truncated when under project_limit", async () => {
+    await service.create({
+      content: "Single project memory",
+      type: "decision",
+      scope: "project",
+      author: "alice",
+    });
+
+    const result = await service.sessionStart(
+      "test-project",
+      "alice",
+      undefined,
+      10,
+      5,
+    );
+
+    expect(result.meta.project_truncated).toBeUndefined();
+  });
+
+  it("rejects invalid project_limit at service entry", async () => {
+    await expect(
+      service.sessionStart("test-project", "alice", undefined, 10, 0),
+    ).rejects.toBeInstanceOf(ValidationError);
+    await expect(
+      service.sessionStart("test-project", "alice", undefined, 10, 201),
+    ).rejects.toBeInstanceOf(ValidationError);
+    await expect(
+      service.sessionStart("test-project", "alice", undefined, 10, 1.5),
+    ).rejects.toBeInstanceOf(ValidationError);
+    await expect(
+      service.sessionStart("test-project", "alice", undefined, 10, Number.NaN),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("listProjectScoped isolates memories by project_id", async () => {
+    // Create one project memory under test-project via the standard service
+    // fixture (project_id="test-project").
+    await service.create({
+      content: "Test-project global instruction",
+      type: "decision",
+      scope: "project",
+      author: "alice",
+    });
+    // Direct-insert a project memory under a different project_id. This
+    // regression-guards that listProjectScoped filters on project_id.
+    await getTestDb()
+      .insert(memories)
+      .values({
+        id: "m-other-project-test",
+        project_id: "other-project",
+        workspace_id: null,
+        content: "Other-project global instruction",
+        title: "Other-project global instruction",
+        type: "decision",
+        scope: "project",
+        tags: [],
+        author: "alice",
+        source: "manual",
+        metadata: {},
+        embedding: new Array(config.embeddingDimensions).fill(0),
+        version: 1,
+      });
+
+    const result = await service.sessionStart("test-project", "alice");
+
+    const projectRows = result.data.filter((m) => m.scope === "project");
+    expect(projectRows).toHaveLength(1);
+    expect(projectRows[0].content).toContain("Test-project");
   });
 
   it("response envelope has count and timing (D-18)", async () => {

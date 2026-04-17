@@ -127,11 +127,12 @@ describe("Memory scoping integration tests", () => {
     });
     assertMemory(result.data);
 
-    // Search from a different workspace should find it
+    // Search from a different workspace with project scope requested
+    // returns the cross-workspace memory.
     const searchResult = await service.search(
       "ESM imports",
       "workspace-b",
-      ["workspace"],
+      ["workspace", "project"],
       "bob",
       undefined,
       -1,
@@ -140,6 +141,30 @@ describe("Memory scoping integration tests", () => {
     const found = searchResult.data.find((m) => m.scope === "project");
     expect(found).toBeDefined();
     expect(found!.content).toContain("ESM imports");
+  });
+
+  it("search without project scope excludes project-scoped memories", async () => {
+    await service.create({
+      workspace_id: "workspace-a",
+      content: "Project-scoped only memory that must stay out",
+      type: "decision",
+      scope: "project",
+      author: "alice",
+      source: "manual",
+    });
+
+    const searchResult = await service.search(
+      "project scoped only",
+      "workspace-b",
+      ["workspace"],
+      "bob",
+      undefined,
+      -1,
+    );
+
+    expect(
+      searchResult.data.find((m) => m.scope === "project"),
+    ).toBeUndefined();
   });
 
   it("project-scoped memory cannot be created by agent-auto", async () => {
@@ -181,7 +206,7 @@ describe("Memory scoping integration tests", () => {
     expect(result.data.scope).toBe("project");
   });
 
-  it("search scope array includes project-scoped memories", async () => {
+  it("search scope array returns only explicitly requested scopes", async () => {
     // Create workspace-scoped memory
     await service.create({
       workspace_id: "test-project",
@@ -208,6 +233,8 @@ describe("Memory scoping integration tests", () => {
       source: "manual",
     });
 
+    // Requesting only workspace + user scopes returns those scopes literally;
+    // project-scoped memories are excluded unless explicitly requested.
     const result = await service.search(
       "configuration patterns",
       "test-project",
@@ -220,7 +247,19 @@ describe("Memory scoping integration tests", () => {
     const scopes = result.data.map((m) => m.scope);
     expect(scopes).toContain("workspace");
     expect(scopes).toContain("user");
-    expect(scopes).toContain("project");
+    expect(scopes).not.toContain("project");
+
+    // With project scope explicitly requested, it is returned
+    const resultWithProject = await service.search(
+      "configuration patterns",
+      "test-project",
+      ["workspace", "user", "project"],
+      "alice",
+      undefined,
+      -1,
+    );
+    const scopesWithProject = resultWithProject.data.map((m) => m.scope);
+    expect(scopesWithProject).toContain("project");
   });
 
   it("default scope is workspace when not specified", async () => {

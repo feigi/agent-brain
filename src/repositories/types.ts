@@ -13,7 +13,7 @@ import type { Relationship } from "../types/relationship.js";
 export interface ListOptions {
   project_id: string; // deployment project (from server config)
   workspace_id?: string; // optional for project-scope listing (cross-workspace)
-  scope: MemoryScope[]; // non-empty; project-scoped memories are auto-included when any non-project scope is requested
+  scope: MemoryScope[]; // non-empty; scopes are honored literally (no implicit project-scope inclusion)
   user_id?: string;
   type?: string;
   tags?: string[];
@@ -27,7 +27,7 @@ export interface SearchOptions {
   embedding: number[];
   project_id: string; // deployment project
   workspace_id: string; // workspace to search within
-  scope: MemoryScope[]; // non-empty; project-scoped memories are auto-included when any non-project scope is requested
+  scope: MemoryScope[]; // non-empty; scopes are honored literally (no implicit project-scope inclusion)
   user_id?: string;
   limit?: number;
   min_similarity?: number;
@@ -38,6 +38,11 @@ export interface RecentBothScopesOptions {
   workspace_id: string;
   user_id: string;
   limit: number;
+}
+
+export interface ProjectScopedOptions {
+  project_id: string; // deployment project
+  limit: number; // bounds enforced by caller (see PROJECT_LIMIT_{MIN,MAX})
 }
 
 export interface StaleOptions {
@@ -71,10 +76,7 @@ export interface MemoryRepository {
     cursor?: { created_at: string; id: string };
   }>;
   listRecentBothScopes(options: RecentBothScopesOptions): Promise<Memory[]>;
-  listProjectScoped(options: {
-    project_id: string;
-    limit: number;
-  }): Promise<Memory[]>;
+  listProjectScoped(options: ProjectScopedOptions): Promise<Memory[]>;
   verify(id: string, verifiedBy: string): Promise<Memory | null>;
   findRecentActivity(options: RecentActivityOptions): Promise<Memory[]>;
   countTeamActivity(

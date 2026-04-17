@@ -5,6 +5,11 @@ import {
   memoryTypeEnum,
   memoryScopeEnum,
 } from "../utils/validation.js";
+import {
+  PROJECT_LIMIT_MIN,
+  PROJECT_LIMIT_MAX,
+  PROJECT_LIMIT_DEFAULT,
+} from "../utils/session-limits.js";
 
 export const toolSchemas = {
   memory_session_start: z.object({
@@ -12,7 +17,12 @@ export const toolSchemas = {
     user_id: slugSchema,
     context: z.string().optional(),
     limit: z.number().int().min(1).max(50).default(10),
-    project_limit: z.number().int().min(1).max(200).default(50),
+    project_limit: z
+      .number()
+      .int()
+      .min(PROJECT_LIMIT_MIN)
+      .max(PROJECT_LIMIT_MAX)
+      .default(PROJECT_LIMIT_DEFAULT),
   }),
 
   memory_create: z.object({
