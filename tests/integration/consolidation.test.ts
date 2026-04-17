@@ -94,6 +94,7 @@ describe("consolidation repository support", () => {
       scope: "user",
     });
     assertMemory(userMem.data);
+    const mem = userMem.data;
 
     const dups = await memoryRepo.findDuplicates({
       embedding: new Array(768).fill(0),
@@ -104,7 +105,7 @@ describe("consolidation repository support", () => {
       threshold: 0,
     });
 
-    expect(dups.find((d) => d.id === userMem.data.id)).toBeUndefined();
+    expect(dups.find((d) => d.id === mem.id)).toBeUndefined();
   });
 
   it("lists memories with embeddings for a workspace", async () => {
