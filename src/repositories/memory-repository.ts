@@ -497,6 +497,7 @@ export class DrizzleMemoryRepository implements MemoryRepository {
           eq(memories.project_id, options.project_id),
           isNull(memories.archived_at),
           eq(memories.scope, "project"),
+          isNull(memories.workspace_id),
         ),
       )
       .orderBy(desc(memories.created_at), desc(memories.id))

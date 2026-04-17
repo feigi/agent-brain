@@ -91,6 +91,9 @@ export class MemoryService {
         `workspace_id is required for ${effectiveScope}-scoped memories.`,
       );
     }
+    // Project-scope is cross-workspace by design; workspace_id must be null.
+    const effectiveWorkspaceId =
+      effectiveScope === "project" ? null : (input.workspace_id ?? null);
 
     // Guard 0b -- Project-scope restriction: cannot be created by autonomous sources
     const isAutonomous =
@@ -165,7 +168,7 @@ export class MemoryService {
     const duplicates = await this.memoryRepo.findDuplicates({
       embedding,
       projectId: this.projectId,
-      workspaceId: input.workspace_id ?? null,
+      workspaceId: effectiveWorkspaceId,
       scope: effectiveScope,
       userId: input.author,
       threshold: config.duplicateThreshold,
@@ -199,7 +202,7 @@ export class MemoryService {
     const memoryData: Memory & { embedding: number[] } = {
       id,
       project_id: this.projectId,
-      workspace_id: input.workspace_id ?? null,
+      workspace_id: effectiveWorkspaceId,
       content: input.content,
       title,
       type: input.type,

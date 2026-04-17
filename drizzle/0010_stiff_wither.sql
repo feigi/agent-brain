@@ -1,0 +1,2 @@
+UPDATE "memories" SET "workspace_id" = NULL WHERE "scope" = 'project' AND "workspace_id" IS NOT NULL;--> statement-breakpoint
+ALTER TABLE "memories" ADD CONSTRAINT "memories_project_scope_null_workspace" CHECK (scope != 'project' OR workspace_id IS NULL);
