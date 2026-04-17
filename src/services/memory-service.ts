@@ -40,6 +40,11 @@ import { canAccessMemory } from "../utils/access.js";
 import { generateId } from "../utils/id.js";
 import { logger } from "../utils/logger.js";
 import { computeRelevance, OVER_FETCH_FACTOR } from "../utils/scoring.js";
+import {
+  PROJECT_LIMIT_MIN,
+  PROJECT_LIMIT_MAX,
+  PROJECT_LIMIT_DEFAULT,
+} from "../utils/session-limits.js";
 import { config } from "../config.js";
 
 const MAX_CONTENT_WARNING = 4_000; // D-20: Warn but allow
@@ -809,9 +814,21 @@ export class MemoryService {
     userId: string,
     context?: string,
     limit: number = 10,
-    projectLimit: number = 50,
+    projectLimit: number = PROJECT_LIMIT_DEFAULT,
   ): Promise<Envelope<MemorySummaryWithRelevance[]>> {
     const start = Date.now();
+
+    // Guard non-MCP callers that bypass Zod validation: drizzle .limit(NaN)/
+    // negative behavior is driver-dependent and can silently return 0 or all rows.
+    if (
+      !Number.isInteger(projectLimit) ||
+      projectLimit < PROJECT_LIMIT_MIN ||
+      projectLimit > PROJECT_LIMIT_MAX
+    ) {
+      throw new ValidationError(
+        `project_limit must be an integer between ${PROJECT_LIMIT_MIN} and ${PROJECT_LIMIT_MAX}`,
+      );
+    }
 
     // D-34: Auto-create workspace
     await this.workspaceRepo.findOrCreate(workspaceId);
@@ -880,14 +897,23 @@ export class MemoryService {
       result = { data: scored, meta: { count: scored.length, timing } };
     }
 
-    // Project-scoped memories (global instructions) served exclusively by
-    // listProjectScoped. Discard any that leaked in via search auto-include.
-    const nonProject = result.data.filter((m) => m.scope !== "project");
-
-    const projectMemories = await this.memoryRepo.listProjectScoped({
-      project_id: this.projectId,
-      limit: projectLimit,
-    });
+    // Project-scoped memories (global instructions) always included at
+    // session start, independent of ranked workspace/user results.
+    // Degrade gracefully on DB failure: surfacing ranked results beats
+    // aborting the whole session_start response.
+    let projectMemories: Memory[] = [];
+    try {
+      projectMemories = await this.memoryRepo.listProjectScoped({
+        project_id: this.projectId,
+        limit: projectLimit,
+      });
+    } catch (err) {
+      logger.error(
+        `listProjectScoped failed in sessionStart: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
     const projectScored: MemorySummaryWithRelevance[] = projectMemories.map(
       (m) => ({
         ...toSummary(m),
@@ -900,9 +926,21 @@ export class MemoryService {
       }),
     );
 
-    result.data = [...nonProject, ...projectScored];
-    result.data.sort((a, b) => b.relevance - a.relevance);
+    // Dedup by id so the invariant holds regardless of what the ranked path
+    // returns. Ranked path is expected to exclude scope="project" (search is
+    // called with ["workspace","user"] and listRecentBothScopes is narrowed
+    // to non-project scopes), but relying on that is brittle across refactors.
+    const merged = new Map<string, MemorySummaryWithRelevance>();
+    for (const m of result.data) merged.set(m.id, m);
+    for (const m of projectScored) merged.set(m.id, m);
+
+    result.data = [...merged.values()].sort(
+      (a, b) => b.relevance - a.relevance,
+    );
     result.meta.count = result.data.length;
+    if (projectMemories.length >= projectLimit) {
+      result.meta.project_truncated = true;
+    }
 
     // D-29: Add team_activity counts to meta
     let teamActivity:

@@ -2,6 +2,11 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
 import { slugSchema, userIdSchema } from "../utils/validation.js";
+import {
+  PROJECT_LIMIT_MIN,
+  PROJECT_LIMIT_MAX,
+  PROJECT_LIMIT_DEFAULT,
+} from "../utils/session-limits.js";
 import { toolResponse, withErrorHandling } from "./tool-utils.js";
 
 export function registerMemorySessionStart(
@@ -39,11 +44,11 @@ export function registerMemorySessionStart(
         project_limit: z
           .number()
           .int()
-          .min(1)
-          .max(200)
-          .default(50)
+          .min(PROJECT_LIMIT_MIN)
+          .max(PROJECT_LIMIT_MAX)
+          .default(PROJECT_LIMIT_DEFAULT)
           .describe(
-            "Max project-scoped (global) memories to always include (default 50)",
+            `Max project-scoped (global) memories to always include (default ${PROJECT_LIMIT_DEFAULT})`,
           ),
       },
     },
