@@ -27,7 +27,7 @@ import type {
   ListOptions,
   SearchOptions,
   StaleOptions,
-  RecentBothScopesOptions,
+  RecentWorkspaceAndUserOptions,
   ProjectScopedOptions,
   RecentActivityOptions,
   TeamActivityCounts,
@@ -506,8 +506,8 @@ export class DrizzleMemoryRepository implements MemoryRepository {
     return result.map(rowToMemory);
   }
 
-  async listRecentBothScopes(
-    options: RecentBothScopesOptions,
+  async listRecentWorkspaceAndUser(
+    options: RecentWorkspaceAndUserOptions,
   ): Promise<Memory[]> {
     const result = await this.db
       .select(this.memoryColumns())

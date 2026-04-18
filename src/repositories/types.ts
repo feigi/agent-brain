@@ -33,7 +33,7 @@ export interface SearchOptions {
   min_similarity?: number;
 }
 
-export interface RecentBothScopesOptions {
+export interface RecentWorkspaceAndUserOptions {
   project_id: string; // deployment project
   workspace_id: string;
   user_id: string;
@@ -75,7 +75,9 @@ export interface MemoryRepository {
     has_more: boolean;
     cursor?: { created_at: string; id: string };
   }>;
-  listRecentBothScopes(options: RecentBothScopesOptions): Promise<Memory[]>;
+  listRecentWorkspaceAndUser(
+    options: RecentWorkspaceAndUserOptions,
+  ): Promise<Memory[]>;
   listProjectScoped(options: ProjectScopedOptions): Promise<Memory[]>;
   verify(id: string, verifiedBy: string): Promise<Memory | null>;
   findRecentActivity(options: RecentActivityOptions): Promise<Memory[]>;

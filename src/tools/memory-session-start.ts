@@ -3,9 +3,8 @@ import { z } from "zod";
 import type { MemoryService } from "../services/memory-service.js";
 import { slugSchema, userIdSchema } from "../utils/validation.js";
 import {
-  PROJECT_LIMIT_MIN,
-  PROJECT_LIMIT_MAX,
   PROJECT_LIMIT_DEFAULT,
+  projectLimitSchema,
 } from "../utils/session-limits.js";
 import { toolResponse, withErrorHandling } from "./tool-utils.js";
 
@@ -41,15 +40,9 @@ export function registerMemorySessionStart(
           .describe(
             "Max workspace/user-scoped memories to return (default 10). Project-scoped memories are returned separately, bounded by project_limit. Total response may contain up to limit + project_limit memories.",
           ),
-        project_limit: z
-          .number()
-          .int()
-          .min(PROJECT_LIMIT_MIN)
-          .max(PROJECT_LIMIT_MAX)
-          .default(PROJECT_LIMIT_DEFAULT)
-          .describe(
-            `Max project-scoped (global) memories to always include (default ${PROJECT_LIMIT_DEFAULT})`,
-          ),
+        project_limit: projectLimitSchema.describe(
+          `Max project-scoped (global) memories to always include (default ${PROJECT_LIMIT_DEFAULT})`,
+        ),
       },
     },
     async (params) => {

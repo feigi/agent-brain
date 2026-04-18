@@ -53,7 +53,7 @@ function makeMemoryRepo(
     search: vi.fn().mockResolvedValue([]),
     list: vi.fn(),
     findStale: vi.fn(),
-    listRecentBothScopes: vi.fn().mockResolvedValue([]),
+    listRecentWorkspaceAndUser: vi.fn().mockResolvedValue([]),
     verify: vi.fn(),
     findRecentActivity: vi.fn().mockResolvedValue([]),
     countTeamActivity: vi.fn().mockResolvedValue({

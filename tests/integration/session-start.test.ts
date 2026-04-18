@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
 import {
   createTestService,
   getTestDb,
@@ -383,8 +383,8 @@ describe("memory_session_start integration tests", () => {
     expect(new Set(projectIds)).toEqual(new Set(created.slice(-2)));
   });
 
-  it("sets meta.project_truncated when project memory count hits project_limit", async () => {
-    for (let i = 1; i <= 3; i++) {
+  it("sets meta.project_truncated when project memory count exceeds project_limit", async () => {
+    for (let i = 1; i <= 4; i++) {
       await service.create({
         content: `Global instruction ${i}`,
         type: "decision",
@@ -402,6 +402,27 @@ describe("memory_session_start integration tests", () => {
     );
 
     expect(result.meta.project_truncated).toBe(true);
+  });
+
+  it("does not set project_truncated when project count equals project_limit exactly", async () => {
+    for (let i = 1; i <= 3; i++) {
+      await service.create({
+        content: `Global instruction at cap ${i}`,
+        type: "decision",
+        scope: "project",
+        author: "alice",
+      });
+    }
+
+    const result = await service.sessionStart(
+      "test-project",
+      "alice",
+      undefined,
+      10,
+      3,
+    );
+
+    expect(result.meta.project_truncated).toBeUndefined();
   });
 
   it("does not set project_truncated when under project_limit", async () => {
@@ -472,6 +493,118 @@ describe("memory_session_start integration tests", () => {
     const projectRows = result.data.filter((m) => m.scope === "project");
     expect(projectRows).toHaveLength(1);
     expect(projectRows[0].content).toContain("Test-project");
+  });
+
+  it("sets project_scope_status=failed when listProjectScoped throws; ranked results still returned", async () => {
+    await service.create({
+      workspace_id: "test-project",
+      content:
+        "Ranked workspace memory that must survive project-scope failure",
+      type: "fact",
+      author: "alice",
+    });
+
+    const spy = vi
+      .spyOn(
+        (service as unknown as { memoryRepo: { listProjectScoped: unknown } })
+          .memoryRepo as { listProjectScoped: () => Promise<unknown> },
+        "listProjectScoped",
+      )
+      .mockRejectedValue(new Error("simulated DB failure"));
+
+    const result = await service.sessionStart("test-project", "alice");
+
+    expect(result.data.length).toBe(1);
+    expect(result.data[0].scope).toBe("workspace");
+    expect(result.meta.project_scope_status).toBe("failed");
+    expect(result.meta.project_truncated).toBeUndefined();
+
+    spy.mockRestore();
+  });
+
+  it("ranked bucket excludes project-scoped memories even when they are newest", async () => {
+    // Workspace memories created first (older).
+    for (let i = 1; i <= 2; i++) {
+      await service.create({
+        workspace_id: "test-project",
+        content: `Older workspace memory ${i}`,
+        type: "fact",
+        author: "alice",
+      });
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    // Project memories created last (newest) — must not displace workspace
+    // memories in the ranked pool when listRecentWorkspaceAndUser is called.
+    for (let i = 1; i <= 2; i++) {
+      await service.create({
+        content: `Newer project memory ${i}`,
+        type: "decision",
+        scope: "project",
+        author: "alice",
+      });
+      await new Promise((r) => setTimeout(r, 5));
+    }
+
+    const result = await service.sessionStart(
+      "test-project",
+      "alice",
+      undefined,
+      2,
+    );
+
+    // With the narrowing: ranked bucket holds workspace-scoped only; project
+    // memories come from the always-included path on top.
+    const rankedWorkspace = result.data.filter((m) => m.scope === "workspace");
+    const project = result.data.filter((m) => m.scope === "project");
+    expect(rankedWorkspace.length).toBe(2);
+    expect(project.length).toBe(2);
+    expect(result.data.length).toBe(4);
+  });
+
+  it("DB rejects direct insert with scope=project and non-null workspace_id", async () => {
+    let caught: unknown;
+    try {
+      await getTestDb()
+        .insert(memories)
+        .values({
+          id: "m-violates-project-check",
+          project_id: "test-project",
+          workspace_id: "some-workspace",
+          content: "This insert must be rejected by the CHECK constraint",
+          title: "violating row",
+          type: "decision",
+          scope: "project",
+          tags: [],
+          author: "alice",
+          source: "manual",
+          metadata: {},
+          embedding: new Array(config.embeddingDimensions).fill(0),
+          version: 1,
+        });
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeDefined();
+    // Postgres CHECK violation code is 23514; constraint name is in the
+    // underlying driver error (drizzle wraps it — inspect the cause chain).
+    const chain: unknown[] = [];
+    let cur: unknown = caught;
+    while (cur && chain.length < 5) {
+      chain.push(cur);
+      cur = (cur as { cause?: unknown }).cause;
+    }
+    const combined = chain
+      .map((e) => {
+        const anyE = e as {
+          code?: string;
+          constraint?: string;
+          message?: string;
+        };
+        return `${anyE.code ?? ""}|${anyE.constraint ?? ""}|${anyE.message ?? ""}`;
+      })
+      .join(" || ");
+    expect(combined).toMatch(/23514|memories_project_scope_null_workspace/i);
   });
 
   it("response envelope has count and timing (D-18)", async () => {

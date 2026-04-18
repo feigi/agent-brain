@@ -516,7 +516,6 @@ describe("consolidation creates relationships", () => {
 
   it("runs cross-scope check without errors (mock embeddings may not trigger threshold)", async () => {
     const proj = await service.create({
-      workspace_id: "test-ws",
       content: "Global rule about API naming",
       type: "decision",
       scope: "project",

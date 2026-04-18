@@ -27,6 +27,7 @@ export interface Envelope<T> {
     flags?: FlagResponse[];
     relationships?: RelationshipSummary[];
     omitted?: string[]; // IDs requested but not returned (inaccessible/not found)
-    project_truncated?: boolean; // session_start only: true when project-scoped memories hit project_limit
+    project_truncated?: boolean; // session_start only: true when project-scoped memories exceeded project_limit
+    project_scope_status?: "ok" | "failed"; // session_start only: "failed" when listProjectScoped threw and ranked results were returned without project-scoped memories
   };
 }

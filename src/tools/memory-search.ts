@@ -27,7 +27,7 @@ export function registerMemorySearch(
           .min(1)
           .default(["workspace"])
           .describe(
-            'Scopes to search, e.g. ["workspace", "user"]. Defaults to ["workspace"]. Project-scoped memories are always included.',
+            'Scopes to search, e.g. ["workspace", "user", "project"]. Defaults to ["workspace"]. Scope is honored literally — pass "project" explicitly to include cross-workspace (global) memories.',
           ),
         user_id: userIdSchema,
         limit: z

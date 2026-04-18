@@ -91,9 +91,16 @@ export class MemoryService {
         `workspace_id is required for ${effectiveScope}-scoped memories.`,
       );
     }
-    // Project-scope is cross-workspace by design; workspace_id must be null.
+    // Mirror guard 0a: project scope is cross-workspace by design — reject
+    // workspace_id explicitly rather than silently coercing, so callers
+    // learn their input was inconsistent with the scope they chose.
+    if (effectiveScope === "project" && input.workspace_id) {
+      throw new ValidationError(
+        `workspace_id must not be provided for project-scoped memories (project scope is cross-workspace).`,
+      );
+    }
     const effectiveWorkspaceId =
-      effectiveScope === "project" ? null : (input.workspace_id ?? null);
+      effectiveScope === "project" ? null : input.workspace_id!;
 
     // Guard 0b -- Project-scope restriction: cannot be created by autonomous sources
     const isAutonomous =
@@ -147,9 +154,8 @@ export class MemoryService {
         : input.content);
 
     // D-34: Ensure workspace exists (auto-create on first mention)
-    // Skip for project-scoped memories without workspace_id
-    if (input.workspace_id) {
-      await this.workspaceRepo.findOrCreate(input.workspace_id);
+    if (effectiveWorkspaceId) {
+      await this.workspaceRepo.findOrCreate(effectiveWorkspaceId);
     }
 
     // D-19: Embed title + content concatenated
@@ -876,7 +882,7 @@ export class MemoryService {
       );
     } else {
       // D-14: Without context, fetch recent memories ranked by recency
-      const recentMemories = await this.memoryRepo.listRecentBothScopes({
+      const recentMemories = await this.memoryRepo.listRecentWorkspaceAndUser({
         project_id: this.projectId,
         workspace_id: workspaceId,
         user_id: userId,
@@ -903,16 +909,27 @@ export class MemoryService {
     // Project-scoped memories (global instructions) always included at
     // session start, independent of ranked workspace/user results.
     // Degrade gracefully on DB failure: surfacing ranked results beats
-    // aborting the whole session_start response.
+    // aborting the whole session_start response. Surface the failure via
+    // meta.project_scope_status so callers can distinguish "no project
+    // memories exist" from "project-scope read failed".
+    // Fetch one extra to distinguish "exactly at cap" from "cap exceeded":
+    // length > projectLimit ⇒ real truncation; length <= projectLimit ⇒ none.
     let projectMemories: Memory[] = [];
+    let projectTruncated = false;
+    let projectScopeFailed = false;
     try {
-      projectMemories = await this.memoryRepo.listProjectScoped({
+      const fetched = await this.memoryRepo.listProjectScoped({
         project_id: this.projectId,
-        limit: projectLimit,
+        limit: projectLimit + 1,
       });
+      projectTruncated = fetched.length > projectLimit;
+      projectMemories = projectTruncated
+        ? fetched.slice(0, projectLimit)
+        : fetched;
     } catch (err) {
+      projectScopeFailed = true;
       logger.error(
-        `listProjectScoped failed in sessionStart: ${
+        `listProjectScoped failed in sessionStart (project=${this.projectId}): ${
           err instanceof Error ? err.message : String(err)
         }`,
       );
@@ -931,7 +948,7 @@ export class MemoryService {
 
     // Dedup by id so the invariant holds regardless of what the ranked path
     // returns. Ranked path is expected to exclude scope="project" (search is
-    // called with ["workspace","user"] and listRecentBothScopes is narrowed
+    // called with ["workspace","user"] and listRecentWorkspaceAndUser is narrowed
     // to non-project scopes), but relying on that is brittle across refactors.
     const merged = new Map<string, MemorySummaryWithRelevance>();
     for (const m of result.data) merged.set(m.id, m);
@@ -941,9 +958,10 @@ export class MemoryService {
       (a, b) => b.relevance - a.relevance,
     );
     result.meta.count = result.data.length;
-    if (projectMemories.length >= projectLimit) {
+    if (projectTruncated) {
       result.meta.project_truncated = true;
     }
+    result.meta.project_scope_status = projectScopeFailed ? "failed" : "ok";
 
     // D-29: Add team_activity counts to meta
     let teamActivity:
