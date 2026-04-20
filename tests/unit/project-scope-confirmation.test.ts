@@ -232,6 +232,36 @@ describe("Project-scope confirmation (issue #21)", () => {
       expect("skipped" in result.data).toBe(false);
       expect(memoryRepo.create).toHaveBeenCalled();
     });
+
+    it("confirmed retry that hits a semantic duplicate returns duplicate skip (not confirmation skip)", async () => {
+      const memoryRepo = makeMemoryRepo();
+      // Override findDuplicates to return a near-identical existing memory
+      (memoryRepo.findDuplicates as ReturnType<typeof vi.fn>).mockResolvedValue(
+        [
+          {
+            id: "existing-dup",
+            title: "Existing",
+            relevance: 0.98,
+            scope: "project",
+          },
+        ],
+      );
+      const { service } = makeService({ memoryRepo });
+
+      const result = await service.create({
+        content: "Confirmed but duplicate content",
+        type: "decision",
+        scope: "project",
+        author: "alice",
+        source: "session-review",
+        user_confirmed_project_scope: true,
+      });
+
+      expect("skipped" in result.data).toBe(true);
+      if ("skipped" in result.data) {
+        expect(result.data.reason).toBe("duplicate");
+      }
+    });
   });
 
   describe("audit trail on confirmed project-scope creation", () => {
