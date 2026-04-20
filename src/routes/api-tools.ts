@@ -61,6 +61,7 @@ export function createApiToolsRouter(
             source: b.source,
             session_id: b.session_id,
             metadata: b.metadata,
+            user_confirmed_project_scope: b.user_confirmed_project_scope,
           });
           res.json(result);
           break;

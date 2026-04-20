@@ -41,7 +41,13 @@ export function registerMemoryCreate(
         scope: memoryScopeEnum
           .catch("workspace")
           .describe(
-            "'workspace' scopes to this workspace (shared with team), 'user' is private to you, 'project' is visible across all workspaces (user-confirmed only, not for autonomous sources)",
+            "'workspace' scopes to this workspace (shared with team), 'user' is private to you, 'project' is visible across all workspaces (set user_confirmed_project_scope:true after asking the user)",
+          ),
+        user_confirmed_project_scope: z
+          .boolean()
+          .optional()
+          .describe(
+            "Set true after the user has explicitly confirmed cross-workspace (project) scope. Required alongside scope:'project' when source is 'agent-auto' or 'session-review'.",
           ),
         user_id: userIdSchema,
         source: z
@@ -73,6 +79,7 @@ export function registerMemoryCreate(
           source: params.source,
           session_id: params.session_id,
           metadata: params.metadata,
+          user_confirmed_project_scope: params.user_confirmed_project_scope,
         });
         return toolResponse(result);
       });
