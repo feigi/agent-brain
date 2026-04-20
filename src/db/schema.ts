@@ -44,6 +44,14 @@ export const workspaces = pgTable("workspaces", {
     .defaultNow(),
 });
 
+export const schedulerState = pgTable("scheduler_state", {
+  job_name: text("job_name").primaryKey(),
+  last_run_at: timestamp("last_run_at", { withTimezone: true }).notNull(),
+  updated_at: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const memories = pgTable(
   "memories",
   {
