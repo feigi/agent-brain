@@ -35,6 +35,15 @@ const configSchema = z.object({
     .int()
     .nonnegative()
     .default(5),
+  consolidationCatchupEnabled: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((v) => v === "true"),
+  consolidationCatchupGraceSeconds: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(60),
 });
 
 export const config = configSchema.parse({
@@ -60,4 +69,7 @@ export const config = configSchema.parse({
   consolidationVerifyAfterDays: process.env.CONSOLIDATION_VERIFY_AFTER_DAYS,
   consolidationMaxFlagsPerSession:
     process.env.CONSOLIDATION_MAX_FLAGS_PER_SESSION,
+  consolidationCatchupEnabled: process.env.CONSOLIDATION_CATCHUP_ENABLED,
+  consolidationCatchupGraceSeconds:
+    process.env.CONSOLIDATION_CATCHUP_GRACE_SECONDS,
 });

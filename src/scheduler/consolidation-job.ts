@@ -1,10 +1,13 @@
 import { sql } from "drizzle-orm";
 import type { Database } from "../db/index.js";
 import type { ConsolidationService } from "../services/consolidation-service.js";
+import type { SchedulerStateRepository } from "../repositories/types.js";
 import { logger } from "../utils/logger.js";
 
 /** PostgreSQL advisory lock ID for consolidation job exclusivity across server instances */
 const CONSOLIDATION_LOCK_ID = 42001;
+
+export const CONSOLIDATION_JOB_NAME = "consolidation";
 
 export class ConsolidationJob {
   private running = false;
@@ -12,6 +15,7 @@ export class ConsolidationJob {
   constructor(
     private readonly consolidationService: ConsolidationService,
     private readonly db: Database,
+    private readonly schedulerStateRepo: SchedulerStateRepository,
   ) {}
 
   get isRunning(): boolean {
@@ -47,6 +51,10 @@ export class ConsolidationJob {
       logger.info(
         `Consolidation job completed in ${elapsed}ms: ` +
           `archived=${result.archived}, flagged=${result.flagged}, errors=${result.errors}`,
+      );
+      await this.schedulerStateRepo.recordRun(
+        CONSOLIDATION_JOB_NAME,
+        new Date(start),
       );
     } catch (error) {
       logger.error("Consolidation job failed:", error);

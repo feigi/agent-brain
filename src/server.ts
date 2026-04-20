@@ -16,6 +16,7 @@ import {
 import { DrizzleAuditRepository } from "./repositories/audit-repository.js";
 import { DrizzleFlagRepository } from "./repositories/flag-repository.js";
 import { DrizzleRelationshipRepository } from "./repositories/relationship-repository.js";
+import { DrizzleSchedulerStateRepository } from "./repositories/scheduler-state-repository.js";
 import { MemoryService } from "./services/memory-service.js";
 import { RelationshipService } from "./services/relationship-service.js";
 import { AuditService } from "./services/audit-service.js";
@@ -128,12 +129,22 @@ async function main() {
   let consolidationScheduler: ConsolidationScheduler | null = null;
 
   if (config.consolidationEnabled) {
-    const consolidationJob = new ConsolidationJob(consolidationService, db);
+    const schedulerStateRepo = new DrizzleSchedulerStateRepository(db);
+    const consolidationJob = new ConsolidationJob(
+      consolidationService,
+      db,
+      schedulerStateRepo,
+    );
     consolidationScheduler = new ConsolidationScheduler(
       consolidationJob,
       config.consolidationCron,
+      schedulerStateRepo,
+      {
+        enabled: config.consolidationCatchupEnabled,
+        graceSeconds: config.consolidationCatchupGraceSeconds,
+      },
     );
-    consolidationScheduler.start();
+    await consolidationScheduler.start();
   }
 
   // Factory: creates a fresh MCP server per session (tools + prompts registered)
