@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
@@ -231,7 +232,11 @@ async function main() {
   process.on("SIGINT", shutdown);
 }
 
-main().catch((err) => {
-  logger.error("Fatal error:", err);
-  process.exit(1);
-});
+// Only auto-run main() when this file is the process entrypoint.
+// Importing it (e.g. from a smoke test) just resolves the module graph.
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    logger.error("Fatal error:", err);
+    process.exit(1);
+  });
+}
