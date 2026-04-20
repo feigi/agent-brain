@@ -30,7 +30,7 @@ You have access to a long-term memory system. Save insights that will be valuabl
 
 - **workspace** (default): Visible to all team members in this workspace. Requires workspace_id.
 - **user**: Private to you, visible across all your workspaces.
-- **project**: Visible to all users across ALL workspaces. Use for universal project knowledge (coding standards, architecture principles). Cannot be created autonomously -- requires user confirmation (source must not be 'agent-auto' or 'session-review').
+- **project**: Visible to all users across ALL workspaces. Use for universal project knowledge (coding standards, architecture principles). Autonomous saves (source \`agent-auto\` or \`session-review\`) must first ask the user to confirm cross-workspace scope, then retry with \`user_confirmed_project_scope: true\`. Manual saves (source \`manual\`) bypass this guard.
 
 ### What to Capture
 

@@ -6,7 +6,6 @@ import {
   assertMemory,
   getTestDb,
 } from "../helpers.js";
-import { ValidationError } from "../../src/utils/errors.js";
 import type { MemoryService } from "../../src/services/memory-service.js";
 import { memories } from "../../src/db/schema.js";
 import { eq } from "drizzle-orm";
@@ -166,27 +165,31 @@ describe("Memory scoping integration tests", () => {
   });
 
   it("project-scoped memory cannot be created by agent-auto", async () => {
-    await expect(
-      service.create({
-        content: "Agent trying to create project-scoped memory",
-        type: "fact",
-        scope: "project",
-        author: "agent-user",
-        source: "agent-auto",
-      }),
-    ).rejects.toThrow(ValidationError);
+    const result = await service.create({
+      content: "Agent trying to create project-scoped memory",
+      type: "fact",
+      scope: "project",
+      author: "agent-user",
+      source: "agent-auto",
+    });
+    expect("skipped" in result.data).toBe(true);
+    if ("skipped" in result.data) {
+      expect(result.data.reason).toBe("requires_project_scope_confirmation");
+    }
   });
 
   it("project-scoped memory cannot be created by session-review", async () => {
-    await expect(
-      service.create({
-        content: "Session review trying to create project-scoped memory",
-        type: "fact",
-        scope: "project",
-        author: "agent-user",
-        source: "session-review",
-      }),
-    ).rejects.toThrow(ValidationError);
+    const result = await service.create({
+      content: "Session review trying to create project-scoped memory",
+      type: "fact",
+      scope: "project",
+      author: "agent-user",
+      source: "session-review",
+    });
+    expect("skipped" in result.data).toBe(true);
+    if ("skipped" in result.data) {
+      expect(result.data.reason).toBe("requires_project_scope_confirmation");
+    }
   });
 
   it("project-scoped memory can be created manually", async () => {
@@ -201,18 +204,18 @@ describe("Memory scoping integration tests", () => {
     expect(result.data.scope).toBe("project");
   });
 
-  it("project-scoped memory rejects workspace_id input", async () => {
-    await expect(
-      service.create({
-        workspace_id: "workspace-a",
-        content:
-          "caller inconsistently supplied workspace_id for project scope",
-        type: "decision",
-        scope: "project",
-        author: "alice",
-        source: "manual",
-      }),
-    ).rejects.toThrow(ValidationError);
+  it("project-scoped memory coerces workspace_id to null", async () => {
+    const result = await service.create({
+      workspace_id: "workspace-a",
+      content: "caller inconsistently supplied workspace_id for project scope",
+      type: "decision",
+      scope: "project",
+      author: "alice",
+      source: "manual",
+    });
+    assertMemory(result.data);
+    expect(result.data.scope).toBe("project");
+    expect(result.data.workspace_id).toBeNull();
   });
 
   it("search scope array returns only explicitly requested scopes", async () => {
