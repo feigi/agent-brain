@@ -244,3 +244,8 @@ export interface TeamActivityCounts {
   updated_memories: number;
   commented_memories: number;
 }
+
+export interface SchedulerStateRepository {
+  getLastRun(jobName: string): Promise<Date | null>;
+  recordRun(jobName: string, runAt: Date): Promise<void>;
+}
