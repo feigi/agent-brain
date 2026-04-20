@@ -1,5 +1,5 @@
 import cron from "node-cron";
-import { parseExpression } from "cron-parser";
+import cronParser from "cron-parser";
 import type { ConsolidationJob } from "./consolidation-job.js";
 import { CONSOLIDATION_JOB_NAME } from "./consolidation-job.js";
 import type { SchedulerStateRepository } from "../repositories/types.js";
@@ -25,7 +25,9 @@ export function shouldCatchUp(
 ): boolean {
   let prevTick: Date;
   try {
-    const interval = parseExpression(cronExpression, { currentDate: now });
+    const interval = cronParser.parseExpression(cronExpression, {
+      currentDate: now,
+    });
     prevTick = interval.prev().toDate();
   } catch {
     return false;
