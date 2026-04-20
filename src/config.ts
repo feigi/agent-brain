@@ -43,6 +43,7 @@ const configSchema = z.object({
     .number()
     .int()
     .nonnegative()
+    .max(86_400)
     .default(60),
 });
 

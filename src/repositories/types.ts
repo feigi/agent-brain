@@ -7,6 +7,7 @@ import type {
 import type { AuditEntry } from "../types/audit.js";
 import type { Flag, FlagResolution, FlagType } from "../types/flag.js";
 import type { Relationship } from "../types/relationship.js";
+import type { SchedulerJobName } from "../db/schema.js";
 
 // INFR-02: Repository interfaces -- abstract storage layer
 
@@ -246,6 +247,6 @@ export interface TeamActivityCounts {
 }
 
 export interface SchedulerStateRepository {
-  getLastRun(jobName: string): Promise<Date | null>;
-  recordRun(jobName: string, runAt: Date): Promise<void>;
+  getLastRun(jobName: SchedulerJobName): Promise<Date | null>;
+  recordRun(jobName: SchedulerJobName, runAt: Date): Promise<void>;
 }

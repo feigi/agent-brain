@@ -44,12 +44,19 @@ export const workspaces = pgTable("workspaces", {
     .defaultNow(),
 });
 
+export const schedulerJobNameEnum = pgEnum("scheduler_job_name", [
+  "consolidation",
+]);
+
+export type SchedulerJobName = (typeof schedulerJobNameEnum.enumValues)[number];
+
 export const schedulerState = pgTable("scheduler_state", {
-  job_name: text("job_name").primaryKey(),
+  job_name: schedulerJobNameEnum("job_name").primaryKey(),
   last_run_at: timestamp("last_run_at", { withTimezone: true }).notNull(),
   updated_at: timestamp("updated_at", { withTimezone: true })
     .notNull()
-    .defaultNow(),
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 export const memories = pgTable(

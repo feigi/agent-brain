@@ -1,0 +1,2 @@
+CREATE TYPE "public"."scheduler_job_name" AS ENUM('consolidation');--> statement-breakpoint
+ALTER TABLE "scheduler_state" ALTER COLUMN "job_name" SET DATA TYPE "public"."scheduler_job_name" USING "job_name"::"public"."scheduler_job_name";

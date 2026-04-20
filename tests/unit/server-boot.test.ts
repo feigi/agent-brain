@@ -21,7 +21,17 @@ describe("server module graph loads under Node ESM", () => {
     const result = spawnSync(
       "node",
       ["--import", "tsx", "-e", "await import('./src/server.js');"],
-      { cwd: repoRoot, encoding: "utf8", timeout: 20_000 },
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+        timeout: 20_000,
+        // Hermetic env: avoid inheriting dev .env DATABASE_URL / CONSOLIDATION_ENABLED.
+        env: {
+          ...process.env,
+          CONSOLIDATION_ENABLED: "false",
+          PROJECT_ID: "smoke-test",
+        },
+      },
     );
 
     if (result.status !== 0) {

@@ -24,6 +24,7 @@ import {
   auditLog,
   flags,
   relationships,
+  schedulerState,
 } from "../src/db/schema.js";
 import { TEST_DB_URL } from "./global-setup.js";
 
@@ -130,6 +131,7 @@ export async function truncateAll(): Promise<void> {
   await testDb.delete(sessionTracking); // FK: references workspaces
   await testDb.delete(memories); // FK: references workspaces
   await testDb.delete(workspaces);
+  await testDb.delete(schedulerState);
 }
 
 /** Assert that a create result is a Memory (not a skip). Use after service.create() in tests. */

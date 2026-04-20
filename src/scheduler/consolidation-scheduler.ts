@@ -6,8 +6,19 @@ import type { SchedulerStateRepository } from "../repositories/types.js";
 import { logger } from "../utils/logger.js";
 
 export interface CatchUpOptions {
-  enabled: boolean;
-  graceSeconds: number;
+  readonly enabled: boolean;
+  readonly graceSeconds: number;
+}
+
+/**
+ * Compute the most recent scheduled tick strictly before `now`. Throws if the
+ * cron expression cannot be parsed — callers validate at construction time.
+ */
+export function getPrevTick(cronExpression: string, now: Date): Date {
+  const interval = cronParser.parseExpression(cronExpression, {
+    currentDate: now,
+  });
+  return interval.prev().toDate();
 }
 
 /**
@@ -18,23 +29,11 @@ export interface CatchUpOptions {
  * appear a hair before `prevTick`.
  */
 export function shouldCatchUp(
-  cronExpression: string,
+  prevTick: Date,
   lastRun: Date | null,
-  now: Date,
   graceSeconds: number,
 ): boolean {
-  let prevTick: Date;
-  try {
-    const interval = cronParser.parseExpression(cronExpression, {
-      currentDate: now,
-    });
-    prevTick = interval.prev().toDate();
-  } catch {
-    return false;
-  }
-
   if (lastRun === null) return true;
-
   const graceMs = graceSeconds * 1000;
   return lastRun.getTime() + graceMs < prevTick.getTime();
 }
@@ -47,23 +46,38 @@ export class ConsolidationScheduler {
     private readonly cronExpression: string,
     private readonly schedulerStateRepo: SchedulerStateRepository,
     private readonly catchUp: CatchUpOptions,
-  ) {}
+  ) {
+    if (!cron.validate(cronExpression)) {
+      throw new Error(
+        `Invalid cron expression: "${cronExpression}". ` +
+          `Set CONSOLIDATION_CRON to a valid expression or disable with CONSOLIDATION_ENABLED=false.`,
+      );
+    }
+    // Defense-in-depth: node-cron and cron-parser have slightly different grammars.
+    // Reject at construction if cron-parser cannot parse it either.
+    try {
+      getPrevTick(cronExpression, new Date());
+    } catch (error) {
+      throw new Error(
+        `Cron expression "${cronExpression}" accepted by node-cron but not cron-parser: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        { cause: error },
+      );
+    }
+  }
 
   async start(): Promise<void> {
-    if (!cron.validate(this.cronExpression)) {
-      logger.error(
-        `Invalid cron expression: ${this.cronExpression}, scheduler not started`,
-      );
-      return;
-    }
-
     if (this.catchUp.enabled) {
       await this.runCatchUpIfNeeded();
     }
 
     this.task = cron.schedule(this.cronExpression, () => {
       this.job.execute().catch((error) => {
-        logger.error("Consolidation job invocation failed:", error);
+        logger.error(
+          `Consolidation scheduled-tick invocation failed (job=${CONSOLIDATION_JOB_NAME}):`,
+          error,
+        );
       });
     });
 
@@ -73,32 +87,38 @@ export class ConsolidationScheduler {
   }
 
   private async runCatchUpIfNeeded(): Promise<void> {
+    let lastRun: Date | null;
     try {
-      const lastRun = await this.schedulerStateRepo.getLastRun(
+      lastRun = await this.schedulerStateRepo.getLastRun(
         CONSOLIDATION_JOB_NAME,
       );
-      const now = new Date();
-      if (
-        shouldCatchUp(
-          this.cronExpression,
-          lastRun,
-          now,
-          this.catchUp.graceSeconds,
-        )
-      ) {
-        logger.info(
-          `Consolidation catch-up triggered on startup (last_run=${
-            lastRun?.toISOString() ?? "never"
-          })`,
-        );
-        // Fire-and-forget: do not block server startup on job completion.
-        this.job.execute().catch((error) => {
-          logger.error("Consolidation catch-up failed:", error);
-        });
-      }
     } catch (error) {
-      logger.error("Consolidation catch-up check failed:", error);
+      // Transient DB error at boot. Skip catch-up; scheduled ticks still register below.
+      logger.error(
+        `Consolidation catch-up skipped — getLastRun(${CONSOLIDATION_JOB_NAME}) failed:`,
+        error,
+      );
+      return;
     }
+
+    const prevTick = getPrevTick(this.cronExpression, new Date());
+    if (!shouldCatchUp(prevTick, lastRun, this.catchUp.graceSeconds)) {
+      return;
+    }
+
+    logger.info(
+      `Consolidation catch-up triggered on startup (last_run=${
+        lastRun?.toISOString() ?? "never"
+      }, prev_tick=${prevTick.toISOString()})`,
+    );
+    // Fire-and-forget: catch-up can be long-running; start() must return so the
+    // caller can register the recurring cron tick below without blocking on it.
+    this.job.execute().catch((error) => {
+      logger.error(
+        `Consolidation catch-up failed (job=${CONSOLIDATION_JOB_NAME}, trigger=catchup) — manual investigation required:`,
+        error,
+      );
+    });
   }
 
   async stop(): Promise<void> {
