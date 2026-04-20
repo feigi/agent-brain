@@ -33,8 +33,12 @@ export class AuditService {
     }
   }
 
-  async logCreate(memoryId: string, actor: string): Promise<void> {
-    await this.log(memoryId, "created", actor);
+  async logCreate(
+    memoryId: string,
+    actor: string,
+    reason?: string,
+  ): Promise<void> {
+    await this.log(memoryId, "created", actor, reason);
   }
 
   async logUpdate(
