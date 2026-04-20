@@ -91,14 +91,6 @@ export class MemoryService {
         `workspace_id is required for ${effectiveScope}-scoped memories.`,
       );
     }
-    // Mirror guard 0a: project scope is cross-workspace by design — reject
-    // workspace_id explicitly rather than silently coercing, so callers
-    // learn their input was inconsistent with the scope they chose.
-    if (effectiveScope === "project" && input.workspace_id) {
-      throw new ValidationError(
-        `workspace_id must not be provided for project-scoped memories (project scope is cross-workspace).`,
-      );
-    }
     const effectiveWorkspaceId =
       effectiveScope === "project" ? null : input.workspace_id!;
 
