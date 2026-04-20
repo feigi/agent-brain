@@ -91,25 +91,29 @@ export class MemoryService {
         `workspace_id is required for ${effectiveScope}-scoped memories.`,
       );
     }
-    // Mirror guard 0a: project scope is cross-workspace by design — reject
-    // workspace_id explicitly rather than silently coercing, so callers
-    // learn their input was inconsistent with the scope they chose.
-    if (effectiveScope === "project" && input.workspace_id) {
-      throw new ValidationError(
-        `workspace_id must not be provided for project-scoped memories (project scope is cross-workspace).`,
-      );
-    }
     const effectiveWorkspaceId =
       effectiveScope === "project" ? null : input.workspace_id!;
 
-    // Guard 0b -- Project-scope restriction: cannot be created by autonomous sources
+    // Guard 0b -- Project-scope restriction: autonomous sources need user confirmation.
+    // Return a structured skip envelope (matches budget/dedup pattern) so the agent
+    // can prompt the user and retry with user_confirmed_project_scope: true.
     const isAutonomous =
       input.source === "agent-auto" || input.source === "session-review";
 
-    if (effectiveScope === "project" && isAutonomous) {
-      throw new ValidationError(
-        `Project-scoped memories require user confirmation and cannot be created autonomously (source: '${input.source}').`,
-      );
+    if (
+      effectiveScope === "project" &&
+      isAutonomous &&
+      !input.user_confirmed_project_scope
+    ) {
+      return {
+        data: {
+          skipped: true,
+          reason: "requires_project_scope_confirmation" as const,
+          message:
+            "Project-scoped memory requires user confirmation. Ask the user to confirm this memory should be visible across all workspaces, then retry with user_confirmed_project_scope: true.",
+        },
+        meta: { timing: Date.now() - start },
+      };
     }
 
     // Phase 4: Autonomous source flag (used for budget check + increment below)
@@ -182,10 +186,16 @@ export class MemoryService {
 
     if (duplicates.length > 0) {
       const dupInfo = duplicates[0];
+      // Acknowledge confirmation when dedup fires on a confirmed retry, so the
+      // user doesn't think their just-given approval was ignored.
+      const confirmedPrefix =
+        effectiveScope === "project" && input.user_confirmed_project_scope
+          ? "Your project-scope confirmation was received, but "
+          : "";
       const message =
         dupInfo.scope !== effectiveScope
-          ? `This already exists as shared knowledge (memory ${dupInfo.id}).`
-          : `A similar memory already exists (memory ${dupInfo.id}, ${Math.round(dupInfo.relevance * 100)}% similar). Consider updating it instead.`;
+          ? `${confirmedPrefix}This already exists as shared knowledge (memory ${dupInfo.id}).`
+          : `${confirmedPrefix}A similar memory already exists (memory ${dupInfo.id}, ${Math.round(dupInfo.relevance * 100)}% similar). Consider updating it instead.`;
       return {
         data: {
           skipped: true,
@@ -234,7 +244,11 @@ export class MemoryService {
     };
 
     const memory = await this.memoryRepo.create(memoryData);
-    await this.auditService?.logCreate(memory.id, input.author);
+    const auditReason =
+      effectiveScope === "project" && input.user_confirmed_project_scope
+        ? "user-confirmed project scope"
+        : undefined;
+    await this.auditService?.logCreate(memory.id, input.author, auditReason);
     const timing = Date.now() - start;
 
     // Phase 4: Post-insert budget increment (D-10)

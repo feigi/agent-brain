@@ -27,6 +27,7 @@ export const toolSchemas = {
     source: z.string().optional(),
     session_id: z.string().optional(),
     metadata: z.record(z.string(), z.unknown()).optional(),
+    user_confirmed_project_scope: z.boolean().optional(),
   }),
 
   memory_get: z.object({

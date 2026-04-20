@@ -177,6 +177,7 @@ export interface MemoryCreate {
   source?: string; // D-23: manual, agent-auto, session-review, etc.
   session_id?: string; // D-24
   metadata?: Record<string, unknown>; // D-26
+  user_confirmed_project_scope?: boolean; // Issue #21: unblocks autonomous project-scope creation after user approval
 }
 
 // Input type for updating a memory (D-09: partial/PATCH-style)
@@ -196,7 +197,10 @@ export interface MemoryWithRelevance extends Memory {
 // Phase 4: Discriminated union result for autonomous memory_create (budget or dedup skip)
 export interface CreateSkipResult {
   skipped: true;
-  reason: "budget_exceeded" | "duplicate";
+  reason:
+    | "budget_exceeded"
+    | "duplicate"
+    | "requires_project_scope_confirmation";
   message: string;
   duplicate?: {
     id: string;

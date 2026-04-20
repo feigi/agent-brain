@@ -28,13 +28,25 @@ export class AuditService {
         created_at: new Date(),
       });
     } catch (error) {
-      // Best-effort: audit failure must not break the primary operation
-      logger.warn(`Audit log failed for ${action} on ${memoryId}:`, error);
+      // Best-effort: audit failure must not break the primary operation.
+      // Reason-bearing creates (e.g. user-confirmed project scope) are the only
+      // compliance record of that approval, so surface at error level with
+      // enough context to reconstruct manually from logs.
+      const ctx = `action=${action} memory=${memoryId}${reason ? ` reason="${reason}"` : ""}`;
+      if (action === "created" && reason) {
+        logger.error(`Audit log failed: ${ctx}`, error);
+      } else {
+        logger.warn(`Audit log failed: ${ctx}`, error);
+      }
     }
   }
 
-  async logCreate(memoryId: string, actor: string): Promise<void> {
-    await this.log(memoryId, "created", actor);
+  async logCreate(
+    memoryId: string,
+    actor: string,
+    reason?: string,
+  ): Promise<void> {
+    await this.log(memoryId, "created", actor, reason);
   }
 
   async logUpdate(

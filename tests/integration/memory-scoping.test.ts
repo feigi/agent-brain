@@ -1,15 +1,17 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import {
   createTestService,
+  createTestServiceWithAudit,
   truncateAll,
   closeDb,
   assertMemory,
   getTestDb,
 } from "../helpers.js";
-import { ValidationError } from "../../src/utils/errors.js";
 import type { MemoryService } from "../../src/services/memory-service.js";
 import { memories } from "../../src/db/schema.js";
 import { eq } from "drizzle-orm";
+import { DrizzleAuditRepository } from "../../src/repositories/audit-repository.js";
+import { AuditService } from "../../src/services/audit-service.js";
 
 describe("Memory scoping integration tests", () => {
   let service: MemoryService;
@@ -166,27 +168,31 @@ describe("Memory scoping integration tests", () => {
   });
 
   it("project-scoped memory cannot be created by agent-auto", async () => {
-    await expect(
-      service.create({
-        content: "Agent trying to create project-scoped memory",
-        type: "fact",
-        scope: "project",
-        author: "agent-user",
-        source: "agent-auto",
-      }),
-    ).rejects.toThrow(ValidationError);
+    const result = await service.create({
+      content: "Agent trying to create project-scoped memory",
+      type: "fact",
+      scope: "project",
+      author: "agent-user",
+      source: "agent-auto",
+    });
+    expect("skipped" in result.data).toBe(true);
+    if ("skipped" in result.data) {
+      expect(result.data.reason).toBe("requires_project_scope_confirmation");
+    }
   });
 
   it("project-scoped memory cannot be created by session-review", async () => {
-    await expect(
-      service.create({
-        content: "Session review trying to create project-scoped memory",
-        type: "fact",
-        scope: "project",
-        author: "agent-user",
-        source: "session-review",
-      }),
-    ).rejects.toThrow(ValidationError);
+    const result = await service.create({
+      content: "Session review trying to create project-scoped memory",
+      type: "fact",
+      scope: "project",
+      author: "agent-user",
+      source: "session-review",
+    });
+    expect("skipped" in result.data).toBe(true);
+    if ("skipped" in result.data) {
+      expect(result.data.reason).toBe("requires_project_scope_confirmation");
+    }
   });
 
   it("project-scoped memory can be created manually", async () => {
@@ -201,18 +207,18 @@ describe("Memory scoping integration tests", () => {
     expect(result.data.scope).toBe("project");
   });
 
-  it("project-scoped memory rejects workspace_id input", async () => {
-    await expect(
-      service.create({
-        workspace_id: "workspace-a",
-        content:
-          "caller inconsistently supplied workspace_id for project scope",
-        type: "decision",
-        scope: "project",
-        author: "alice",
-        source: "manual",
-      }),
-    ).rejects.toThrow(ValidationError);
+  it("project-scoped memory coerces workspace_id to null", async () => {
+    const result = await service.create({
+      workspace_id: "workspace-a",
+      content: "caller inconsistently supplied workspace_id for project scope",
+      type: "decision",
+      scope: "project",
+      author: "alice",
+      source: "manual",
+    });
+    assertMemory(result.data);
+    expect(result.data.scope).toBe("project");
+    expect(result.data.workspace_id).toBeNull();
   });
 
   it("search scope array returns only explicitly requested scopes", async () => {
@@ -328,5 +334,54 @@ describe("Memory scoping integration tests", () => {
 
     const found = staleResult.data.find((m) => m.id === createdData.id);
     expect(found).toBeUndefined();
+  });
+
+  describe("project-scope confirmation retry flow (#21)", () => {
+    let serviceWithAudit: MemoryService;
+    let auditRepo: DrizzleAuditRepository;
+
+    beforeEach(() => {
+      const db = getTestDb();
+      auditRepo = new DrizzleAuditRepository(db);
+      const auditService = new AuditService(auditRepo, "test-project");
+      serviceWithAudit = createTestServiceWithAudit(auditService);
+    });
+
+    it("autonomous skip → user confirms → retry succeeds → audit records reason", async () => {
+      const skipResult = await serviceWithAudit.create({
+        content: "Cross-workspace coding convention: prefer async/await",
+        type: "pattern",
+        scope: "project",
+        author: "alice",
+        source: "session-review",
+      });
+
+      expect("skipped" in skipResult.data).toBe(true);
+      if ("skipped" in skipResult.data) {
+        expect(skipResult.data.reason).toBe(
+          "requires_project_scope_confirmation",
+        );
+      }
+
+      // Retry after user confirms
+      const okResult = await serviceWithAudit.create({
+        content: "Cross-workspace coding convention: prefer async/await",
+        type: "pattern",
+        scope: "project",
+        author: "alice",
+        source: "session-review",
+        user_confirmed_project_scope: true,
+      });
+
+      expect("skipped" in okResult.data).toBe(false);
+      if (!("skipped" in okResult.data)) {
+        expect(okResult.data.scope).toBe("project");
+        expect(okResult.data.workspace_id).toBeNull();
+
+        const entries = await auditRepo.findByMemoryId(okResult.data.id);
+        const created = entries.find((e) => e.action === "created");
+        expect(created?.reason).toBe("user-confirmed project scope");
+      }
+    });
   });
 });
