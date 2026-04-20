@@ -144,4 +144,93 @@ describe("Project-scope confirmation (issue #21)", () => {
       );
     });
   });
+
+  describe("autonomous project-scope guard", () => {
+    it("session-review source without confirmation returns skip envelope (not throws)", async () => {
+      const { service, memoryRepo } = makeService();
+
+      const result = await service.create({
+        content: "Cross-workspace architectural decision",
+        type: "decision",
+        scope: "project",
+        author: "alice",
+        source: "session-review",
+      });
+
+      expect(memoryRepo.create).not.toHaveBeenCalled();
+      expect("skipped" in result.data).toBe(true);
+      if ("skipped" in result.data) {
+        expect(result.data.reason).toBe("requires_project_scope_confirmation");
+        expect(result.data.message).toMatch(/user_confirmed_project_scope/);
+      }
+    });
+
+    it("agent-auto source without confirmation returns skip envelope", async () => {
+      const { service, memoryRepo } = makeService();
+
+      const result = await service.create({
+        content: "Cross-workspace learning",
+        type: "learning",
+        scope: "project",
+        author: "alice",
+        source: "agent-auto",
+      });
+
+      expect(memoryRepo.create).not.toHaveBeenCalled();
+      expect("skipped" in result.data).toBe(true);
+      if ("skipped" in result.data) {
+        expect(result.data.reason).toBe("requires_project_scope_confirmation");
+      }
+    });
+
+    it("manual source is unaffected by the guard (creates successfully)", async () => {
+      const { service, memoryRepo } = makeService();
+
+      const result = await service.create({
+        content: "User-directed cross-workspace note",
+        type: "decision",
+        scope: "project",
+        author: "alice",
+        source: "manual",
+      });
+
+      expect("skipped" in result.data).toBe(false);
+      expect(memoryRepo.create).toHaveBeenCalled();
+    });
+
+    it("autonomous source with user_confirmed_project_scope: true creates successfully", async () => {
+      const { service, memoryRepo } = makeService();
+
+      const result = await service.create({
+        content: "Confirmed cross-workspace decision",
+        type: "decision",
+        scope: "project",
+        author: "alice",
+        source: "session-review",
+        user_confirmed_project_scope: true,
+      });
+
+      expect("skipped" in result.data).toBe(false);
+      expect(memoryRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ scope: "project", workspace_id: null }),
+      );
+    });
+
+    it("non-project scope ignores the confirmation flag (no behavior change)", async () => {
+      const { service, memoryRepo } = makeService();
+
+      const result = await service.create({
+        workspace_id: "test-project",
+        content: "Workspace memory",
+        type: "fact",
+        scope: "workspace",
+        author: "alice",
+        source: "session-review",
+        user_confirmed_project_scope: true, // flag set but irrelevant
+      });
+
+      expect("skipped" in result.data).toBe(false);
+      expect(memoryRepo.create).toHaveBeenCalled();
+    });
+  });
 });

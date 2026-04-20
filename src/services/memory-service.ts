@@ -94,14 +94,26 @@ export class MemoryService {
     const effectiveWorkspaceId =
       effectiveScope === "project" ? null : input.workspace_id!;
 
-    // Guard 0b -- Project-scope restriction: cannot be created by autonomous sources
+    // Guard 0b -- Project-scope restriction: autonomous sources need user confirmation.
+    // Return a structured skip envelope (matches budget/dedup pattern) so the agent
+    // can prompt the user and retry with user_confirmed_project_scope: true.
     const isAutonomous =
       input.source === "agent-auto" || input.source === "session-review";
 
-    if (effectiveScope === "project" && isAutonomous) {
-      throw new ValidationError(
-        `Project-scoped memories require user confirmation and cannot be created autonomously (source: '${input.source}').`,
-      );
+    if (
+      effectiveScope === "project" &&
+      isAutonomous &&
+      !input.user_confirmed_project_scope
+    ) {
+      return {
+        data: {
+          skipped: true,
+          reason: "requires_project_scope_confirmation" as const,
+          message:
+            "Project-scoped memory requires user confirmation. Ask the user to confirm this memory should be visible across all workspaces, then retry with user_confirmed_project_scope: true.",
+        },
+        meta: { timing: Date.now() - start },
+      };
     }
 
     // Phase 4: Autonomous source flag (used for budget check + increment below)
