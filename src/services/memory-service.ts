@@ -186,10 +186,16 @@ export class MemoryService {
 
     if (duplicates.length > 0) {
       const dupInfo = duplicates[0];
+      // Acknowledge confirmation when dedup fires on a confirmed retry, so the
+      // user doesn't think their just-given approval was ignored.
+      const confirmedPrefix =
+        effectiveScope === "project" && input.user_confirmed_project_scope
+          ? "Your project-scope confirmation was received, but "
+          : "";
       const message =
         dupInfo.scope !== effectiveScope
-          ? `This already exists as shared knowledge (memory ${dupInfo.id}).`
-          : `A similar memory already exists (memory ${dupInfo.id}, ${Math.round(dupInfo.relevance * 100)}% similar). Consider updating it instead.`;
+          ? `${confirmedPrefix}This already exists as shared knowledge (memory ${dupInfo.id}).`
+          : `${confirmedPrefix}A similar memory already exists (memory ${dupInfo.id}, ${Math.round(dupInfo.relevance * 100)}% similar). Consider updating it instead.`;
       return {
         data: {
           skipped: true,
