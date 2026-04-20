@@ -78,6 +78,13 @@
       "when": 1776466860746,
       "tag": "0010_stiff_wither",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1776690355754,
+      "tag": "0011_scheduler_state",
+      "breakpoints": true
     }
   ]
 }
