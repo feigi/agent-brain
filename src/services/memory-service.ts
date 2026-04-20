@@ -238,7 +238,11 @@ export class MemoryService {
     };
 
     const memory = await this.memoryRepo.create(memoryData);
-    await this.auditService?.logCreate(memory.id, input.author);
+    const auditReason =
+      effectiveScope === "project" && input.user_confirmed_project_scope
+        ? "user-confirmed project scope"
+        : undefined;
+    await this.auditService?.logCreate(memory.id, input.author, auditReason);
     const timing = Date.now() - start;
 
     // Phase 4: Post-insert budget increment (D-10)

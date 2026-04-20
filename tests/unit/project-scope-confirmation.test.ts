@@ -233,4 +233,49 @@ describe("Project-scope confirmation (issue #21)", () => {
       expect(memoryRepo.create).toHaveBeenCalled();
     });
   });
+
+  describe("audit trail on confirmed project-scope creation", () => {
+    it("records user-confirmed project scope reason", async () => {
+      const auditRepo = makeAuditRepo();
+      const { service } = makeService({ auditRepo });
+
+      await service.create({
+        content: "Confirmed cross-workspace decision",
+        type: "decision",
+        scope: "project",
+        author: "alice",
+        source: "session-review",
+        user_confirmed_project_scope: true,
+      });
+
+      expect(auditRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "created",
+          actor: "alice",
+          reason: "user-confirmed project scope",
+        }),
+      );
+    });
+
+    it("does NOT record reason for manual project-scope creation", async () => {
+      const auditRepo = makeAuditRepo();
+      const { service } = makeService({ auditRepo });
+
+      await service.create({
+        content: "Manual cross-workspace note",
+        type: "decision",
+        scope: "project",
+        author: "alice",
+        source: "manual",
+      });
+
+      expect(auditRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "created",
+          actor: "alice",
+          reason: null,
+        }),
+      );
+    });
+  });
 });
