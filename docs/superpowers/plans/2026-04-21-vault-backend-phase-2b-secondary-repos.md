@@ -4,11 +4,11 @@
 
 **Approach:** Split into three sub-phases to keep PRs reviewable and unblock dependents incrementally.
 
-| Sub-phase | Scope | Storage style | Depends on |
-| --------- | ----- | ------------- | ---------- |
-| **2b.1** | AuditRepository · SchedulerStateRepository · SessionTrackingRepository · SessionRepository | Standalone JSON files under the vault root | Phase 2a IO primitives only |
-| **2b.2** | CommentRepository · FlagRepository · RelationshipRepository | Embedded in the hosting memory markdown file | 2b.1 + shared id→path index access |
-| **2b.3** | `VaultBackend` class · factory registration · integration contract tests | Composes 2a + 2b.1 + 2b.2 | 2b.1 and 2b.2 |
+| Sub-phase | Scope                                                                                      | Storage style                                | Depends on                         |
+| --------- | ------------------------------------------------------------------------------------------ | -------------------------------------------- | ---------------------------------- |
+| **2b.1**  | AuditRepository · SchedulerStateRepository · SessionTrackingRepository · SessionRepository | Standalone JSON files under the vault root   | Phase 2a IO primitives only        |
+| **2b.2**  | CommentRepository · FlagRepository · RelationshipRepository                                | Embedded in the hosting memory markdown file | 2b.1 + shared id→path index access |
+| **2b.3**  | `VaultBackend` class · factory registration · integration contract tests                   | Composes 2a + 2b.1 + 2b.2                    | 2b.1 and 2b.2                      |
 
 ---
 
