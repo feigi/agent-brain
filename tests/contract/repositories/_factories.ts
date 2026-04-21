@@ -7,9 +7,15 @@ import { VaultAuditRepository } from "../../../src/backend/vault/repositories/au
 import { VaultSchedulerStateRepository } from "../../../src/backend/vault/repositories/scheduler-state-repository.js";
 import { VaultSessionTrackingRepository } from "../../../src/backend/vault/repositories/session-tracking-repository.js";
 import { VaultSessionRepository } from "../../../src/backend/vault/repositories/session-repository.js";
+import { VaultCommentRepository } from "../../../src/backend/vault/repositories/comment-repository.js";
+import { VaultFlagRepository } from "../../../src/backend/vault/repositories/flag-repository.js";
+import { VaultRelationshipRepository } from "../../../src/backend/vault/repositories/relationship-repository.js";
 import type {
   AuditRepository,
+  CommentRepository,
+  FlagRepository,
   MemoryRepository,
+  RelationshipRepository,
   SchedulerStateRepository,
   SessionRepository,
   SessionTrackingRepository,
@@ -25,6 +31,9 @@ export interface TestBackend {
   schedulerStateRepo: SchedulerStateRepository;
   sessionTrackingRepo: SessionTrackingRepository;
   sessionRepo: SessionRepository;
+  commentRepo: CommentRepository;
+  flagRepo: FlagRepository;
+  relationshipRepo: RelationshipRepository;
   close(): Promise<void>;
 }
 
@@ -51,6 +60,12 @@ export const pgFactory: Factory = {
       await import("../../../src/repositories/scheduler-state-repository.js");
     const { DrizzleSessionTrackingRepository, DrizzleSessionRepository } =
       await import("../../../src/repositories/session-repository.js");
+    const { DrizzleCommentRepository } =
+      await import("../../../src/repositories/comment-repository.js");
+    const { DrizzleFlagRepository } =
+      await import("../../../src/repositories/flag-repository.js");
+    const { DrizzleRelationshipRepository } =
+      await import("../../../src/repositories/relationship-repository.js");
     return {
       name: "postgres",
       memoryRepo: new DrizzleMemoryRepository(db),
@@ -59,6 +74,9 @@ export const pgFactory: Factory = {
       schedulerStateRepo: new DrizzleSchedulerStateRepository(db),
       sessionTrackingRepo: new DrizzleSessionTrackingRepository(db),
       sessionRepo: new DrizzleSessionRepository(db),
+      commentRepo: new DrizzleCommentRepository(db),
+      flagRepo: new DrizzleFlagRepository(db),
+      relationshipRepo: new DrizzleRelationshipRepository(db),
       close: async () => {},
     };
   },
@@ -74,6 +92,9 @@ export const vaultFactory: Factory = {
     const schedulerStateRepo = new VaultSchedulerStateRepository({ root });
     const sessionTrackingRepo = new VaultSessionTrackingRepository({ root });
     const sessionRepo = new VaultSessionRepository({ root });
+    const commentRepo = new VaultCommentRepository({ root });
+    const flagRepo = new VaultFlagRepository({ root });
+    const relationshipRepo = new VaultRelationshipRepository({ root });
     return {
       name: "vault",
       memoryRepo,
@@ -82,6 +103,9 @@ export const vaultFactory: Factory = {
       schedulerStateRepo,
       sessionTrackingRepo,
       sessionRepo,
+      commentRepo,
+      flagRepo,
+      relationshipRepo,
       close: async () => {
         await rm(root, { recursive: true, force: true });
       },
