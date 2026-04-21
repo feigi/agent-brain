@@ -101,6 +101,7 @@ export async function uninstallTarget(
     try {
       parsed = JSON.parse(raw);
     } catch {
+      console.warn(`WARN: skipping ${m.file} (invalid JSON)`);
       continue;
     }
     const stripped = stripAgentBrainFromJson(parsed, hookPathPattern);
