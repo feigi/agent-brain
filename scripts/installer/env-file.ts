@@ -105,6 +105,10 @@ export function mergeEnv(
   return { lines: merged, added, extras, changed };
 }
 
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { atomicWrite, fileExists } from "./fs-util.js";
+
 // Async asker returns the raw user input for a prompt. Injected instead of
 // using readline directly so tests can drive prompts without a TTY.
 export type Asker = (question: string) => Promise<string>;
@@ -143,4 +147,92 @@ export async function promptFresh(ask: Asker): Promise<FreshAnswers> {
     PROJECT_ID: projectIdRaw,
     EMBEDDING_PROVIDER: provider as FreshAnswers["EMBEDDING_PROVIDER"],
   };
+}
+
+// Confirm the repo root is writable before we prompt the user for input —
+// otherwise we would block on readline and then fail at write time.
+// Mirrors the probe pattern in preflight.ts:47.
+async function assertWritable(dir: string): Promise<void> {
+  const probeDir = join(dir, ".agent-brain-probe");
+  try {
+    await mkdir(probeDir, { recursive: true });
+    const probe = join(probeDir, "probe");
+    await writeFile(probe, "", "utf8");
+  } catch (e) {
+    throw new Error(
+      `Repo root ${dir} is not writable: ${(e as Error).message}`,
+      { cause: e },
+    );
+  } finally {
+    await rm(probeDir, { recursive: true, force: true });
+  }
+}
+
+export interface BootstrapOptions {
+  dryRun: boolean;
+  ask: Asker;
+  log: (msg: string) => void;
+}
+
+export interface BootstrapPlan {
+  mode: "fresh" | "merge" | "noop";
+  added: string[];
+  extras: string[];
+  willBackup: boolean;
+  warnings: string[];
+}
+
+export async function bootstrapEnv(
+  repoRoot: string,
+  opts: BootstrapOptions,
+): Promise<BootstrapPlan> {
+  const examplePath = join(repoRoot, ".env.example");
+  const envPath = join(repoRoot, ".env");
+
+  if (!(await fileExists(examplePath))) {
+    throw new Error(
+      `.env.example not found at ${examplePath} — cannot bootstrap .env`,
+    );
+  }
+  await assertWritable(repoRoot);
+  const templateText = await readFile(examplePath, "utf8");
+  const template = parseDotenv(templateText);
+
+  const envExists = await fileExists(envPath);
+
+  if (!envExists) {
+    const added = template
+      .filter((l): l is Extract<EnvLine, { kind: "kv" }> => l.kind === "kv")
+      .map((l) => l.key);
+
+    if (opts.dryRun) {
+      opts.log(`dry-run: would create ${envPath} with ${added.length} keys`);
+    } else {
+      const answers = await promptFresh(opts.ask);
+      const withAnswers: EnvLine[] = template.map((line) => {
+        if (line.kind !== "kv") return line;
+        if (line.key === "PROJECT_ID")
+          return { kind: "kv", key: line.key, value: answers.PROJECT_ID };
+        if (line.key === "EMBEDDING_PROVIDER")
+          return {
+            kind: "kv",
+            key: line.key,
+            value: answers.EMBEDDING_PROVIDER,
+          };
+        return line;
+      });
+      await atomicWrite(envPath, serialize(withAnswers));
+      opts.log(`OK wrote ${envPath} (${added.length} keys)`);
+    }
+
+    return {
+      mode: "fresh",
+      added,
+      extras: [],
+      willBackup: false,
+      warnings: [],
+    };
+  }
+
+  throw new Error("merge path not yet implemented");
 }
