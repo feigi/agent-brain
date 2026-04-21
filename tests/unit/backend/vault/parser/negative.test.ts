@@ -106,4 +106,48 @@ describe("parser negative paths — number/date finiteness", () => {
       parseRelationshipSection(line, { projectId: "p", sourceId: "s" }),
     ).toThrow(/confidence.*finite/);
   });
+
+  it("memory metadata: array rejected", () => {
+    expect(() => parseMemoryFile(wrapMemoryMd({ metadata: [1, 2] }))).toThrow(
+      /metadata must be an object/,
+    );
+  });
+
+  it("memory metadata: primitive rejected", () => {
+    expect(() => parseMemoryFile(wrapMemoryMd({ metadata: 42 }))).toThrow(
+      /metadata must be an object/,
+    );
+  });
+
+  it("flag related: non-string rejected", () => {
+    const bad = {
+      id: "f1",
+      type: "verify",
+      severity: "needs_review",
+      reason: "r",
+      related: 123,
+      created: "2026-04-21T00:00:00.000Z",
+      resolved: null,
+      resolved_by: null,
+    };
+    expect(() =>
+      parseFlags([bad], { projectId: "p", memoryId: "m" }),
+    ).toThrow(/flags\[0\].related must be string/);
+  });
+
+  it("flag similarity: string rejected", () => {
+    const bad = {
+      id: "f1",
+      type: "verify",
+      severity: "needs_review",
+      reason: "r",
+      similarity: "high",
+      created: "2026-04-21T00:00:00.000Z",
+      resolved: null,
+      resolved_by: null,
+    };
+    expect(() =>
+      parseFlags([bad], { projectId: "p", memoryId: "m" }),
+    ).toThrow(/flags\[0\].similarity must be a finite number/);
+  });
 });

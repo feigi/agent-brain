@@ -88,7 +88,7 @@ export function parseMemoryFile(md: string): ParsedMemoryFile {
     metadata:
       fm.metadata === null || fm.metadata === undefined
         ? null
-        : (fm.metadata as Record<string, unknown>),
+        : plainObject(fm.metadata, "metadata"),
     embedding_model: nullableStr(fm.embedding_model, "embedding_model"),
     embedding_dimensions:
       fm.embedding_dimensions === null || fm.embedding_dimensions === undefined
@@ -257,6 +257,19 @@ function finiteNumber(v: unknown, name: string): number {
   if (!Number.isFinite(n))
     throw new Error(`${name} must be a finite number; got ${String(v)}`);
   return n;
+}
+
+function plainObject(
+  v: unknown,
+  name: string,
+): Record<string, unknown> {
+  if (
+    typeof v !== "object" ||
+    v === null ||
+    Array.isArray(v)
+  )
+    throw new Error(`${name} must be an object`);
+  return v as Record<string, unknown>;
 }
 
 function isoDate(v: unknown, name: string): Date {

@@ -64,10 +64,26 @@ function parseOne(entry: unknown, ctx: ParseCtx, i: number): Flag {
   const resolvedBy = nullableStr(e.resolved_by, `flags[${i}].resolved_by`);
 
   const details: Flag["details"] = { reason };
-  if (typeof e.related === "string") details.related_memory_id = e.related;
-  if (typeof e.relationship_id === "string")
+  if (e.related !== undefined) {
+    if (typeof e.related !== "string")
+      throw new Error(`flags[${i}].related must be string; got ${String(e.related)}`);
+    details.related_memory_id = e.related;
+  }
+  if (e.relationship_id !== undefined) {
+    if (typeof e.relationship_id !== "string")
+      throw new Error(
+        `flags[${i}].relationship_id must be string; got ${String(e.relationship_id)}`,
+      );
     details.relationship_id = e.relationship_id;
-  if (typeof e.similarity === "number") details.similarity = e.similarity;
+  }
+  if (e.similarity !== undefined) {
+    const sim = Number(e.similarity);
+    if (!Number.isFinite(sim))
+      throw new Error(
+        `flags[${i}].similarity must be a finite number; got ${String(e.similarity)}`,
+      );
+    details.similarity = sim;
+  }
 
   return {
     id,
