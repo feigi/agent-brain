@@ -54,4 +54,58 @@ describe.each(factories)("SessionRepository contract — $name", (factory) => {
     expect(r.exceeded).toBe(true);
     expect(r.used).toBe(1);
   });
+
+  it("createSession rejects a duplicate id", async () => {
+    await backend.sessionRepo.createSession("s1", "u1", "p1", "ws1");
+    await expect(
+      backend.sessionRepo.createSession("s1", "u1", "p1", "ws1"),
+    ).rejects.toThrow();
+  });
+
+  it("concurrent createSession: exactly one wins", async () => {
+    const results = await Promise.allSettled([
+      backend.sessionRepo.createSession("s-race", "u1", "p1", "ws1"),
+      backend.sessionRepo.createSession("s-race", "u1", "p1", "ws1"),
+    ]);
+    const fulfilled = results.filter((r) => r.status === "fulfilled").length;
+    const rejected = results.filter((r) => r.status === "rejected").length;
+    expect(fulfilled).toBe(1);
+    expect(rejected).toBe(1);
+  });
+
+  it("incrementBudgetUsed on unknown session returns exceeded with used===limit", async () => {
+    const r = await backend.sessionRepo.incrementBudgetUsed("nope", 10);
+    expect(r).toEqual({ used: 10, exceeded: true });
+    // Should not create any record as a side-effect.
+    expect(await backend.sessionRepo.findById("nope")).toBeNull();
+  });
+
+  it("concurrent incrementBudgetUsed serializes into a consistent used count", async () => {
+    await backend.sessionRepo.createSession("s-cas", "u1", "p1", "ws1");
+    const N = 25;
+    const results = await Promise.all(
+      Array.from({ length: N }, () =>
+        backend.sessionRepo.incrementBudgetUsed("s-cas", N),
+      ),
+    );
+    const successes = results.filter((r) => !r.exceeded).length;
+    expect(successes).toBe(N);
+    const final = await backend.sessionRepo.findById("s-cas");
+    expect(final?.budget_used).toBe(N);
+  });
+
+  it("concurrent incrementBudgetUsed past the limit stops at limit", async () => {
+    await backend.sessionRepo.createSession("s-cap", "u1", "p1", "ws1");
+    const LIMIT = 5;
+    const CALLS = 20;
+    const results = await Promise.all(
+      Array.from({ length: CALLS }, () =>
+        backend.sessionRepo.incrementBudgetUsed("s-cap", LIMIT),
+      ),
+    );
+    const successes = results.filter((r) => !r.exceeded).length;
+    expect(successes).toBe(LIMIT);
+    const final = await backend.sessionRepo.findById("s-cap");
+    expect(final?.budget_used).toBe(LIMIT);
+  });
 });

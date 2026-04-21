@@ -104,4 +104,11 @@ describe.each(factories)("AuditRepository contract — $name", (factory) => {
     expect(entry?.diff).toEqual(diff);
     expect(entry?.action).toBe("updated");
   });
+
+  it("preserves caller-supplied created_at byte-for-byte", async () => {
+    const iso = "2020-01-01T00:00:00.000Z";
+    await backend.auditRepo.create(makeEntry({ created_at: new Date(iso) }));
+    const [entry] = await backend.auditRepo.findByMemoryId("m1");
+    expect(entry?.created_at.toISOString()).toBe(iso);
+  });
 });

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
   readJson,
   writeJsonAtomic,
+  writeJsonExclusive,
   appendJsonLine,
   readJsonLines,
 } from "../../../../../src/backend/vault/io/json-fs.js";
@@ -20,6 +21,11 @@ describe("json-fs", () => {
 
   it("readJson returns null for a missing file", async () => {
     expect(await readJson(root, "missing.json")).toBeNull();
+  });
+
+  it("readJson returns null for an empty file", async () => {
+    await writeFile(join(root, "empty.json"), "", "utf8");
+    expect(await readJson(root, "empty.json")).toBeNull();
   });
 
   it("writeJsonAtomic + readJson round-trips a value", async () => {
@@ -57,5 +63,23 @@ describe("json-fs", () => {
     await expect(readJsonLines(root, "bad.jsonl")).rejects.toThrow(
       /invalid JSONL entry at line 2/,
     );
+  });
+
+  it("readJsonLines drops a partial trailing line (no newline)", async () => {
+    await writeFile(
+      join(root, "partial.jsonl"),
+      '{"i":1}\n{"i":2}\n{"i":3',
+      "utf8",
+    );
+    const rows = await readJsonLines<{ i: number }>(root, "partial.jsonl");
+    expect(rows).toEqual([{ i: 1 }, { i: 2 }]);
+  });
+
+  it("writeJsonExclusive throws EEXIST when the file already exists", async () => {
+    await writeJsonExclusive(root, "only-once.json", { n: 1 });
+    await expect(
+      writeJsonExclusive(root, "only-once.json", { n: 2 }),
+    ).rejects.toMatchObject({ code: "EEXIST" });
+    expect(await readJson(root, "only-once.json")).toEqual({ n: 1 });
   });
 });

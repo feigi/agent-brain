@@ -4,6 +4,7 @@ import type { AuditRepository } from "../../../repositories/types.js";
 import { withFileLock } from "../io/lock.js";
 import { appendJsonLine, readJsonLines } from "../io/json-fs.js";
 import { ensureParentDir } from "../io/vault-fs.js";
+import { safeSegment } from "../io/paths.js";
 
 export interface VaultAuditConfig {
   root: string;
@@ -26,9 +27,8 @@ export class VaultAuditRepository implements AuditRepository {
   async create(entry: AuditEntry): Promise<void> {
     const rel = auditPath(entry.memory_id);
     const abs = join(this.cfg.root, rel);
-    // appendFile opens in append mode which is atomic on POSIX for
-    // writes smaller than PIPE_BUF, but we take the lock regardless
-    // to serialize concurrent writers on the same file (cross-platform).
+    // Lock serializes concurrent writers cross-platform; don't rely
+    // on O_APPEND atomicity (which only holds below PIPE_BUF on POSIX).
     await ensureParentDir(abs);
     await withFileLock(abs, async () => {
       const record: AuditRecord = {
@@ -74,8 +74,5 @@ export class VaultAuditRepository implements AuditRepository {
 }
 
 function auditPath(memoryId: string): string {
-  // Reject traversal so a malicious id can't escape _audit/.
-  if (memoryId.length === 0 || /[/\\]|^\.\.?$|\0/.test(memoryId))
-    throw new Error(`invalid memory_id: ${JSON.stringify(memoryId)}`);
-  return `_audit/${memoryId}.jsonl`;
+  return `_audit/${safeSegment(memoryId, "memory_id")}.jsonl`;
 }

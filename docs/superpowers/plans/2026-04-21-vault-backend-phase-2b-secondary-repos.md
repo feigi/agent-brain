@@ -78,7 +78,7 @@ findById(sessionId): Promise<{...} | null>;
 ```
 
 - File per session: `_sessions/<session_id>.json`.
-- `createSession`: write with `wx` flag; throw if exists (match pg PK constraint → but pg actually doesn't wrap 23505 here; Phase 2a work leaves pg unchanged; if pg doesn't wrap, neither do we — just let it surface as an error).
+- `createSession`: write via `writeJsonExclusive` (O_EXCL). Concurrent same-id creates: exactly one winner; the loser's EEXIST is translated to `session already exists: <id>`. Mirrors pg's PK constraint semantics.
 - `incrementBudgetUsed`: under lock, read, if `budget_used < limit` increment and write, else return `exceeded: true`. Mirrors pg atomic CAS semantics.
 - `findById` / `getBudget`: plain reads; ENOENT → null.
 
@@ -86,8 +86,8 @@ findById(sessionId): Promise<{...} | null>;
 
 Add to `src/backend/vault/io/`:
 
-- `json-fs.ts`: `readJson<T>(root, rel): Promise<T | null>` (ENOENT → null), `writeJsonAtomic(root, rel, obj)` (serialize + `writeMarkdownAtomic`-style tmp+rename), `appendLine(root, rel, line)` (under lock).
-- Reuse existing `withFileLock` + path-segment validation.
+- `json-fs.ts`: `readJson<T>(root, rel): Promise<T | null>` (ENOENT or empty file → null), `writeJsonAtomic(root, rel, obj)` (tmp + rename, atomic vs. concurrent readers), `writeJsonExclusive(root, rel, obj)` (O_EXCL write, throws `EEXIST` on collision — used by `createSession`), `appendJsonLine(root, rel, value)` (under lock), `readJsonLines<T>(root, rel): Promise<T[]>` (skips a partial trailing line as crashed-writer debris; middle-of-file malformed lines throw).
+- `safeSegment` / `UNSAFE_SEGMENT` are exported from `io/paths.ts` and reused by all four repos.
 
 ### Tests
 
@@ -96,13 +96,13 @@ Add to `src/backend/vault/io/`:
 
 ### Task breakdown
 
-- [ ] Task 1 — `io/json-fs.ts` + unit tests
-- [ ] Task 2 — `VaultAuditRepository` + unit tests + contract test
-- [ ] Task 3 — `VaultSchedulerStateRepository` + unit tests + contract test
-- [ ] Task 4 — `VaultSessionTrackingRepository` + unit tests + contract test
-- [ ] Task 5 — `VaultSessionRepository` + unit tests + contract test
-- [ ] Task 6 — Verify Phase 2a `inferScopeFromPath` still returns `null` for `_audit/` / `_scheduler-state.json` / `_sessions/` / `_session-tracking/` paths
-- [ ] Task 7 — typecheck + lint + prettier + full test suite green
+- [x] Task 1 — `io/json-fs.ts` + unit tests
+- [x] Task 2 — `VaultAuditRepository` + unit tests + contract test
+- [x] Task 3 — `VaultSchedulerStateRepository` + unit tests + contract test
+- [x] Task 4 — `VaultSessionTrackingRepository` + unit tests + contract test
+- [x] Task 5 — `VaultSessionRepository` + unit tests + contract test
+- [x] Task 6 — Verify Phase 2a `inferScopeFromPath` still returns `null` for `_audit/` / `_scheduler-state.json` / `_sessions/` / `_session-tracking/` paths (tested via parseIso + `inferScopeFromPath` unit tests — `_`-prefixed segments never match the three memory layouts)
+- [x] Task 7 — typecheck + lint + prettier + full test suite green
 
 ---
 

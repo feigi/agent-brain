@@ -37,7 +37,6 @@ export async function deleteMarkdown(
   await rm(join(root, relPath));
 }
 
-// Ensure the parent directory of an absolute path exists.
 export async function ensureParentDir(abs: string): Promise<void> {
   await mkdir(dirname(abs), { recursive: true });
 }

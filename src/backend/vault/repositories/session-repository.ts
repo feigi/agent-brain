@@ -2,8 +2,12 @@ import { join } from "node:path";
 import type { SessionRepository } from "../../../repositories/types.js";
 import { config } from "../../../config.js";
 import { withFileLock } from "../io/lock.js";
-import { readJson, writeJsonAtomic } from "../io/json-fs.js";
-import { ensureFileExists } from "../io/vault-fs.js";
+import {
+  readJson,
+  writeJsonAtomic,
+  writeJsonExclusive,
+} from "../io/json-fs.js";
+import { safeSegment } from "../io/paths.js";
 
 export interface VaultSessionConfig {
   root: string;
@@ -17,12 +21,8 @@ interface SessionRecord {
   budget_used: number;
 }
 
-const UNSAFE_SEGMENT = /[/\\]|^\.\.?$|\0/;
-
 function sessionPath(id: string): string {
-  if (id.length === 0 || UNSAFE_SEGMENT.test(id))
-    throw new Error(`invalid session id: ${JSON.stringify(id)}`);
-  return `_sessions/${id}.json`;
+  return `_sessions/${safeSegment(id, "session id")}.json`;
 }
 
 export class VaultSessionRepository implements SessionRepository {
@@ -42,11 +42,19 @@ export class VaultSessionRepository implements SessionRepository {
       workspace_id: workspaceId,
       budget_used: 0,
     };
-    // pg has a PK on id — writeJsonAtomic would silently overwrite.
-    // Reject a pre-existing session so callers see a consistent error.
-    const existing = await readJson<SessionRecord>(this.cfg.root, rel);
-    if (existing !== null) throw new Error(`session already exists: ${id}`);
-    await writeJsonAtomic(this.cfg.root, rel, record);
+    // O_EXCL matches pg's PK — concurrent same-id creates give exactly
+    // one winner; the loser gets the thrown "already exists" error.
+    try {
+      await writeJsonExclusive(this.cfg.root, rel, record);
+    } catch (err: unknown) {
+      if (
+        typeof err === "object" &&
+        err !== null &&
+        (err as { code?: string }).code === "EEXIST"
+      )
+        throw new Error(`session already exists: ${id}`, { cause: err });
+      throw err;
+    }
   }
 
   async getBudget(
@@ -68,16 +76,18 @@ export class VaultSessionRepository implements SessionRepository {
     limit: number,
   ): Promise<{ used: number; exceeded: boolean }> {
     const rel = sessionPath(sessionId);
+    // Short-circuit unknown sessions without creating a placeholder file.
+    // Mirrors pg's UPDATE ... WHERE id=? returning 0 rows → exceeded.
+    const exists = await readJson<SessionRecord>(this.cfg.root, rel);
+    if (!exists) return { used: limit, exceeded: true };
+
     const abs = join(this.cfg.root, rel);
-    await ensureFileExists(abs);
     return await withFileLock(abs, async () => {
       const record = await readJson<SessionRecord>(this.cfg.root, rel);
-      if (!record) {
-        // Pre-existing file was empty or unreadable — mirror pg's
-        // "session not found" path by returning `exceeded: true` with
-        // used === limit so the caller short-circuits.
-        return { used: limit, exceeded: true };
-      }
+      // The row must exist — we checked above outside the lock, and
+      // session files are never deleted. A null here indicates corruption.
+      if (!record)
+        throw new Error(`session record vanished under lock: ${sessionId}`);
       if (record.budget_used >= limit) {
         return { used: record.budget_used, exceeded: true };
       }
@@ -97,10 +107,6 @@ export class VaultSessionRepository implements SessionRepository {
     workspace_id: string;
     budget_used: number;
   } | null> {
-    const record = await readJson<SessionRecord>(
-      this.cfg.root,
-      sessionPath(sessionId),
-    );
-    return record ?? null;
+    return await readJson<SessionRecord>(this.cfg.root, sessionPath(sessionId));
   }
 }

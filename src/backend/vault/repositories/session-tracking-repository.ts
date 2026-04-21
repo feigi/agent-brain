@@ -3,6 +3,7 @@ import type { SessionTrackingRepository } from "../../../repositories/types.js";
 import { withFileLock } from "../io/lock.js";
 import { readJson, writeJsonAtomic } from "../io/json-fs.js";
 import { ensureFileExists } from "../io/vault-fs.js";
+import { safeSegment } from "../io/paths.js";
 
 export interface VaultSessionTrackingConfig {
   root: string;
@@ -10,17 +11,6 @@ export interface VaultSessionTrackingConfig {
 
 interface TrackingRecord {
   last_session_at: string;
-}
-
-// Segments interpolated into the tracking path must not contain path
-// separators or traversal tokens — otherwise a crafted user_id could
-// escape the tracking directory.
-const UNSAFE_SEGMENT = /[/\\]|^\.\.?$|\0/;
-
-function safeSegment(value: string, name: string): string {
-  if (value.length === 0 || UNSAFE_SEGMENT.test(value))
-    throw new Error(`invalid ${name}: ${JSON.stringify(value)}`);
-  return value;
 }
 
 function trackingPath(
@@ -47,9 +37,7 @@ export class VaultSessionTrackingRepository implements SessionTrackingRepository
     await ensureFileExists(abs);
     return await withFileLock(abs, async () => {
       const prev = await readJson<TrackingRecord>(this.cfg.root, rel);
-      const previousSession = prev
-        ? parseIsoOrNull(prev.last_session_at)
-        : null;
+      const previousSession = prev ? parseIso(prev.last_session_at, rel) : null;
       const now = new Date();
       await writeJsonAtomic(this.cfg.root, rel, {
         last_session_at: now.toISOString(),
@@ -59,7 +47,11 @@ export class VaultSessionTrackingRepository implements SessionTrackingRepository
   }
 }
 
-function parseIsoOrNull(raw: string): Date | null {
+function parseIso(raw: string, rel: string): Date {
   const d = new Date(raw);
-  return Number.isNaN(d.getTime()) ? null : d;
+  if (Number.isNaN(d.getTime()))
+    throw new Error(
+      `session-tracking ${rel} has invalid last_session_at: ${raw}`,
+    );
+  return d;
 }
