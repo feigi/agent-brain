@@ -42,3 +42,65 @@ export function serialize(lines: EnvLine[]): string {
   }
   return parts.join("\n") + "\n";
 }
+
+export interface MergeResult {
+  lines: EnvLine[];
+  added: string[];
+  extras: string[];
+  changed: boolean;
+}
+
+// Walk the template in order so comments and key ordering match .env.example.
+// For each kv line, prefer the existing value when the key is already set so
+// user customization survives. Keys present only in the existing file are
+// appended at the end under a header comment — we never drop user data.
+export function mergeEnv(
+  existing: EnvLine[],
+  template: EnvLine[],
+): MergeResult {
+  const existingValues = new Map<string, string>();
+  for (const line of existing) {
+    if (line.kind === "kv") existingValues.set(line.key, line.value);
+  }
+
+  const templateKeys = new Set<string>();
+  for (const line of template) {
+    if (line.kind === "kv") templateKeys.add(line.key);
+  }
+
+  const merged: EnvLine[] = [];
+  const added: string[] = [];
+  for (const line of template) {
+    if (line.kind !== "kv") {
+      merged.push(line);
+      continue;
+    }
+    const existingVal = existingValues.get(line.key);
+    if (existingVal !== undefined) {
+      merged.push({ kind: "kv", key: line.key, value: existingVal });
+    } else {
+      merged.push(line);
+      added.push(line.key);
+    }
+  }
+
+  const extras: string[] = [];
+  for (const line of existing) {
+    if (line.kind === "kv" && !templateKeys.has(line.key)) {
+      extras.push(line.key);
+    }
+  }
+
+  if (extras.length > 0) {
+    merged.push({ kind: "blank" });
+    merged.push({ kind: "comment", raw: "# Keys not in .env.example" });
+    for (const line of existing) {
+      if (line.kind === "kv" && !templateKeys.has(line.key)) {
+        merged.push(line);
+      }
+    }
+  }
+
+  const changed = serialize(merged) !== serialize(existing);
+  return { lines: merged, added, extras, changed };
+}
