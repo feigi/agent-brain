@@ -7,6 +7,7 @@ const configSchema = z.object({
   databaseUrl: z
     .string()
     .default("postgresql://agentic:agentic@localhost:5432/agent_brain"),
+  vaultRoot: z.string().default(""),
   embeddingProvider: z.enum(["titan", "mock", "ollama"]).default("mock"),
   embeddingDimensions: z.coerce.number().int().positive().default(768),
   ollamaBaseUrl: z.string().default("http://localhost:11434"),
@@ -52,6 +53,7 @@ export const config = configSchema.parse({
   projectId: process.env.PROJECT_ID ?? "",
   backend: process.env.AGENT_BRAIN_BACKEND,
   databaseUrl: process.env.DATABASE_URL,
+  vaultRoot: process.env.AGENT_BRAIN_VAULT_ROOT,
   embeddingProvider: process.env.EMBEDDING_PROVIDER,
   embeddingDimensions: process.env.EMBEDDING_DIMENSIONS,
   ollamaBaseUrl: process.env.OLLAMA_BASE_URL,
