@@ -1,5 +1,4 @@
 import { join } from "node:path";
-import { readFile } from "node:fs/promises";
 import type { Target, InstallPlan } from "../types.js";
 import {
   checkJq,
@@ -80,12 +79,3 @@ export const claudeTarget: Target = {
     return lines.join("\n");
   },
 };
-
-export async function loadSnippetJson(path: string): Promise<unknown> {
-  const raw = await readFile(path, "utf8");
-  return JSON.parse(raw);
-}
-
-export async function loadSnippetText(path: string): Promise<string> {
-  return readFile(path, "utf8");
-}
