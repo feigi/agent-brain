@@ -6,7 +6,7 @@ Project use [agent-brain](https://github.com/feigi/agent-brain) (MCP server) for
 
 If `memory-session-start.sh` hook (Copilot CLI v1.0.11+) installed, recent memories inject as `additionalContext` at session start — no manual call needed.
 
-Unsure if hook active and no memories appeared by first response, call `memory_session_start` yourself.
+If unsure hook active AND no memories appeared by first response, call `memory_session_start` yourself.
 
 ## Identity Parameters
 
@@ -44,7 +44,7 @@ Encounter memory during work and confirm still accurate, call `memory_verify`. B
 
 ## Session End
 
-User signals done (e.g. "bye", "done", "that's all"), review session for anything worth keeping before end. Consider saving:
+When user signals done (e.g. "bye", "done", "that's all"), review session for anything worth keeping before end. Consider saving:
 
 - Decisions made and rationale
 - User preferences learned

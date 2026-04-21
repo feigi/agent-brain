@@ -54,7 +54,7 @@ export function registerMemoryCreate(
         source: memorySourceEnum
           .optional()
           .describe(
-            "Origin of save. Pick one: 'manual' = user explicitly asked to save (e.g. 'remember X', 'save that'); bypasses budget + project-scope guards. 'agent-auto' = autonomous save mid-conversation; default for agent-initiated captures. 'session-review' = ONLY for autonomous saves from end-of-session Stop-hook review; never mid-session.",
+            "Origin of save. Pick one: 'manual' = user explicitly asked to save (e.g. 'remember X', 'save that'); bypasses budget + project-scope guards. 'agent-auto' = autonomous save mid-conversation; default for agent-initiated captures. 'session-review' = ONLY for autonomous saves from end-of-session Stop-hook review; never mid-session, never because user asked.",
           ),
         session_id: z
           .string()
