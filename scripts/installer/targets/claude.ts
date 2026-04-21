@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import type { Target, InstallPlan } from "../types.js";
+import { makeMarkerId } from "../types.js";
 import {
   checkJq,
   checkTargetDirWritable,
@@ -7,23 +8,23 @@ import {
 } from "../preflight.js";
 import { describePlan } from "./shared.js";
 
-const HOOK_SCRIPTS = [
+export const HOOK_SCRIPTS = [
   "memory-session-start.sh",
   "memory-guard.sh",
   "memory-autofill.sh",
   "memory-nudge.sh",
   "memory-session-review.sh",
-];
+] as const;
 
 export const claudeTarget: Target = {
   name: "claude",
 
-  async preflight() {
+  async preflight(home: string) {
     await checkJq();
     const warn = await checkDockerWarn();
     if (warn) console.warn(`WARN: ${warn}`);
-    await checkTargetDirWritable(`${process.env.HOME ?? ""}/.claude`);
-    await checkTargetDirWritable(`${process.env.HOME ?? ""}/.claude/hooks`);
+    await checkTargetDirWritable(join(home, ".claude"));
+    await checkTargetDirWritable(join(home, ".claude", "hooks"));
   },
 
   plan(repoRoot: string, home: string): InstallPlan {
@@ -53,14 +54,14 @@ export const claudeTarget: Target = {
       jsonMerges: [
         {
           file: join(home, ".claude", "settings.json"),
-          patch: { __fromFile: snippetPath },
+          patch: { kind: "file", path: snippetPath },
         },
       ],
       markdownPrepends: [
         {
           file: join(home, ".claude", "CLAUDE.md"),
-          snippet: `__fromFile:${mdSnippetPath}`,
-          markerId: "agent-brain",
+          snippet: { kind: "file", path: mdSnippetPath },
+          markerId: makeMarkerId("agent-brain"),
         },
       ],
       postInstructions: [

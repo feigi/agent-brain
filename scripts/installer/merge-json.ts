@@ -1,5 +1,5 @@
-import { readFile, writeFile, access, copyFile } from "node:fs/promises";
-import { constants } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { atomicWrite, fileExists, writeBackup } from "./fs-util.js";
 
 export interface MergeJsonOptions {
   dryRun: boolean;
@@ -22,27 +22,28 @@ function dedupeArray(arr: unknown[]): unknown[] {
   return out;
 }
 
-function deepMerge(base: unknown, patch: unknown): unknown {
+function deepMerge(
+  base: unknown,
+  patch: unknown,
+  keyPath: string[] = [],
+): unknown {
   if (Array.isArray(base) && Array.isArray(patch)) {
     return dedupeArray([...base, ...patch]);
   }
   if (isPlainObject(base) && isPlainObject(patch)) {
     const result: Record<string, unknown> = { ...base };
     for (const [k, v] of Object.entries(patch)) {
-      result[k] = k in base ? deepMerge(base[k], v) : v;
+      result[k] = k in base ? deepMerge(base[k], v, [...keyPath, k]) : v;
     }
     return result;
   }
-  return patch;
-}
-
-async function fileExists(path: string): Promise<boolean> {
-  try {
-    await access(path, constants.F_OK);
-    return true;
-  } catch {
-    return false;
+  if (base !== undefined && typeof base !== typeof patch) {
+    const path = keyPath.join(".") || "(root)";
+    console.warn(
+      `WARN: type mismatch at ${path}: replacing ${Array.isArray(base) ? "array" : typeof base} with ${Array.isArray(patch) ? "array" : typeof patch}`,
+    );
   }
+  return patch;
 }
 
 export async function mergeJson(
@@ -69,9 +70,10 @@ export async function mergeJson(
 
   if (opts.dryRun) return;
 
-  if (existed && !(await fileExists(`${file}.bak`))) {
-    await copyFile(file, `${file}.bak`);
+  if (existed) {
+    const bak = await writeBackup(file);
+    console.log(`Backup: ${bak}`);
   }
 
-  await writeFile(file, JSON.stringify(merged, null, 2) + "\n", "utf8");
+  await atomicWrite(file, JSON.stringify(merged, null, 2) + "\n");
 }

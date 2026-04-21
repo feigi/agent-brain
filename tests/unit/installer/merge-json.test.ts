@@ -4,7 +4,7 @@ import {
   rmSync,
   writeFileSync,
   readFileSync,
-  existsSync,
+  readdirSync,
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -61,16 +61,27 @@ describe("mergeJson", () => {
     expect(result.hooks.SessionStart).toHaveLength(1);
   });
 
-  it("writes .bak on first run only, never overwrites existing .bak", async () => {
+  it("writes a timestamped .bak on every run; previous backups retained", async () => {
     writeFileSync(file, JSON.stringify({ original: true }));
     await mergeJson(file, { added: 1 }, { dryRun: false });
-    expect(existsSync(`${file}.bak`)).toBe(true);
-    expect(JSON.parse(readFileSync(`${file}.bak`, "utf8"))).toEqual({
+
+    const baksAfterFirst = readdirSync(dir).filter((n) =>
+      n.startsWith("settings.json.bak."),
+    );
+    expect(baksAfterFirst).toHaveLength(1);
+    const [firstBak] = baksAfterFirst;
+    expect(JSON.parse(readFileSync(join(dir, firstBak), "utf8"))).toEqual({
       original: true,
     });
 
+    await new Promise((r) => setTimeout(r, 1100));
     await mergeJson(file, { added: 2 }, { dryRun: false });
-    expect(JSON.parse(readFileSync(`${file}.bak`, "utf8"))).toEqual({
+
+    const baksAfterSecond = readdirSync(dir).filter((n) =>
+      n.startsWith("settings.json.bak."),
+    );
+    expect(baksAfterSecond.length).toBeGreaterThanOrEqual(2);
+    expect(JSON.parse(readFileSync(join(dir, firstBak), "utf8"))).toEqual({
       original: true,
     });
   });
@@ -86,6 +97,9 @@ describe("mergeJson", () => {
     writeFileSync(file, JSON.stringify({ a: 1 }));
     await mergeJson(file, { b: 2 }, { dryRun: true });
     expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ a: 1 });
-    expect(existsSync(`${file}.bak`)).toBe(false);
+    const baks = readdirSync(dir).filter((n) =>
+      n.startsWith("settings.json.bak."),
+    );
+    expect(baks).toHaveLength(0);
   });
 });

@@ -1,5 +1,22 @@
 export type TargetName = "claude" | "copilot";
 
+export type MarkerId = string & { readonly __brand: "MarkerId" };
+
+const MARKER_ID_RE = /^[a-z0-9][a-z0-9-]*$/;
+
+export function makeMarkerId(id: string): MarkerId {
+  if (!MARKER_ID_RE.test(id)) {
+    throw new Error(
+      `Invalid markerId '${id}': must match ${MARKER_ID_RE.source}`,
+    );
+  }
+  return id as MarkerId;
+}
+
+export type Source<T> =
+  | { kind: "inline"; value: T }
+  | { kind: "file"; path: string };
+
 export interface CopyAction {
   src: string;
   dest: string;
@@ -8,13 +25,13 @@ export interface CopyAction {
 
 export interface JsonMergeAction {
   file: string;
-  patch: unknown;
+  patch: Source<unknown>;
 }
 
 export interface MarkdownPrependAction {
   file: string;
-  snippet: string;
-  markerId: string;
+  snippet: Source<string>;
+  markerId: MarkerId;
 }
 
 export interface InstallPlan {
@@ -27,7 +44,7 @@ export interface InstallPlan {
 
 export interface Target {
   name: TargetName;
-  preflight(): Promise<void>;
+  preflight(home: string): Promise<void>;
   plan(repoRoot: string, home: string): InstallPlan;
   describe(plan: InstallPlan): string;
 }

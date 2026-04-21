@@ -1,27 +1,19 @@
-import { readFile, writeFile, access, copyFile } from "node:fs/promises";
-import { constants } from "node:fs";
+import { readFile } from "node:fs/promises";
+import type { MarkerId } from "./types.js";
+import { atomicWrite, fileExists, writeBackup } from "./fs-util.js";
 
 export interface MergeMarkdownOptions {
   dryRun: boolean;
 }
 
-async function fileExists(path: string): Promise<boolean> {
-  try {
-    await access(path, constants.F_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function startMarker(id: string): string {
+function startMarker(id: MarkerId): string {
   return `<!-- ${id}:start -->`;
 }
-function endMarker(id: string): string {
+function endMarker(id: MarkerId): string {
   return `<!-- ${id}:end -->`;
 }
 
-function buildBlock(snippet: string, id: string): string {
+function buildBlock(snippet: string, id: MarkerId): string {
   const body = snippet.endsWith("\n") ? snippet : snippet + "\n";
   return `${startMarker(id)}\n${body}${endMarker(id)}\n`;
 }
@@ -29,7 +21,7 @@ function buildBlock(snippet: string, id: string): string {
 export async function prependWithMarkers(
   file: string,
   snippet: string,
-  markerId: string,
+  markerId: MarkerId,
   opts: MergeMarkdownOptions,
 ): Promise<void> {
   const existed = await fileExists(file);
@@ -55,9 +47,10 @@ export async function prependWithMarkers(
 
   if (opts.dryRun) return;
 
-  if (existed && !(await fileExists(`${file}.bak`))) {
-    await copyFile(file, `${file}.bak`);
+  if (existed) {
+    const bak = await writeBackup(file);
+    console.log(`Backup: ${bak}`);
   }
 
-  await writeFile(file, next, "utf8");
+  await atomicWrite(file, next);
 }

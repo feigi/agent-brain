@@ -36,7 +36,11 @@ describe("claudeTarget.plan", () => {
     expect(plan.markdownPrepends).toHaveLength(1);
     expect(plan.markdownPrepends[0].file).toBe("/home/u/.claude/CLAUDE.md");
     expect(plan.markdownPrepends[0].markerId).toBe("agent-brain");
-    expect(plan.markdownPrepends[0].snippet).toMatch(/^__fromFile:/);
+    const snippet = plan.markdownPrepends[0].snippet;
+    expect(snippet.kind).toBe("file");
+    if (snippet.kind === "file") {
+      expect(snippet.path).toContain("claude-md-snippet.md");
+    }
   });
 
   it("postInstructions include docker-compose command", () => {
@@ -81,7 +85,11 @@ describe("copilotTarget.plan", () => {
       "/home/u/.copilot/copilot-instructions.md",
     );
     expect(plan.markdownPrepends[0].markerId).toBe("agent-brain");
-    expect(plan.markdownPrepends[0].snippet).toMatch(/^__fromFile:/);
+    const snippet = plan.markdownPrepends[0].snippet;
+    expect(snippet.kind).toBe("file");
+    if (snippet.kind === "file") {
+      expect(snippet.path).toContain("instructions-snippet.md");
+    }
   });
 
   it("postInstructions include docker-compose command", () => {

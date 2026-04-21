@@ -4,11 +4,14 @@ import {
   rmSync,
   writeFileSync,
   readFileSync,
-  existsSync,
+  readdirSync,
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { prependWithMarkers } from "../../../scripts/installer/merge-markdown.js";
+import { makeMarkerId } from "../../../scripts/installer/types.js";
+
+const M = makeMarkerId("agent-brain");
 
 describe("prependWithMarkers", () => {
   let dir: string;
@@ -24,7 +27,7 @@ describe("prependWithMarkers", () => {
   });
 
   it("creates file with wrapped snippet when missing", async () => {
-    await prependWithMarkers(file, "hello\n", "agent-brain", { dryRun: false });
+    await prependWithMarkers(file, "hello\n", M, { dryRun: false });
     const content = readFileSync(file, "utf8");
     expect(content).toContain("<!-- agent-brain:start -->");
     expect(content).toContain("hello");
@@ -33,7 +36,7 @@ describe("prependWithMarkers", () => {
 
   it("prepends wrapped snippet when file exists without markers", async () => {
     writeFileSync(file, "# Existing\nuser content\n");
-    await prependWithMarkers(file, "snippet body\n", "agent-brain", {
+    await prependWithMarkers(file, "snippet body\n", M, {
       dryRun: false,
     });
     const content = readFileSync(file, "utf8");
@@ -46,8 +49,8 @@ describe("prependWithMarkers", () => {
   });
 
   it("replaces content between markers on re-run", async () => {
-    await prependWithMarkers(file, "v1\n", "agent-brain", { dryRun: false });
-    await prependWithMarkers(file, "v2 updated\n", "agent-brain", {
+    await prependWithMarkers(file, "v1\n", M, { dryRun: false });
+    await prependWithMarkers(file, "v2 updated\n", M, {
       dryRun: false,
     });
     const content = readFileSync(file, "utf8");
@@ -58,32 +61,44 @@ describe("prependWithMarkers", () => {
   });
 
   it("preserves content outside markers when replacing", async () => {
-    await prependWithMarkers(file, "v1\n", "agent-brain", { dryRun: false });
+    await prependWithMarkers(file, "v1\n", M, { dryRun: false });
     writeFileSync(
       file,
       readFileSync(file, "utf8") + "\n# User section\nuser body\n",
     );
-    await prependWithMarkers(file, "v2\n", "agent-brain", { dryRun: false });
+    await prependWithMarkers(file, "v2\n", M, { dryRun: false });
     const content = readFileSync(file, "utf8");
     expect(content).toContain("v2");
     expect(content).toContain("# User section");
     expect(content).toContain("user body");
   });
 
-  it("writes .bak on first run only", async () => {
+  it("writes a timestamped .bak on every run; previous backups retained", async () => {
     writeFileSync(file, "original\n");
-    await prependWithMarkers(file, "a\n", "agent-brain", { dryRun: false });
-    expect(existsSync(`${file}.bak`)).toBe(true);
-    expect(readFileSync(`${file}.bak`, "utf8")).toBe("original\n");
+    await prependWithMarkers(file, "a\n", M, { dryRun: false });
 
-    await prependWithMarkers(file, "b\n", "agent-brain", { dryRun: false });
-    expect(readFileSync(`${file}.bak`, "utf8")).toBe("original\n");
+    const first = readdirSync(dir).filter((n) =>
+      n.startsWith("CLAUDE.md.bak."),
+    );
+    expect(first).toHaveLength(1);
+    const [firstBak] = first;
+    expect(readFileSync(join(dir, firstBak), "utf8")).toBe("original\n");
+
+    await new Promise((r) => setTimeout(r, 1100));
+    await prependWithMarkers(file, "b\n", M, { dryRun: false });
+
+    const second = readdirSync(dir).filter((n) =>
+      n.startsWith("CLAUDE.md.bak."),
+    );
+    expect(second.length).toBeGreaterThanOrEqual(2);
+    expect(readFileSync(join(dir, firstBak), "utf8")).toBe("original\n");
   });
 
   it("dryRun does not write", async () => {
     writeFileSync(file, "orig\n");
-    await prependWithMarkers(file, "x\n", "agent-brain", { dryRun: true });
+    await prependWithMarkers(file, "x\n", M, { dryRun: true });
     expect(readFileSync(file, "utf8")).toBe("orig\n");
-    expect(existsSync(`${file}.bak`)).toBe(false);
+    const baks = readdirSync(dir).filter((n) => n.startsWith("CLAUDE.md.bak."));
+    expect(baks).toHaveLength(0);
   });
 });

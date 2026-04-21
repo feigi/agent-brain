@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import type { Target, InstallPlan } from "../types.js";
+import { makeMarkerId } from "../types.js";
 import {
   checkJq,
   checkTargetDirWritable,
@@ -7,21 +8,21 @@ import {
 } from "../preflight.js";
 import { describePlan } from "./shared.js";
 
-const HOOK_SCRIPTS = [
+export const HOOK_SCRIPTS = [
   "memory-session-start.sh",
   "memory-pretool.sh",
   "memory-session-end.sh",
-];
+] as const;
 
 export const copilotTarget: Target = {
   name: "copilot",
 
-  async preflight() {
+  async preflight(home: string) {
     await checkJq();
     const warn = await checkDockerWarn();
     if (warn) console.warn(`WARN: ${warn}`);
-    await checkTargetDirWritable(`${process.env.HOME ?? ""}/.copilot`);
-    await checkTargetDirWritable(`${process.env.HOME ?? ""}/.copilot/hooks`);
+    await checkTargetDirWritable(join(home, ".copilot"));
+    await checkTargetDirWritable(join(home, ".copilot", "hooks"));
   },
 
   plan(repoRoot: string, home: string): InstallPlan {
@@ -47,18 +48,18 @@ export const copilotTarget: Target = {
       jsonMerges: [
         {
           file: join(home, ".copilot", "mcp-config.json"),
-          patch: { __fromFile: mcpSnippet },
+          patch: { kind: "file", path: mcpSnippet },
         },
         {
           file: join(home, ".copilot", "hooks", "hooks.json"),
-          patch: { __fromFile: hooksSnippet },
+          patch: { kind: "file", path: hooksSnippet },
         },
       ],
       markdownPrepends: [
         {
           file: join(home, ".copilot", "copilot-instructions.md"),
-          snippet: `__fromFile:${instructionsSnippet}`,
-          markerId: "agent-brain",
+          snippet: { kind: "file", path: instructionsSnippet },
+          markerId: makeMarkerId("agent-brain"),
         },
       ],
       postInstructions: [
