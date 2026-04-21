@@ -7,7 +7,7 @@ const execFile = promisify(execFileCb);
 
 async function onPath(binary: string): Promise<boolean> {
   try {
-    await execFile("/bin/sh", ["-c", `command -v ${binary}`], {
+    await execFile("/bin/sh", ["-c", 'command -v "$1"', "--", binary], {
       env: { ...process.env },
     });
     return true;
