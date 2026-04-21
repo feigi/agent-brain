@@ -31,7 +31,7 @@ export async function runInstaller(opts: RunOptions, env: Env): Promise<void> {
     await TARGETS[name].preflight(env.home);
   }
 
-  if (!opts.uninstall) {
+  if (!opts.uninstall && !opts.skipEnvBootstrap) {
     const rl = createInterface({ input: stdin, output: stdout });
     try {
       await bootstrapEnv(env.repoRoot, {

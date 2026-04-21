@@ -35,11 +35,21 @@ describe("installer round-trip", () => {
     writeFileSync(join(home, ".claude", "CLAUDE.md"), "# User\nbody\n");
 
     await runInstaller(
-      { targets: ["claude"], dryRun: false, uninstall: false },
+      {
+        targets: ["claude"],
+        dryRun: false,
+        uninstall: false,
+        skipEnvBootstrap: true,
+      },
       { repoRoot: REPO_ROOT, home },
     );
     await runInstaller(
-      { targets: ["claude"], dryRun: false, uninstall: true },
+      {
+        targets: ["claude"],
+        dryRun: false,
+        uninstall: true,
+        skipEnvBootstrap: true,
+      },
       { repoRoot: REPO_ROOT, home },
     );
 
@@ -92,7 +102,12 @@ describe("installer round-trip", () => {
   it("sandbox home never writes to real $HOME", async () => {
     const realHome = process.env.HOME;
     await runInstaller(
-      { targets: ["claude"], dryRun: false, uninstall: false },
+      {
+        targets: ["claude"],
+        dryRun: false,
+        uninstall: false,
+        skipEnvBootstrap: true,
+      },
       { repoRoot: REPO_ROOT, home },
     );
     expect(existsSync(join(home, ".claude"))).toBe(true);
@@ -114,7 +129,12 @@ describe("installer round-trip", () => {
     try {
       await expect(
         runInstaller(
-          { targets: ["claude", "copilot"], dryRun: false, uninstall: false },
+          {
+            targets: ["claude", "copilot"],
+            dryRun: false,
+            uninstall: false,
+            skipEnvBootstrap: true,
+          },
           { repoRoot: REPO_ROOT, home },
         ),
       ).rejects.toThrow();
@@ -134,7 +154,12 @@ describe("installer round-trip", () => {
     mkdirSync(join(home, ".claude"), { recursive: true });
     writeFileSync(claudeMd, "<!-- agent-brain:start -->\nhalf written\n");
     await runInstaller(
-      { targets: ["claude"], dryRun: false, uninstall: false },
+      {
+        targets: ["claude"],
+        dryRun: false,
+        uninstall: false,
+        skipEnvBootstrap: true,
+      },
       { repoRoot: REPO_ROOT, home },
     );
     const after = readFileSync(claudeMd, "utf8");

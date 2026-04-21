@@ -25,7 +25,12 @@ describe("installer end-to-end", () => {
 
   it("installs Claude target: copies hooks, merges settings, prepends CLAUDE.md", async () => {
     await runInstaller(
-      { targets: ["claude"], dryRun: false, uninstall: false },
+      {
+        targets: ["claude"],
+        dryRun: false,
+        uninstall: false,
+        skipEnvBootstrap: true,
+      },
       { repoRoot: REPO_ROOT, home },
     );
 
@@ -48,7 +53,12 @@ describe("installer end-to-end", () => {
 
   it("installs Copilot target: copies hooks, merges two JSON files, prepends instructions", async () => {
     await runInstaller(
-      { targets: ["copilot"], dryRun: false, uninstall: false },
+      {
+        targets: ["copilot"],
+        dryRun: false,
+        uninstall: false,
+        skipEnvBootstrap: true,
+      },
       { repoRoot: REPO_ROOT, home },
     );
 
@@ -77,6 +87,7 @@ describe("installer end-to-end", () => {
       targets: ["claude" as const],
       dryRun: false,
       uninstall: false,
+      skipEnvBootstrap: true,
     };
     await runInstaller(opts, { repoRoot: REPO_ROOT, home });
     await runInstaller(opts, { repoRoot: REPO_ROOT, home });
