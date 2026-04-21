@@ -1,5 +1,6 @@
 import { parseArgs } from "node:util";
 import { createInterface } from "node:readline/promises";
+import { createInterface as createLineReader } from "node:readline";
 import { stdin, stdout } from "node:process";
 import { fileURLToPath } from "node:url";
 import { realpathSync } from "node:fs";
@@ -32,15 +33,15 @@ export async function runInstaller(opts: RunOptions, env: Env): Promise<void> {
   }
 
   if (!opts.uninstall && !opts.skipEnvBootstrap) {
-    const rl = createInterface({ input: stdin, output: stdout });
+    const { ask, close } = createStdinAsker();
     try {
       await bootstrapEnv(env.repoRoot, {
         dryRun: opts.dryRun,
-        ask: (q) => rl.question(q),
+        ask,
         log: (m) => console.log(m),
       });
     } finally {
-      rl.close();
+      close();
     }
   }
 
@@ -60,6 +61,42 @@ export async function runInstaller(opts: RunOptions, env: Env): Promise<void> {
     await applyPlan(plan, { dryRun: false });
     for (const line of plan.postInstructions) console.log(line);
   }
+}
+
+// `readline/promises.question` rejects with ERR_USE_AFTER_CLOSE when the
+// input stream EOFs between consecutive questions — which is exactly what
+// `printf 'a\nb\n' | installer` does. Use classic readline's `line` event
+// so queued questions still resolve with buffered lines (or "" after close).
+interface StdinAsker {
+  ask: (prompt: string) => Promise<string>;
+  close: () => void;
+}
+
+function createStdinAsker(): StdinAsker {
+  const rl = createLineReader({ input: stdin, terminal: false });
+  const buffered: string[] = [];
+  const waiters: Array<(v: string) => void> = [];
+  let closed = false;
+
+  rl.on("line", (line) => {
+    const waiter = waiters.shift();
+    if (waiter) waiter(line);
+    else buffered.push(line);
+  });
+  rl.on("close", () => {
+    closed = true;
+    for (const waiter of waiters.splice(0)) waiter("");
+  });
+
+  return {
+    ask: (prompt) => {
+      stdout.write(prompt);
+      if (buffered.length > 0) return Promise.resolve(buffered.shift()!);
+      if (closed) return Promise.resolve("");
+      return new Promise<string>((resolve) => waiters.push(resolve));
+    },
+    close: () => rl.close(),
+  };
 }
 
 async function promptTarget(): Promise<TargetName[]> {
