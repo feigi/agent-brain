@@ -63,4 +63,65 @@ export class VaultVectorIndex {
       .whenNotMatchedInsertAll()
       .execute(rows);
   }
+
+  async search(params: SearchParams): Promise<SearchHit[]> {
+    if (params.embedding.length !== this.dims) {
+      throw new Error(
+        `vector dimension mismatch: expected ${this.dims}, got ${params.embedding.length}`,
+      );
+    }
+    const clauses: string[] = [
+      `archived = false`,
+      `project_id = ${sqlStr(params.projectId)}`,
+    ];
+    const scopeClauses: string[] = [];
+    for (const s of params.scope) {
+      if (s === "workspace") {
+        if (params.workspaceId === null) continue;
+        scopeClauses.push(
+          `(scope = 'workspace' AND workspace_id = ${sqlStr(params.workspaceId)})`,
+        );
+      } else if (s === "user") {
+        if (params.userId === null) continue;
+        scopeClauses.push(
+          `(scope = 'user' AND author = ${sqlStr(params.userId)})`,
+        );
+      } else {
+        scopeClauses.push(`scope = 'project'`);
+      }
+    }
+    if (scopeClauses.length === 0) return [];
+    clauses.push(`(${scopeClauses.join(" OR ")})`);
+    const rows = (await this.table
+      .search(params.embedding)
+      .distanceType("cosine")
+      .where(clauses.join(" AND "))
+      .limit(params.limit)
+      .toArray()) as Array<Record<string, unknown>>;
+    return rows
+      .map((r) => ({
+        id: r.id as string,
+        relevance: 1 - Number(r._distance),
+      }))
+      .filter((h) => h.relevance >= params.minSimilarity);
+  }
+}
+
+export interface SearchParams {
+  embedding: number[];
+  projectId: string;
+  workspaceId: string | null;
+  scope: Array<"workspace" | "user" | "project">;
+  userId: string | null;
+  limit: number;
+  minSimilarity: number;
+}
+
+export interface SearchHit {
+  id: string;
+  relevance: number;
+}
+
+function sqlStr(v: string): string {
+  return `'${v.replace(/'/g, "''")}'`;
 }

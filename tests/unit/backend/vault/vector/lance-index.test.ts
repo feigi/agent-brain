@@ -67,3 +67,92 @@ describe("VaultVectorIndex — upsert + countRows", () => {
     ).rejects.toThrow(/dimension mismatch/);
   });
 });
+
+describe("VaultVectorIndex — search", () => {
+  let root: string;
+  let idx: VaultVectorIndex;
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "lance-test-"));
+    idx = await VaultVectorIndex.create({ root, dims: 3 });
+    await idx.upsert([
+      {
+        id: "a",
+        project_id: "p1",
+        workspace_id: "ws1",
+        scope: "workspace",
+        author: "u",
+        title: "A",
+        archived: false,
+        content_hash: "h",
+        vector: [1, 0, 0],
+      },
+      {
+        id: "b",
+        project_id: "p1",
+        workspace_id: "ws1",
+        scope: "workspace",
+        author: "u",
+        title: "B",
+        archived: false,
+        content_hash: "h",
+        vector: [0, 1, 0],
+      },
+      {
+        id: "c",
+        project_id: "p1",
+        workspace_id: "ws1",
+        scope: "workspace",
+        author: "u",
+        title: "C",
+        archived: true,
+        content_hash: "h",
+        vector: [1, 0, 0],
+      },
+    ]);
+  });
+  afterEach(async () => {
+    await idx.close();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("returns rows ordered by cosine similarity, excluding archived", async () => {
+    const hits = await idx.search({
+      embedding: [1, 0, 0],
+      projectId: "p1",
+      workspaceId: "ws1",
+      scope: ["workspace"],
+      userId: null,
+      limit: 10,
+      minSimilarity: 0,
+    });
+    expect(hits.map((h) => h.id)).toEqual(["a", "b"]);
+    expect(hits[0].relevance).toBeCloseTo(1, 5);
+    expect(hits[1].relevance).toBeCloseTo(0, 5);
+  });
+
+  it("respects minSimilarity threshold", async () => {
+    const hits = await idx.search({
+      embedding: [1, 0, 0],
+      projectId: "p1",
+      workspaceId: "ws1",
+      scope: ["workspace"],
+      userId: null,
+      limit: 10,
+      minSimilarity: 0.5,
+    });
+    expect(hits.map((h) => h.id)).toEqual(["a"]);
+  });
+
+  it("returns empty when scope list resolves to no clauses", async () => {
+    const hits = await idx.search({
+      embedding: [1, 0, 0],
+      projectId: "p1",
+      workspaceId: null, // workspace scope requested with no ws → skipped
+      scope: ["workspace"],
+      userId: null,
+      limit: 10,
+      minSimilarity: 0,
+    });
+    expect(hits).toEqual([]);
+  });
+});
