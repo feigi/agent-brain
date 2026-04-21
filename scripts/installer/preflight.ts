@@ -15,8 +15,12 @@ async function onPath(binary: string): Promise<boolean> {
     });
     return true;
   } catch (e) {
+    // Any numeric exit code means the shell ran and `command -v` reported
+    // not-found. Shells differ on the exact code: bash returns 1, dash returns
+    // 127. Non-numeric `.code` (e.g. ENOENT when /bin/sh is missing) is a real
+    // probe failure and rethrows.
     const code = (e as { code?: number | string }).code;
-    if (code === 1) return false;
+    if (typeof code === "number") return false;
     const msg = e instanceof Error ? e.message : String(e);
     throw new Error(`Failed to probe PATH for '${binary}': ${msg}`, {
       cause: e,
