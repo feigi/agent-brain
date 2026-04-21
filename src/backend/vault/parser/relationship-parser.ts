@@ -29,7 +29,12 @@ export function parseRelationshipSection(
         `confidence must be a finite number in: ${line}; got ${confidenceRaw}`,
       );
     const createdBy = required(kv, "by", line);
-    const createdAt = new Date(required(kv, "at", line));
+    const atRaw = required(kv, "at", line);
+    const createdAt = new Date(atRaw);
+    if (Number.isNaN(createdAt.getTime()))
+      throw new Error(
+        `"at" must be an ISO date string in: ${line}; got ${atRaw}`,
+      );
     const createdVia = kv.get("via") ?? null;
     const description = kv.get("description") ?? null;
 

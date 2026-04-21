@@ -1,10 +1,9 @@
 import lockfile from "proper-lockfile";
 
-// Per-file advisory lock. proper-lockfile creates a `<path>.lock`
-// sibling directory atomically; concurrent acquires on the same path
-// retry until the existing holder releases. retries.retries guards
-// against deadlocks from a crashed holder (stale-lock detection
-// reclaims locks older than stale ms).
+// Per-file advisory lock via proper-lockfile's `<path>.lock` sibling
+// directory. `retries` handles contention against a live holder (up
+// to ~10s worst case); `stale` reclaims a lock whose mtime exceeds
+// the threshold, which is how a crashed holder's lock is recovered.
 export async function withFileLock<T>(
   absPath: string,
   fn: () => Promise<T>,

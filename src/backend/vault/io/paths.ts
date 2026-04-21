@@ -7,25 +7,40 @@ export interface MemoryLocation {
   userId: string | null;
 }
 
+// Any segment interpolated into a vault path must not contain path
+// separators or `.`/`..` traversal tokens — otherwise a crafted id or
+// workspace slug could escape the vault root.
+const UNSAFE_SEGMENT = /[/\\]|^\.\.?$|\0/;
+
+function safeSegment(value: string, name: string): string {
+  if (value.length === 0 || UNSAFE_SEGMENT.test(value))
+    throw new Error(`invalid ${name}: ${JSON.stringify(value)}`);
+  return value;
+}
+
 export function memoryPath(loc: MemoryLocation): string {
+  const id = safeSegment(loc.id, "id");
   switch (loc.scope) {
     case "workspace": {
       if (!loc.workspaceId)
         throw new Error("workspace scope requires workspaceId");
-      return `workspaces/${loc.workspaceId}/memories/${loc.id}.md`;
+      const ws = safeSegment(loc.workspaceId, "workspaceId");
+      return `workspaces/${ws}/memories/${id}.md`;
     }
     case "project":
-      return `project/memories/${loc.id}.md`;
+      return `project/memories/${id}.md`;
     case "user": {
       if (!loc.userId) throw new Error("user scope requires userId");
       if (!loc.workspaceId) throw new Error("user scope requires workspaceId");
-      return `users/${loc.userId}/${loc.workspaceId}/${loc.id}.md`;
+      const user = safeSegment(loc.userId, "userId");
+      const ws = safeSegment(loc.workspaceId, "workspaceId");
+      return `users/${user}/${ws}/${id}.md`;
     }
   }
 }
 
 export function workspaceMetaPath(slug: string): string {
-  return `workspaces/${slug}/_workspace.md`;
+  return `workspaces/${safeSegment(slug, "slug")}/_workspace.md`;
 }
 
 // Inverse of memoryPath. Returns null for paths that do not match the

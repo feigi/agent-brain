@@ -230,6 +230,23 @@ describe.each(factories)("MemoryRepository contract — $name", (factory) => {
     expect(counts.new_memories).toBe(1);
   });
 
+  it("update on archived memory throws ConflictError", async () => {
+    await backend.memoryRepo.create({
+      ...makeMemory(),
+      embedding: ZERO_EMB,
+    });
+    await backend.memoryRepo.archive(["m1"]);
+    await expect(
+      backend.memoryRepo.update("m1", 1, { content: "x" }),
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("update on unknown id throws ConflictError", async () => {
+    await expect(
+      backend.memoryRepo.update("missing", 1, { content: "x" }),
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+
   it("findRecentActivity includes project-scope memories", async () => {
     const now = new Date();
     await backend.memoryRepo.create({

@@ -110,7 +110,8 @@ export function parseMemoryFile(md: string): ParsedMemoryFile {
         ? null
         : isoDate(fm.archived, "archived"),
     comment_count: comments.length,
-    flag_count: flags.length,
+    // Parity with pg: flag_count is unresolved flags only.
+    flag_count: flags.filter((f) => f.resolved_at === null).length,
     relationship_count: relationships.length,
     last_comment_at: lastCommentAt === null ? null : new Date(lastCommentAt),
     verified_by: nullableStr(fm.verified_by, "verified_by"),
@@ -179,12 +180,13 @@ export function serializeMemoryFile(input: ParsedMemoryFile): string {
 
 // Body layout contract:
 //   # <title>\n\n<content>\n\n## Relationships\n...\n\n## Comments\n...
-// Unknown `## ` headings are folded into <content> verbatim (decision
-// pinned in 2026-04-21 phase-2a plan: users may author arbitrary
-// sections; we never strip). Section order is fixed; Comments after
-// Relationships. Leading newline from gray-matter is stripped because
-// `matter.stringify` emits `---\n<fm>\n---\n<body>` and splitting on
-// that raw body would produce an empty first line.
+// Unknown `## ` headings fold into <content> verbatim — users may
+// author arbitrary sections and we never strip them.
+//
+// Reserved-heading collision: scan from the END of the body so that
+// user content containing literal `## Relationships` / `## Comments`
+// headings earlier in the text is preserved. Only the last occurrence
+// of each reserved heading is treated as a section boundary.
 function splitBody(body: string): {
   title: string;
   content: string;
@@ -200,40 +202,21 @@ function splitBody(body: string): {
   let rest = lines.slice(1);
   if (rest[0] === "") rest = rest.slice(1);
 
-  const relIdx = rest.findIndex((l) => l === "## Relationships");
-  const comIdx = rest.findIndex((l) => l === "## Comments");
+  const comIdx = rest.lastIndexOf("## Comments");
+  const endForRel = comIdx >= 0 ? comIdx : rest.length;
+  const relIdx = rest.slice(0, endForRel).lastIndexOf("## Relationships");
 
-  const indices = [
-    { kind: "relationships" as const, idx: relIdx },
-    { kind: "comments" as const, idx: comIdx },
-  ]
-    .filter((x) => x.idx >= 0)
-    .sort((a, b) => a.idx - b.idx);
-
-  if (indices.length === 2 && indices[0]!.kind !== "relationships") {
-    throw new Error("## Relationships must come before ## Comments");
-  }
-
-  const firstKnown = indices[0]?.idx ?? rest.length;
+  const firstKnown = relIdx >= 0 ? relIdx : comIdx >= 0 ? comIdx : rest.length;
   const content = rest.slice(0, firstKnown).join("\n").replace(/\n+$/, "");
 
-  function sliceSection(kind: "relationships" | "comments"): string {
-    const start = indices.find((x) => x.kind === kind)?.idx;
-    if (start === undefined) return "";
-    const next = indices.find((x) => x.idx > start)?.idx ?? rest.length;
-    return rest
-      .slice(start + 1, next)
-      .join("\n")
-      .replace(/^\n+/, "")
-      .replace(/\n+$/, "");
-  }
+  const trim = (s: string): string => s.replace(/^\n+/, "").replace(/\n+$/, "");
 
-  return {
-    title,
-    content,
-    relationshipSection: sliceSection("relationships"),
-    commentSection: sliceSection("comments"),
-  };
+  const relationshipSection =
+    relIdx >= 0 ? trim(rest.slice(relIdx + 1, endForRel).join("\n")) : "";
+  const commentSection =
+    comIdx >= 0 ? trim(rest.slice(comIdx + 1).join("\n")) : "";
+
+  return { title, content, relationshipSection, commentSection };
 }
 
 function str(v: unknown, name: string): string {

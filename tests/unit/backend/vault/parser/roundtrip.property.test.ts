@@ -386,7 +386,10 @@ describe("parser roundtrip (property-based)", () => {
           const parsed = parseMemoryFile(md);
 
           expect(parsed.memory.comment_count).toBe(input.comments.length);
-          expect(parsed.memory.flag_count).toBe(input.flags.length);
+          // flag_count is unresolved flags only (parity with pg).
+          expect(parsed.memory.flag_count).toBe(
+            input.flags.filter((f) => f.resolved_at === null).length,
+          );
           expect(parsed.memory.relationship_count).toBe(
             input.relationships.length,
           );

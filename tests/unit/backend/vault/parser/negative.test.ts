@@ -176,10 +176,12 @@ describe("parser negative paths — number/date finiteness", () => {
   });
 
   it("memory: section ordering violation (Comments before Relationships) throws", () => {
+    // splitBody scans from the end, so a file with Comments before Relationships
+    // assigns everything after the last Comments heading (including the later
+    // Relationships heading) to the comment section. comment-parser then rejects
+    // the `## Relationships` line as an invalid comment header.
     const md = `---\nid: m1\ntitle: T\ntype: fact\nscope: project\nworkspace_id: null\nproject_id: p\nauthor: a\nsource: null\nsession_id: null\ntags: null\nversion: 1\ncreated: "2026-04-21T00:00:00.000Z"\nupdated: "2026-04-21T00:00:00.000Z"\nverified: null\nverified_by: null\narchived: null\nembedding_model: null\nembedding_dimensions: null\nmetadata: null\nflags: []\n---\n\n# T\n\nbody\n\n## Comments\n\n> [!comment] a · 2026-04-21T00:00:00.000Z · c1\n> hi\n\n## Relationships\n\n- related:: [[x]] — id: r, confidence: 1, by: a, at: 2026-04-21T00:00:00.000Z\n`;
-    expect(() => parseMemoryFile(md)).toThrow(
-      /Relationships.*before.*Comments/,
-    );
+    expect(() => parseMemoryFile(md)).toThrow(/Invalid comment header/);
   });
 
   it("memory: missing H1 throws", () => {
@@ -231,6 +233,74 @@ describe("parser negative paths — number/date finiteness", () => {
     expect(() =>
       parseRelationshipSection(line, { projectId: "p", sourceId: "s" }),
     ).toThrow(/Unterminated description/);
+  });
+
+  it("relationship: invalid at date throws", () => {
+    const line = `- related:: [[t]] — id: r, confidence: 1, by: a, at: not-a-date`;
+    expect(() =>
+      parseRelationshipSection(line, { projectId: "p", sourceId: "s" }),
+    ).toThrow(/"at" must be an ISO date string/);
+  });
+
+  it("memory: content containing '## Relationships' survives roundtrip when real sections follow", async () => {
+    // Reserved heading appears in user content; real Relationships and
+    // Comments sections come after it. splitBody scans from the end, so
+    // the user-authored heading lands inside content verbatim.
+    const { serializeMemoryFile } =
+      await import("../../../../../src/backend/vault/parser/memory-parser.js");
+    const content =
+      "intro paragraph.\n\n## Relationships\n\nsome prose under a fake heading.\n\nmore prose.";
+    const fm = {
+      id: "m1",
+      project_id: "p",
+      workspace_id: null,
+      content,
+      title: "T",
+      type: "fact" as const,
+      scope: "project" as const,
+      tags: null,
+      author: "a",
+      source: null,
+      session_id: null,
+      metadata: null,
+      embedding_model: null,
+      embedding_dimensions: null,
+      version: 1,
+      created_at: new Date("2026-04-21T00:00:00.000Z"),
+      updated_at: new Date("2026-04-21T00:00:00.000Z"),
+      verified_at: null,
+      verified_by: null,
+      archived_at: null,
+      comment_count: 0,
+      flag_count: 0,
+      relationship_count: 0,
+      last_comment_at: null,
+    };
+    const relationships = [
+      {
+        id: "r1",
+        project_id: "p",
+        source_id: "m1",
+        target_id: "m2",
+        type: "related",
+        description: null,
+        confidence: 1,
+        created_by: "a",
+        created_via: null,
+        archived_at: null,
+        created_at: new Date("2026-04-21T00:00:00.000Z"),
+      },
+    ];
+    const md = serializeMemoryFile({
+      memory: fm,
+      flags: [],
+      comments: [],
+      relationships,
+    });
+    const parsed = parseMemoryFile(md);
+    expect(parsed.memory.content).toBe(content);
+    expect(parsed.relationships).toHaveLength(1);
+    expect(parsed.relationships[0]!.id).toBe("r1");
   });
 
   it("flag: invalid severity throws", () => {

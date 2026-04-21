@@ -101,4 +101,45 @@ describe("vault paths", () => {
     expect(inferScopeFromPath("random/file.md")).toBeNull();
     expect(inferScopeFromPath("workspaces/ws/m1.md")).toBeNull(); // missing memories/
   });
+
+  it("memoryPath rejects traversal tokens and path separators in id", () => {
+    for (const bad of ["..", ".", "a/b", "a\\b", "", "a\0b"]) {
+      expect(() =>
+        memoryPath({
+          id: bad,
+          scope: "workspace",
+          workspaceId: "ws",
+          userId: null,
+        }),
+      ).toThrow(/invalid id/);
+    }
+  });
+
+  it("memoryPath rejects traversal tokens and path separators in workspaceId/userId", () => {
+    // Empty string triggers the pre-existing null guard, so skip it here.
+    for (const bad of ["..", ".", "a/b", "a\\b", "a\0b"]) {
+      expect(() =>
+        memoryPath({
+          id: "m1",
+          scope: "workspace",
+          workspaceId: bad,
+          userId: null,
+        }),
+      ).toThrow(/invalid workspaceId/);
+      expect(() =>
+        memoryPath({
+          id: "m1",
+          scope: "user",
+          workspaceId: "ws",
+          userId: bad,
+        }),
+      ).toThrow(/invalid userId/);
+    }
+  });
+
+  it("workspaceMetaPath rejects traversal tokens and path separators", () => {
+    for (const bad of ["..", ".", "a/b", "a\\b", "", "a\0b"]) {
+      expect(() => workspaceMetaPath(bad)).toThrow(/invalid slug/);
+    }
+  });
 });

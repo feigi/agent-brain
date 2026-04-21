@@ -15,7 +15,11 @@ import type {
   RecentActivityOptions,
   TeamActivityCounts,
 } from "../../../repositories/types.js";
-import { ConflictError, NotFoundError } from "../../../utils/errors.js";
+import {
+  ConflictError,
+  NotFoundError,
+  ValidationError,
+} from "../../../utils/errors.js";
 import { NotImplementedError } from "../errors.js";
 import {
   parseMemoryFile,
@@ -60,7 +64,9 @@ export class VaultMemoryRepository implements MemoryRepository {
     const files = await safeListMd(cfg.root);
     for (const rel of files) {
       const loc = inferScopeFromPath(rel);
-      if (loc === null) continue; // skip _workspace.md and friends
+      // Non-memory files (e.g. _workspace.md) don't match the three
+      // memory layouts and are skipped here.
+      if (loc === null) continue;
       index.set(loc.id, {
         path: rel,
         scope: loc.scope,
@@ -70,8 +76,6 @@ export class VaultMemoryRepository implements MemoryRepository {
     }
     return new VaultMemoryRepository(cfg, index);
   }
-
-  // ---- CRUD -----------------------------------------------------------
 
   async create(memory: Memory & { embedding: number[] }): Promise<Memory> {
     if (this.index.has(memory.id)) {
@@ -88,6 +92,15 @@ export class VaultMemoryRepository implements MemoryRepository {
     const abs = join(this.cfg.root, rel);
     await ensurePlaceholder(abs);
     await withFileLock(abs, async () => {
+      // Re-check under lock: a racing create() on the same id may have
+      // passed the index check and written content between the fast
+      // path above and lock acquisition here. A non-empty file means
+      // some other writer already committed; fail with ConflictError
+      // rather than silently clobbering it.
+      const existing = await readMarkdown(this.cfg.root, rel);
+      if (existing.length > 0) {
+        throw new ConflictError(`memory already exists: ${memory.id}`);
+      }
       await writeMarkdownAtomic(this.cfg.root, rel, md);
     });
     this.index.set(memory.id, {
@@ -129,19 +142,26 @@ export class VaultMemoryRepository implements MemoryRepository {
     updates: Partial<Memory> & { embedding?: number[] | null },
   ): Promise<Memory> {
     const entry = this.index.get(id);
-    if (!entry) throw new NotFoundError("memory", id);
+    if (!entry)
+      throw new ConflictError(
+        `Memory ${id} update failed: not found or archived`,
+      );
 
     const abs = join(this.cfg.root, entry.path);
     return await withFileLock(abs, async () => {
       const raw = await readMarkdown(this.cfg.root, entry.path);
       const parsed = parseMemoryFile(raw);
+      if (parsed.memory.archived_at !== null)
+        throw new ConflictError(
+          `Memory ${id} update failed: not found or archived`,
+        );
       if (parsed.memory.version !== expectedVersion)
         throw new ConflictError(
-          `version mismatch: expected ${expectedVersion}, found ${parsed.memory.version}`,
+          `Memory ${id} update failed: version mismatch (expected ${expectedVersion}, found ${parsed.memory.version})`,
         );
 
-      // Drop embedding: phase-2 ignores the vector, phase-3 will wire it
-      // to LanceDB. The partial update is applied verbatim otherwise.
+      // Embedding is stored outside the markdown file; callers may
+      // pass one through but the vault persists only scalar fields.
       const { embedding: _emb, ...rest } = updates;
       void _emb;
 
@@ -214,16 +234,15 @@ export class VaultMemoryRepository implements MemoryRepository {
     });
   }
 
-  // ---- Listings -------------------------------------------------------
-
   async list(options: ListOptions): ReturnType<MemoryRepository["list"]> {
+    validateListScope(options);
     const all = await this.#loadAll();
     const filtered = all.filter((m) => matchesList(m, options));
     const sortBy = options.sort_by ?? "created_at";
     const order = options.order ?? "desc";
     filtered.sort((a, b) => compareMemory(a, b, sortBy, order));
     const sliced = applyCursor(filtered, options.cursor, sortBy, order);
-    const limit = options.limit ?? 50;
+    const limit = options.limit ?? 20;
     const page = sliced.slice(0, limit);
     const has_more = sliced.length > limit;
     const last = page[page.length - 1];
@@ -250,9 +269,9 @@ export class VaultMemoryRepository implements MemoryRepository {
           m.archived_at === null &&
           (m.verified_at ?? m.created_at).getTime() < cutoff.getTime(),
       )
-      .sort((a, b) => compareMemory(a, b, "created_at", "asc"));
-    const sliced = applyCursor(filtered, options.cursor, "created_at", "asc");
-    const limit = options.limit ?? 50;
+      .sort((a, b) => compareMemory(a, b, "created_at", "desc"));
+    const sliced = applyCursor(filtered, options.cursor, "created_at", "desc");
+    const limit = options.limit ?? 20;
     const page = sliced.slice(0, limit);
     const has_more = sliced.length > limit;
     const last = page[page.length - 1];
@@ -273,6 +292,7 @@ export class VaultMemoryRepository implements MemoryRepository {
         (m) =>
           m.project_id === options.project_id &&
           m.scope === "project" &&
+          m.workspace_id === null &&
           m.archived_at === null,
       )
       .sort((a, b) => compareMemory(a, b, "created_at", "desc"))
@@ -302,16 +322,13 @@ export class VaultMemoryRepository implements MemoryRepository {
       .filter((m) => {
         if (m.archived_at !== null) return false;
         if (m.project_id !== options.project_id) return false;
-        // Time filter: created_at >= since OR updated_at >= since
         const sinceMs = options.since.getTime();
         if (
           m.created_at.getTime() < sinceMs &&
           m.updated_at.getTime() < sinceMs
         )
           return false;
-        // exclude_self
         if (options.exclude_self && m.author === options.user_id) return false;
-        // Scope enforcement: workspace memories matching ws, all project-scope, user-scope authored by caller
         if (m.scope === "workspace" && m.workspace_id === options.workspace_id)
           return true;
         if (m.scope === "project") return true;
@@ -322,13 +339,14 @@ export class VaultMemoryRepository implements MemoryRepository {
       .slice(0, options.limit);
   }
 
+  // team_activity counts the caller's own changes — it's a
+  // workspace-wide pulse, not a "since you were away" feed.
   async countTeamActivity(
     projectId: string,
     workspaceId: string,
     userId: string,
     since: Date,
   ): Promise<TeamActivityCounts> {
-    // D-30: team_activity includes the user's own changes -- do NOT filter by author
     const all = await this.#loadAll();
     const scoped = all.filter(
       (m) =>
@@ -342,7 +360,11 @@ export class VaultMemoryRepository implements MemoryRepository {
     const sinceMs = since.getTime();
     for (const m of scoped) {
       if (m.created_at.getTime() > sinceMs) new_memories += 1;
-      else if (m.updated_at.getTime() > sinceMs) updated_memories += 1;
+      else if (
+        m.created_at.getTime() < sinceMs &&
+        m.updated_at.getTime() > sinceMs
+      )
+        updated_memories += 1;
       if (m.last_comment_at !== null && m.last_comment_at.getTime() > sinceMs)
         commented_memories += 1;
     }
@@ -359,27 +381,26 @@ export class VaultMemoryRepository implements MemoryRepository {
     return Array.from(set);
   }
 
-  // ---- Vector methods (Phase 3) ---------------------------------------
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  /* eslint-disable @typescript-eslint/no-unused-vars */
   async search(_options: SearchOptions): Promise<MemoryWithRelevance[]> {
     throw new NotImplementedError("search");
   }
-  async findDuplicates(): ReturnType<MemoryRepository["findDuplicates"]> {
+  async findDuplicates(
+    _options: Parameters<MemoryRepository["findDuplicates"]>[0],
+  ): ReturnType<MemoryRepository["findDuplicates"]> {
     throw new NotImplementedError("findDuplicates");
   }
-  async findPairwiseSimilar(): ReturnType<
-    MemoryRepository["findPairwiseSimilar"]
-  > {
+  async findPairwiseSimilar(
+    _options: Parameters<MemoryRepository["findPairwiseSimilar"]>[0],
+  ): ReturnType<MemoryRepository["findPairwiseSimilar"]> {
     throw new NotImplementedError("findPairwiseSimilar");
   }
-  async listWithEmbeddings(): ReturnType<
-    MemoryRepository["listWithEmbeddings"]
-  > {
+  async listWithEmbeddings(
+    _options: Parameters<MemoryRepository["listWithEmbeddings"]>[0],
+  ): ReturnType<MemoryRepository["listWithEmbeddings"]> {
     throw new NotImplementedError("listWithEmbeddings");
   }
-
-  // ---- internals ------------------------------------------------------
+  /* eslint-enable @typescript-eslint/no-unused-vars */
 
   async #loadAll(): Promise<Memory[]> {
     const out: Memory[] = [];
@@ -439,19 +460,41 @@ async function ensurePlaceholder(abs: string): Promise<void> {
   }
 }
 
+function validateListScope(o: ListOptions): void {
+  if (o.scope.length === 0) {
+    throw new ValidationError("scope must contain at least one value");
+  }
+  if (o.scope.includes("workspace") && !o.workspace_id) {
+    throw new ValidationError(
+      "workspace_id is required for workspace-scoped list",
+    );
+  }
+  if (o.scope.includes("user") && !o.user_id) {
+    throw new ValidationError("user_id is required for user-scoped list");
+  }
+}
+
+// Mirror pg: scopes are OR-ed, and each scope has its own scope-column
+// + id-column constraint. Project-scope ignores workspace_id entirely,
+// so a workspace-scoped list that also includes project returns both.
 function matchesList(m: Memory, o: ListOptions): boolean {
   if (m.archived_at !== null) return false;
   if (m.project_id !== o.project_id) return false;
-  if (!o.scope.includes(m.scope)) return false;
-  if (o.workspace_id !== undefined && m.workspace_id !== o.workspace_id)
+
+  const scopeMatch = o.scope.some((s) => {
+    if (s === "workspace")
+      return m.scope === "workspace" && m.workspace_id === o.workspace_id;
+    if (s === "project") return m.scope === "project";
+    if (s === "user") return m.scope === "user" && m.author === o.user_id;
     return false;
+  });
+  if (!scopeMatch) return false;
+
   if (o.type !== undefined && m.type !== o.type) return false;
   if (o.tags !== undefined && o.tags.length > 0) {
     const haystack = new Set(m.tags ?? []);
     if (!o.tags.some((t) => haystack.has(t))) return false;
   }
-  if (o.user_id !== undefined && m.scope === "user" && m.author !== o.user_id)
-    return false;
   return true;
 }
 
@@ -465,7 +508,7 @@ function compareMemory(
   const bv = b[sortBy].getTime();
   const primary = av - bv;
   if (primary !== 0) return order === "asc" ? primary : -primary;
-  // Tiebreak on id for determinism.
+  // Tiebreak on id for stable cursor paging.
   const cmp = a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
   return order === "asc" ? cmp : -cmp;
 }

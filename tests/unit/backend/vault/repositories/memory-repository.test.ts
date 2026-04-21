@@ -3,7 +3,11 @@ import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { VaultMemoryRepository } from "../../../../../src/backend/vault/repositories/memory-repository.js";
-import { ConflictError } from "../../../../../src/utils/errors.js";
+import { NotImplementedError } from "../../../../../src/backend/vault/errors.js";
+import {
+  ConflictError,
+  ValidationError,
+} from "../../../../../src/utils/errors.js";
 import type { Memory } from "../../../../../src/types/memory.js";
 
 function makeMemory(overrides: Partial<Memory> = {}): Memory {
@@ -368,5 +372,130 @@ describe("VaultMemoryRepository — listings", () => {
     expect(counts.new_memories).toBe(1);
     expect(counts.updated_memories).toBe(0); // same as new_memories — updated_at === created_at
     expect(counts.commented_memories).toBe(0);
+  });
+
+  it("countTeamActivity classifies updated-not-created with strict boundary", async () => {
+    const since = new Date("2026-04-01T00:00:00Z");
+    // created_at === since → not counted in either bucket (strict gt).
+    await repo.create({
+      ...makeMemory({
+        id: "edge",
+        project_id: "P",
+        workspace_id: "ws",
+        author: "x",
+        created_at: since,
+        updated_at: new Date(since.getTime() + 60_000),
+      }),
+      embedding: [0],
+    });
+    // created_at < since AND updated_at > since → updated-not-created.
+    await repo.create({
+      ...makeMemory({
+        id: "upd",
+        project_id: "P",
+        workspace_id: "ws",
+        author: "x",
+        created_at: new Date(since.getTime() - 60_000),
+        updated_at: new Date(since.getTime() + 60_000),
+      }),
+      embedding: [0],
+    });
+    const counts = await repo.countTeamActivity("P", "ws", "me", since);
+    expect(counts.new_memories).toBe(0);
+    expect(counts.updated_memories).toBe(1);
+  });
+});
+
+describe("VaultMemoryRepository — vector stubs throw NotImplementedError", () => {
+  let root: string;
+  let repo: VaultMemoryRepository;
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "vault-memrepo-stubs-"));
+    repo = await VaultMemoryRepository.create({ root });
+  });
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("search throws NotImplementedError with statusHint 501", async () => {
+    await expect(
+      repo.search({
+        embedding: [0],
+        project_id: "p",
+        workspace_id: "ws",
+        scope: ["workspace"],
+      }),
+    ).rejects.toSatisfy((err: unknown) => {
+      return (
+        err instanceof NotImplementedError &&
+        (err as NotImplementedError).statusHint === 501 &&
+        (err as Error).message.includes("search")
+      );
+    });
+  });
+
+  it("findDuplicates throws NotImplementedError", async () => {
+    await expect(
+      repo.findDuplicates({
+        embedding: [0],
+        projectId: "p",
+        workspaceId: "ws",
+        scope: "workspace",
+        userId: "u",
+        threshold: 0.9,
+      }),
+    ).rejects.toBeInstanceOf(NotImplementedError);
+  });
+
+  it("findPairwiseSimilar throws NotImplementedError", async () => {
+    await expect(
+      repo.findPairwiseSimilar({
+        projectId: "p",
+        workspaceId: "ws",
+        scope: "workspace",
+        threshold: 0.9,
+      }),
+    ).rejects.toBeInstanceOf(NotImplementedError);
+  });
+
+  it("listWithEmbeddings throws NotImplementedError", async () => {
+    await expect(
+      repo.listWithEmbeddings({
+        projectId: "p",
+        workspaceId: "ws",
+        scope: "workspace",
+        limit: 10,
+      }),
+    ).rejects.toBeInstanceOf(NotImplementedError);
+  });
+});
+
+describe("VaultMemoryRepository — list validation", () => {
+  let root: string;
+  let repo: VaultMemoryRepository;
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "vault-memrepo-validate-"));
+    repo = await VaultMemoryRepository.create({ root });
+  });
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("list throws ValidationError on empty scope", async () => {
+    await expect(
+      repo.list({ project_id: "p", scope: [] }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("list throws ValidationError when workspace scope lacks workspace_id", async () => {
+    await expect(
+      repo.list({ project_id: "p", scope: ["workspace"] }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("list throws ValidationError when user scope lacks user_id", async () => {
+    await expect(
+      repo.list({ project_id: "p", scope: ["user"] }),
+    ).rejects.toBeInstanceOf(ValidationError);
   });
 });
