@@ -86,9 +86,8 @@ export const vaultFactory: Factory = {
   name: "vault",
   async create() {
     const root = await mkdtemp(join(tmpdir(), "contract-vault-"));
-    const { VaultVectorIndex } = await import(
-      "../../../src/backend/vault/vector/lance-index.js"
-    );
+    const { VaultVectorIndex } =
+      await import("../../../src/backend/vault/vector/lance-index.js");
     const index = await VaultVectorIndex.create({ root, dims: 768 });
     const memoryRepo = await VaultMemoryRepository.create({ root, index });
     const workspaceRepo = new VaultWorkspaceRepository({ root });

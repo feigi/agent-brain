@@ -45,17 +45,17 @@ Every write op in `VaultMemoryRepository` takes the file lock, writes the markdo
 
 One table: `memories`. Columns:
 
-| Column          | Type                        | Meaning                                     |
-| --------------- | --------------------------- | ------------------------------------------- |
-| `id`            | Utf8 (primary key for merge) | memory id                                   |
-| `project_id`    | Utf8                        | deployment isolation filter                 |
-| `workspace_id`  | Utf8 nullable               | workspace scope filter                      |
-| `scope`         | Utf8                        | `workspace` / `user` / `project`            |
-| `author`        | Utf8                        | user-scope filter                           |
-| `title`         | Utf8                        | returned by findDuplicates                  |
-| `archived`      | Bool                        | mirrors `archived_at IS NOT NULL`           |
-| `content_hash`  | Utf8                        | sha256(content) — skip re-embed on no-op    |
-| `vector`        | FixedSizeList<Float32, D>   | embedding; D derived from first insert      |
+| Column         | Type                         | Meaning                                  |
+| -------------- | ---------------------------- | ---------------------------------------- |
+| `id`           | Utf8 (primary key for merge) | memory id                                |
+| `project_id`   | Utf8                         | deployment isolation filter              |
+| `workspace_id` | Utf8 nullable                | workspace scope filter                   |
+| `scope`        | Utf8                         | `workspace` / `user` / `project`         |
+| `author`       | Utf8                         | user-scope filter                        |
+| `title`        | Utf8                         | returned by findDuplicates               |
+| `archived`     | Bool                         | mirrors `archived_at IS NOT NULL`        |
+| `content_hash` | Utf8                         | sha256(content) — skip re-embed on no-op |
+| `vector`       | FixedSizeList<Float32, D>    | embedding; D derived from first insert   |
 
 `D` is locked on first write (embedding_dimensions from the first create). Subsequent writes with mismatched dimension throw `ValidationError` at the wrapper.
 
@@ -98,13 +98,13 @@ All four read methods go through `VaultVectorIndex`:
 
 ### Failure semantics
 
-| Failure                                 | Phase 3 behavior                                                   |
-| --------------------------------------- | ------------------------------------------------------------------ |
-| Lance upsert fails after markdown write | Log warning, caller sees success. Index is now stale for this id. Repair in Phase 5. |
+| Failure                                 | Phase 3 behavior                                                                                                                                                                                                                    |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lance upsert fails after markdown write | Log warning, caller sees success. Index is now stale for this id. Repair in Phase 5.                                                                                                                                                |
 | Lance delete fails during archive       | Same — log + succeed. Next search may surface the archived memory with a stale row; `archived=false` filter on the read path keys on the lance row, so this is a visible bug. Add an explicit unit test that exercises this branch. |
-| Dimension mismatch on write             | `ValidationError` — hard fail, markdown has already been written under Phase 2a. Caller sees success on markdown but the vector is not indexed. Acceptable for Phase 3 — a dimension change is operator-driven and rare. |
-| Index corruption / missing              | `VaultVectorIndex.create` throws on startup. `VaultBackend.create` propagates. |
-| Search on empty index                   | Return `[]`. |
+| Dimension mismatch on write             | `ValidationError` — hard fail, markdown has already been written under Phase 2a. Caller sees success on markdown but the vector is not indexed. Acceptable for Phase 3 — a dimension change is operator-driven and rare.            |
+| Index corruption / missing              | `VaultVectorIndex.create` throws on startup. `VaultBackend.create` propagates.                                                                                                                                                      |
+| Search on empty index                   | Return `[]`.                                                                                                                                                                                                                        |
 
 ## File Structure
 
@@ -137,16 +137,16 @@ All four read methods go through `VaultVectorIndex`:
 
 ## File Structure Summary
 
-| File                                                   | Responsibility                                                  |
-| ------------------------------------------------------ | --------------------------------------------------------------- |
-| `vector/schema.ts`                                     | Arrow schema builder                                            |
-| `vector/hash.ts`                                       | Pure content hash                                               |
-| `vector/lance-index.ts`                                | Stateful wrapper: connect, upsert, markArchived, search, etc.   |
-| `repositories/memory-repository.ts` (modified)         | Wire write-through + implement 4 vector methods via index       |
-| `index.ts` (modified)                                  | Compose index into VaultBackend lifecycle                       |
-| `tests/unit/backend/vault/vector/lance-index.test.ts`  | Wrapper unit coverage                                           |
-| `tests/contract/repositories/memory-repository-vector.test.ts` | Parity across pg + vault for the four methods           |
-| `tests/integration/vector-parity.test.ts`              | 500-memory overlap                                              |
+| File                                                           | Responsibility                                                |
+| -------------------------------------------------------------- | ------------------------------------------------------------- |
+| `vector/schema.ts`                                             | Arrow schema builder                                          |
+| `vector/hash.ts`                                               | Pure content hash                                             |
+| `vector/lance-index.ts`                                        | Stateful wrapper: connect, upsert, markArchived, search, etc. |
+| `repositories/memory-repository.ts` (modified)                 | Wire write-through + implement 4 vector methods via index     |
+| `index.ts` (modified)                                          | Compose index into VaultBackend lifecycle                     |
+| `tests/unit/backend/vault/vector/lance-index.test.ts`          | Wrapper unit coverage                                         |
+| `tests/contract/repositories/memory-repository-vector.test.ts` | Parity across pg + vault for the four methods                 |
+| `tests/integration/vector-parity.test.ts`                      | 500-memory overlap                                            |
 
 ---
 
@@ -157,6 +157,7 @@ Tasks target 5–15 minutes each. Commit after each. Subagent-driven execution i
 ### Task 1: Add `@lancedb/lancedb` dependency and smoke-import
 
 **Files:**
+
 - Modify: `package.json`
 - Modify: `package-lock.json`
 - Create: `tests/unit/backend/vault/vector/smoke.test.ts`
@@ -221,6 +222,7 @@ git commit -m "chore(deps): add @lancedb/lancedb + apache-arrow for vault vector
 ### Task 2: `vector/hash.ts` + unit test
 
 **Files:**
+
 - Create: `src/backend/vault/vector/hash.ts`
 - Create: `tests/unit/backend/vault/vector/hash.test.ts`
 
@@ -285,6 +287,7 @@ git commit -m "feat(vault-vector): add sha256 contentHash helper"
 ### Task 3: `vector/schema.ts` + unit test
 
 **Files:**
+
 - Create: `src/backend/vault/vector/schema.ts`
 - Create: `tests/unit/backend/vault/vector/schema.test.ts`
 
@@ -378,6 +381,7 @@ git commit -m "feat(vault-vector): add Arrow memorySchema builder"
 ### Task 4: `VaultVectorIndex` skeleton — create, close, upsert, countRows
 
 **Files:**
+
 - Create: `src/backend/vault/vector/lance-index.ts`
 - Create: `tests/unit/backend/vault/vector/lance-index.test.ts`
 
@@ -468,8 +472,8 @@ export interface IndexRow {
 }
 
 export interface VaultVectorIndexConfig {
-  root: string;           // absolute path; wrapper appends /.agent-brain/index.lance
-  dims: number;           // embedding dimension, pins the table schema on first create
+  root: string; // absolute path; wrapper appends /.agent-brain/index.lance
+  dims: number; // embedding dimension, pins the table schema on first create
 }
 
 export class VaultVectorIndex {
@@ -537,6 +541,7 @@ git commit -m "feat(vault-vector): VaultVectorIndex skeleton — create/close/up
 ### Task 5: `VaultVectorIndex.search` + cosine filter predicate
 
 **Files:**
+
 - Modify: `src/backend/vault/vector/lance-index.ts`
 - Modify: `tests/unit/backend/vault/vector/lance-index.test.ts`
 
@@ -580,7 +585,7 @@ describe("VaultVectorIndex — search", () => {
         scope: "workspace",
         author: "u",
         title: "C",
-        archived: true,          // must be filtered out
+        archived: true, // must be filtered out
         content_hash: "h",
         vector: [1, 0, 0],
       },
@@ -720,6 +725,7 @@ git commit -m "feat(vault-vector): VaultVectorIndex.search with cosine + scope f
 ### Task 6: `VaultVectorIndex.findDuplicates` (scope-aware, D-16 parity)
 
 **Files:**
+
 - Modify: `src/backend/vault/vector/lance-index.ts`
 - Modify: `tests/unit/backend/vault/vector/lance-index.test.ts`
 
@@ -871,6 +877,7 @@ git commit -m "feat(vault-vector): VaultVectorIndex.findDuplicates (D-16 parity)
 ### Task 7: `VaultVectorIndex.findPairwiseSimilar` — per-row search approach
 
 **Files:**
+
 - Modify: `src/backend/vault/vector/lance-index.ts`
 - Modify: `tests/unit/backend/vault/vector/lance-index.test.ts`
 
@@ -884,9 +891,39 @@ describe("VaultVectorIndex — findPairwiseSimilar", () => {
     root = await mkdtemp(join(tmpdir(), "lance-test-"));
     idx = await VaultVectorIndex.create({ root, dims: 3 });
     await idx.upsert([
-      { id: "a", project_id: "p1", workspace_id: "ws1", scope: "workspace", author: "u", title: "A", archived: false, content_hash: "h", vector: [1, 0, 0] },
-      { id: "b", project_id: "p1", workspace_id: "ws1", scope: "workspace", author: "u", title: "B", archived: false, content_hash: "h", vector: [0.99, 0.01, 0] },
-      { id: "c", project_id: "p1", workspace_id: "ws1", scope: "workspace", author: "u", title: "C", archived: false, content_hash: "h", vector: [0, 1, 0] },
+      {
+        id: "a",
+        project_id: "p1",
+        workspace_id: "ws1",
+        scope: "workspace",
+        author: "u",
+        title: "A",
+        archived: false,
+        content_hash: "h",
+        vector: [1, 0, 0],
+      },
+      {
+        id: "b",
+        project_id: "p1",
+        workspace_id: "ws1",
+        scope: "workspace",
+        author: "u",
+        title: "B",
+        archived: false,
+        content_hash: "h",
+        vector: [0.99, 0.01, 0],
+      },
+      {
+        id: "c",
+        project_id: "p1",
+        workspace_id: "ws1",
+        scope: "workspace",
+        author: "u",
+        title: "C",
+        archived: false,
+        content_hash: "h",
+        vector: [0, 1, 0],
+      },
     ]);
   });
   afterEach(async () => {
@@ -986,6 +1023,7 @@ git commit -m "feat(vault-vector): VaultVectorIndex.findPairwiseSimilar"
 ### Task 8: `VaultVectorIndex.listEmbeddings` + `markArchived` + `upsertMetaOnly`
 
 **Files:**
+
 - Modify: `src/backend/vault/vector/lance-index.ts`
 - Modify: `tests/unit/backend/vault/vector/lance-index.test.ts`
 
@@ -999,8 +1037,28 @@ describe("VaultVectorIndex — listEmbeddings + markArchived + upsertMetaOnly", 
     root = await mkdtemp(join(tmpdir(), "lance-test-"));
     idx = await VaultVectorIndex.create({ root, dims: 3 });
     await idx.upsert([
-      { id: "a", project_id: "p1", workspace_id: "ws1", scope: "workspace", author: "u", title: "A", archived: false, content_hash: "h", vector: [1, 0, 0] },
-      { id: "b", project_id: "p1", workspace_id: "ws1", scope: "workspace", author: "u", title: "B", archived: false, content_hash: "h", vector: [0, 1, 0] },
+      {
+        id: "a",
+        project_id: "p1",
+        workspace_id: "ws1",
+        scope: "workspace",
+        author: "u",
+        title: "A",
+        archived: false,
+        content_hash: "h",
+        vector: [1, 0, 0],
+      },
+      {
+        id: "b",
+        project_id: "p1",
+        workspace_id: "ws1",
+        scope: "workspace",
+        author: "u",
+        title: "B",
+        archived: false,
+        content_hash: "h",
+        vector: [0, 1, 0],
+      },
     ]);
   });
   afterEach(async () => {
@@ -1138,6 +1196,7 @@ git commit -m "feat(vault-vector): markArchived + upsertMetaOnly + listEmbedding
 ### Task 9: Wire index into `VaultMemoryRepository` — constructor + create path
 
 **Files:**
+
 - Modify: `src/backend/vault/repositories/memory-repository.ts`
 
 - [ ] **Step 1: Update `VaultMemoryConfig` and constructor**
@@ -1321,6 +1380,7 @@ git commit -m "feat(vault-vector): wire VaultVectorIndex into VaultMemoryReposit
 ### Task 10: Hook update + archive write-through
 
 **Files:**
+
 - Modify: `src/backend/vault/repositories/memory-repository.ts`
 
 - [ ] **Step 1: Add a unit test asserting the index stays in sync on update**
@@ -1342,13 +1402,31 @@ const now = new Date("2026-04-22T00:00:00.000Z");
 
 function makeMemory(overrides: Partial<Memory> = {}): Memory {
   return {
-    id: "m1", project_id: "p1", workspace_id: "ws1",
-    content: "body", title: "Title", type: "fact", scope: "workspace",
-    tags: null, author: "a", source: null, session_id: null, metadata: null,
-    embedding_model: null, embedding_dimensions: DIMS, version: 1,
-    created_at: now, updated_at: now, verified_at: null, archived_at: null,
-    comment_count: 0, flag_count: 0, relationship_count: 0, last_comment_at: null,
-    verified_by: null, ...overrides,
+    id: "m1",
+    project_id: "p1",
+    workspace_id: "ws1",
+    content: "body",
+    title: "Title",
+    type: "fact",
+    scope: "workspace",
+    tags: null,
+    author: "a",
+    source: null,
+    session_id: null,
+    metadata: null,
+    embedding_model: null,
+    embedding_dimensions: DIMS,
+    version: 1,
+    created_at: now,
+    updated_at: now,
+    verified_at: null,
+    archived_at: null,
+    comment_count: 0,
+    flag_count: 0,
+    relationship_count: 0,
+    last_comment_at: null,
+    verified_by: null,
+    ...overrides,
   };
 }
 
@@ -1489,6 +1567,7 @@ git commit -m "feat(vault-vector): write-through on update + archive"
 ### Task 11: Implement `search` on VaultMemoryRepository
 
 **Files:**
+
 - Modify: `src/backend/vault/repositories/memory-repository.ts`
 
 - [ ] **Step 1: Write failing contract test**
@@ -1511,14 +1590,31 @@ function embVec(seed: number): number[] {
 
 function makeMemory(id: string, overrides: Partial<Memory> = {}): Memory {
   return {
-    id, project_id: "p1", workspace_id: "ws1",
-    content: `body-${id}`, title: `T-${id}`, type: "fact",
-    scope: "workspace", tags: null, author: "a", source: null,
-    session_id: null, metadata: null, embedding_model: null,
-    embedding_dimensions: DIMS, version: 1,
-    created_at: now, updated_at: now, verified_at: null, archived_at: null,
-    comment_count: 0, flag_count: 0, relationship_count: 0,
-    last_comment_at: null, verified_by: null, ...overrides,
+    id,
+    project_id: "p1",
+    workspace_id: "ws1",
+    content: `body-${id}`,
+    title: `T-${id}`,
+    type: "fact",
+    scope: "workspace",
+    tags: null,
+    author: "a",
+    source: null,
+    session_id: null,
+    metadata: null,
+    embedding_model: null,
+    embedding_dimensions: DIMS,
+    version: 1,
+    created_at: now,
+    updated_at: now,
+    verified_at: null,
+    archived_at: null,
+    comment_count: 0,
+    flag_count: 0,
+    relationship_count: 0,
+    last_comment_at: null,
+    verified_by: null,
+    ...overrides,
   };
 }
 
@@ -1535,8 +1631,14 @@ describe.each(factories)(
     });
 
     it("search returns exact match at rank 1", async () => {
-      await backend.memoryRepo.create({ ...makeMemory("a"), embedding: embVec(5) });
-      await backend.memoryRepo.create({ ...makeMemory("b"), embedding: embVec(200) });
+      await backend.memoryRepo.create({
+        ...makeMemory("a"),
+        embedding: embVec(5),
+      });
+      await backend.memoryRepo.create({
+        ...makeMemory("b"),
+        embedding: embVec(200),
+      });
       const hits = await backend.memoryRepo.search({
         embedding: embVec(5),
         project_id: "p1",
@@ -1550,7 +1652,10 @@ describe.each(factories)(
     });
 
     it("search excludes archived", async () => {
-      await backend.memoryRepo.create({ ...makeMemory("a"), embedding: embVec(5) });
+      await backend.memoryRepo.create({
+        ...makeMemory("a"),
+        embedding: embVec(5),
+      });
       await backend.memoryRepo.archive(["a"]);
       const hits = await backend.memoryRepo.search({
         embedding: embVec(5),
@@ -1564,7 +1669,10 @@ describe.each(factories)(
     });
 
     it("findDuplicates returns top workspace-scope match above threshold", async () => {
-      await backend.memoryRepo.create({ ...makeMemory("a"), embedding: embVec(5) });
+      await backend.memoryRepo.create({
+        ...makeMemory("a"),
+        embedding: embVec(5),
+      });
       const hits = await backend.memoryRepo.findDuplicates({
         embedding: embVec(5),
         projectId: "p1",
@@ -1579,7 +1687,7 @@ describe.each(factories)(
     it("findPairwiseSimilar surfaces near-dupes", async () => {
       const v = embVec(10);
       const w = [...v];
-      w[11] = 0.01;  // small perturbation
+      w[11] = 0.01; // small perturbation
       await backend.memoryRepo.create({ ...makeMemory("a"), embedding: v });
       await backend.memoryRepo.create({ ...makeMemory("b"), embedding: w });
       const pairs = await backend.memoryRepo.findPairwiseSimilar({
@@ -1593,7 +1701,10 @@ describe.each(factories)(
     });
 
     it("listWithEmbeddings returns stored embeddings", async () => {
-      await backend.memoryRepo.create({ ...makeMemory("a"), embedding: embVec(5) });
+      await backend.memoryRepo.create({
+        ...makeMemory("a"),
+        embedding: embVec(5),
+      });
       const rows = await backend.memoryRepo.listWithEmbeddings({
         projectId: "p1",
         workspaceId: "ws1",
@@ -1662,6 +1773,7 @@ git commit -m "feat(vault): implement MemoryRepository.search via VaultVectorInd
 ### Task 12: Implement `findDuplicates`, `findPairwiseSimilar`, `listWithEmbeddings`
 
 **Files:**
+
 - Modify: `src/backend/vault/repositories/memory-repository.ts`
 
 - [ ] **Step 1: Replace the three remaining stubs**
@@ -1744,6 +1856,7 @@ git commit -m "feat(vault): implement findDuplicates + findPairwiseSimilar + lis
 ### Task 13: Vector parity test (pg vs vault, 500 memories)
 
 **Files:**
+
 - Create: `tests/integration/vector-parity.test.ts`
 
 - [ ] **Step 1: Write the parity test**
@@ -1798,14 +1911,30 @@ describe("vector parity — pg vs vault", () => {
     const now = new Date();
     for (let i = 0; i < N; i++) {
       const m: Memory = {
-        id: `m${i}`, project_id: "p1", workspace_id: "ws1",
-        content: `body ${i}`, title: `T${i}`, type: "fact",
-        scope: "workspace", tags: null, author: "a", source: null,
-        session_id: null, metadata: null, embedding_model: null,
-        embedding_dimensions: DIMS, version: 1,
-        created_at: now, updated_at: now, verified_at: null, archived_at: null,
-        comment_count: 0, flag_count: 0, relationship_count: 0,
-        last_comment_at: null, verified_by: null,
+        id: `m${i}`,
+        project_id: "p1",
+        workspace_id: "ws1",
+        content: `body ${i}`,
+        title: `T${i}`,
+        type: "fact",
+        scope: "workspace",
+        tags: null,
+        author: "a",
+        source: null,
+        session_id: null,
+        metadata: null,
+        embedding_model: null,
+        embedding_dimensions: DIMS,
+        version: 1,
+        created_at: now,
+        updated_at: now,
+        verified_at: null,
+        archived_at: null,
+        comment_count: 0,
+        flag_count: 0,
+        relationship_count: 0,
+        last_comment_at: null,
+        verified_by: null,
       };
       const v = randomVec(rng);
       await pg.create({ ...m, embedding: v });

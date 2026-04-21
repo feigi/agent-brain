@@ -431,9 +431,7 @@ export class VaultMemoryRepository implements MemoryRepository {
     }
     for (const s of options.scope) {
       if (s === "user" && !options.user_id) {
-        throw new ValidationError(
-          "user_id is required for user-scoped search",
-        );
+        throw new ValidationError("user_id is required for user-scoped search");
       }
     }
     const hits = await this.cfg.index.search({
