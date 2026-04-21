@@ -76,9 +76,9 @@ function parseOne(entry: unknown, ctx: ParseCtx, i: number): Flag {
     flag_type: flagType as FlagType,
     severity: severity as FlagSeverity,
     details,
-    resolved_at: resolved === null ? null : new Date(resolved),
+    resolved_at: resolved === null ? null : isoDate(resolved, `flags[${i}].resolved`),
     resolved_by: resolvedBy,
-    created_at: new Date(created),
+    created_at: isoDate(created, `flags[${i}].created`),
   };
 }
 
@@ -101,6 +101,15 @@ export function serializeFlags(flags: Flag[]): FlagFrontmatter[] {
       out.similarity = f.details.similarity;
     return out;
   });
+}
+
+function isoDate(v: unknown, name: string): Date {
+  if (typeof v !== "string")
+    throw new Error(`${name} must be an ISO date string; got ${String(v)}`);
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime()))
+    throw new Error(`${name} must be an ISO date string; got ${v}`);
+  return d;
 }
 
 function str(v: unknown, name: string): string {

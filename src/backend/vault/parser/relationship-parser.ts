@@ -26,7 +26,12 @@ export function parseRelationshipSection(
     const kv = parseMeta(meta!);
 
     const id = required(kv, "id", line);
-    const confidence = Number(required(kv, "confidence", line));
+    const confidenceRaw = required(kv, "confidence", line);
+    const confidence = Number(confidenceRaw);
+    if (!Number.isFinite(confidence))
+      throw new Error(
+        `confidence must be a finite number in: ${line}; got ${confidenceRaw}`,
+      );
     const createdBy = required(kv, "by", line);
     const createdAt = new Date(required(kv, "at", line));
     const createdVia = kv.get("via") ?? null;

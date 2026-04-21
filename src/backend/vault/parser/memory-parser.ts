@@ -93,18 +93,18 @@ export function parseMemoryFile(md: string): ParsedMemoryFile {
     embedding_dimensions:
       fm.embedding_dimensions === null || fm.embedding_dimensions === undefined
         ? null
-        : Number(fm.embedding_dimensions),
-    version: Number(required(fm.version, "version")),
-    created_at: new Date(str(fm.created, "created")),
-    updated_at: new Date(str(fm.updated, "updated")),
+        : finiteNumber(fm.embedding_dimensions, "embedding_dimensions"),
+    version: finiteNumber(required(fm.version, "version"), "version"),
+    created_at: isoDate(fm.created, "created"),
+    updated_at: isoDate(fm.updated, "updated"),
     verified_at:
       fm.verified === null || fm.verified === undefined
         ? null
-        : new Date(String(fm.verified)),
+        : isoDate(fm.verified, "verified"),
     archived_at:
       fm.archived === null || fm.archived === undefined
         ? null
-        : new Date(String(fm.archived)),
+        : isoDate(fm.archived, "archived"),
     comment_count: comments.length,
     flag_count: flags.length,
     relationship_count: relationships.length,
@@ -250,4 +250,20 @@ function required(v: unknown, name: string): unknown {
   if (v === undefined || v === null)
     throw new Error(`${name} is required in frontmatter`);
   return v;
+}
+
+function finiteNumber(v: unknown, name: string): number {
+  const n = Number(v);
+  if (!Number.isFinite(n))
+    throw new Error(`${name} must be a finite number; got ${String(v)}`);
+  return n;
+}
+
+function isoDate(v: unknown, name: string): Date {
+  if (typeof v !== "string")
+    throw new Error(`${name} must be an ISO date string; got ${String(v)}`);
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime()))
+    throw new Error(`${name} must be an ISO date string; got ${v}`);
+  return d;
 }
