@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   mkdtempSync,
   rmSync,
@@ -99,5 +99,48 @@ describe("installer end-to-end", () => {
 
     expect(existsSync(join(home, ".claude", "settings.json"))).toBe(false);
     expect(existsSync(join(home, ".claude", "CLAUDE.md"))).toBe(false);
+  });
+
+  it("runs .env bootstrap during install (dry-run)", async () => {
+    if (!existsSync(join(REPO_ROOT, ".env"))) {
+      console.warn(
+        "Skipping: repo has no .env file; fresh-install path would prompt interactively",
+      );
+      return;
+    }
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    try {
+      await runInstaller(
+        { targets: ["claude"], dryRun: true, uninstall: false },
+        { repoRoot: REPO_ROOT, home },
+      );
+      const allLogs = logSpy.mock.calls
+        .map((args) => args.join(" "))
+        .join("\n");
+      expect(allLogs).toMatch(/\.env/);
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it("skips .env bootstrap on --uninstall (dry-run)", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    try {
+      await runInstaller(
+        { targets: ["claude"], dryRun: true, uninstall: true },
+        { repoRoot: REPO_ROOT, home },
+      );
+      const bootstrapLogs = logSpy.mock.calls
+        .map((args) => args.join(" "))
+        .filter(
+          (line) =>
+            line.includes("OK .env up to date") ||
+            line.includes("dry-run: would create") ||
+            line.includes("dry-run: would merge .env"),
+        );
+      expect(bootstrapLogs).toEqual([]);
+    } finally {
+      logSpy.mockRestore();
+    }
   });
 });
