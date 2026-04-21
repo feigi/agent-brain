@@ -14,28 +14,28 @@ export function registerMemoryRelate(
   server.registerTool(
     "memory_relate",
     {
-      description: `Create a directional relationship between two memories. Idempotent: if an identical relationship (same source, target, and type) already exists, returns the existing one. Well-known types: ${wellKnownList}. Any descriptive string is also valid.`,
+      description: `Create directional relationship between two memories. Idempotent: identical relationship (same source, target, type) returns existing one. Well-known types: ${wellKnownList}. Any descriptive string valid.`,
       inputSchema: {
-        source_id: z.string().describe("ID of the source memory"),
-        target_id: z.string().describe("ID of the target memory"),
+        source_id: z.string().describe("ID of source memory"),
+        target_id: z.string().describe("ID of target memory"),
         type: z
           .string()
           .min(1)
           .max(64)
           .describe(
-            `Relationship type. Well-known: ${wellKnownList}. Any descriptive string is also valid.`,
+            `Relationship type. Well-known: ${wellKnownList}. Any descriptive string valid.`,
           ),
         description: z
           .string()
           .max(500)
           .optional()
-          .describe("Optional human-readable description of the relationship"),
+          .describe("Human-readable description of relationship"),
         confidence: z
           .number()
           .min(0)
           .max(1)
           .optional()
-          .describe("Confidence score between 0 and 1 (default: 1.0)"),
+          .describe("Confidence score 0-1 (default: 1.0)"),
         user_id: userIdSchema,
         created_via: z
           .string()

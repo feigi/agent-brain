@@ -19,7 +19,7 @@ export function registerMemoryList(
     "memory_list",
     {
       description:
-        'Browse memories with filtering, sorting, and pagination. Supports multiple scopes in one call, e.g. scope: ["workspace", "user", "project"]. Scope is honored literally — pass "project" explicitly to include cross-workspace (global) memories. Example: memory_list({ workspace_id: "my-project", user_id: "alice", scope: ["workspace", "user"] })',
+        'Browse memories with filter, sort, pagination. Multi-scope in one call, e.g. scope: ["workspace", "user", "project"]. Scope honored literally — pass "project" explicitly to include cross-workspace (global) memories. Example: memory_list({ workspace_id: "my-project", user_id: "alice", scope: ["workspace", "user"] })',
       inputSchema: {
         workspace_id: slugSchema
           .optional()
@@ -31,14 +31,14 @@ export function registerMemoryList(
           .min(1)
           .default(["workspace"])
           .describe(
-            'Scopes to include, e.g. ["workspace", "user", "project"]. Defaults to ["workspace"]. Scope is honored literally — pass "project" explicitly to include cross-workspace (global) memories.',
+            'Scopes to include, e.g. ["workspace", "user", "project"]. Defaults to ["workspace"]. Honored literally — pass "project" explicitly to include cross-workspace (global) memories.',
           ),
         user_id: userIdSchema,
         type: memoryTypeEnum.optional().describe("Filter by memory type"),
         tags: z
           .array(z.string())
           .optional()
-          .describe("Filter by tags (memories matching ANY of these tags)"),
+          .describe("Filter by tags (memories matching ANY tag)"),
         sort_by: z
           .enum(["created_at", "updated_at"])
           .default("created_at")

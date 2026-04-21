@@ -16,9 +16,9 @@ export function registerMemorySessionStart(
     "memory_session_start",
     {
       description:
-        "Load relevant memories at session start. Searches workspace + user scopes (ranked) and always includes all project-scoped (global) memories. " +
-        "user_id is required -- use your OS username in lowercase (run 'whoami' and convert to lowercase if needed). " +
-        "Provide context for relevance-ranked results, or omit for recent memories. " +
+        "Load relevant memories at session start. Searches workspace + user scopes (ranked); always includes all project-scoped (global) memories. " +
+        "user_id required — use OS username in lowercase (run 'whoami', lowercase it). " +
+        "Pass context for relevance-ranked results, or omit for recent memories. " +
         'Example: memory_session_start({ workspace_id: "my-project", user_id: "alice" })',
       inputSchema: {
         workspace_id: slugSchema.describe(
@@ -29,7 +29,7 @@ export function registerMemorySessionStart(
           .string()
           .optional()
           .describe(
-            "What the agent is working on (used for semantic relevance ranking)",
+            "What agent is working on (drives semantic relevance ranking)",
           ),
         limit: z
           .number()
@@ -38,10 +38,10 @@ export function registerMemorySessionStart(
           .max(50)
           .default(10)
           .describe(
-            "Max workspace/user-scoped memories to return (default 10). Project-scoped memories are returned separately, bounded by project_limit. Total response may contain up to limit + project_limit memories.",
+            "Max workspace/user-scoped memories (default 10). Project-scoped returned separately, bounded by project_limit. Response may contain up to limit + project_limit memories.",
           ),
         project_limit: projectLimitSchema.describe(
-          `Max project-scoped (global) memories to always include (default ${PROJECT_LIMIT_DEFAULT})`,
+          `Max project-scoped (global) memories always included (default ${PROJECT_LIMIT_DEFAULT})`,
         ),
       },
     },
