@@ -105,6 +105,67 @@ export class VaultVectorIndex {
       }))
       .filter((h) => h.relevance >= params.minSimilarity);
   }
+
+  async findDuplicates(params: DuplicateParams): Promise<DuplicateHit[]> {
+    if (params.embedding.length !== this.dims) {
+      throw new Error(
+        `vector dimension mismatch: expected ${this.dims}, got ${params.embedding.length}`,
+      );
+    }
+    const clauses: string[] = [
+      `archived = false`,
+      `project_id = ${sqlStr(params.projectId)}`,
+    ];
+    if (params.scope === "workspace") {
+      if (params.workspaceId === null) {
+        throw new Error("workspaceId is required for workspace-scoped dedup");
+      }
+      clauses.push(
+        `scope = 'workspace'`,
+        `workspace_id = ${sqlStr(params.workspaceId)}`,
+      );
+    } else if (params.scope === "project") {
+      clauses.push(`scope = 'project'`);
+    } else {
+      if (params.workspaceId === null) {
+        throw new Error("workspaceId is required for user-scoped dedup");
+      }
+      clauses.push(
+        `(workspace_id = ${sqlStr(params.workspaceId)}` +
+          ` OR (scope = 'user' AND author = ${sqlStr(params.userId)}))`,
+      );
+    }
+    const rows = (await this.table
+      .search(params.embedding)
+      .distanceType("cosine")
+      .where(clauses.join(" AND "))
+      .limit(1)
+      .toArray()) as Array<Record<string, unknown>>;
+    return rows
+      .map((r) => ({
+        id: r.id as string,
+        title: r.title as string,
+        relevance: 1 - Number(r._distance),
+        scope: r.scope as "workspace" | "user" | "project",
+      }))
+      .filter((h) => h.relevance >= params.threshold);
+  }
+}
+
+export interface DuplicateParams {
+  embedding: number[];
+  projectId: string;
+  workspaceId: string | null;
+  scope: "workspace" | "user" | "project";
+  userId: string;
+  threshold: number;
+}
+
+export interface DuplicateHit {
+  id: string;
+  title: string;
+  relevance: number;
+  scope: "workspace" | "user" | "project";
 }
 
 export interface SearchParams {

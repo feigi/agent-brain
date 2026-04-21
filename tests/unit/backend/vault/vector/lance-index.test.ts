@@ -156,3 +156,79 @@ describe("VaultVectorIndex — search", () => {
     expect(hits).toEqual([]);
   });
 });
+
+describe("VaultVectorIndex — findDuplicates", () => {
+  let root: string;
+  let idx: VaultVectorIndex;
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "lance-test-"));
+    idx = await VaultVectorIndex.create({ root, dims: 3 });
+    await idx.upsert([
+      {
+        id: "a",
+        project_id: "p1",
+        workspace_id: "ws1",
+        scope: "workspace",
+        author: "u1",
+        title: "A",
+        archived: false,
+        content_hash: "h",
+        vector: [1, 0, 0],
+      },
+      {
+        id: "u",
+        project_id: "p1",
+        workspace_id: null,
+        scope: "user",
+        author: "u1",
+        title: "U",
+        archived: false,
+        content_hash: "h",
+        vector: [1, 0, 0],
+      },
+    ]);
+  });
+  afterEach(async () => {
+    await idx.close();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("workspace-scope dedup only checks workspace memories", async () => {
+    const hits = await idx.findDuplicates({
+      embedding: [1, 0, 0],
+      projectId: "p1",
+      workspaceId: "ws1",
+      scope: "workspace",
+      userId: "u1",
+      threshold: 0.5,
+    });
+    expect(hits.map((h) => h.id)).toEqual(["a"]);
+  });
+
+  it("user-scope dedup checks both the workspace and user slices (D-16)", async () => {
+    const hits = await idx.findDuplicates({
+      embedding: [1, 0, 0],
+      projectId: "p1",
+      workspaceId: "ws1",
+      scope: "user",
+      userId: "u1",
+      threshold: 0.5,
+    });
+    // limit(1) — takes whichever ranks first. Any surfaced row must be
+    // one of the two near-identical vectors; pg returns the same.
+    expect(hits).toHaveLength(1);
+    expect(["a", "u"]).toContain(hits[0].id);
+  });
+
+  it("below threshold returns empty", async () => {
+    const hits = await idx.findDuplicates({
+      embedding: [0, 0, 1],
+      projectId: "p1",
+      workspaceId: "ws1",
+      scope: "workspace",
+      userId: "u1",
+      threshold: 0.9,
+    });
+    expect(hits).toEqual([]);
+  });
+});
