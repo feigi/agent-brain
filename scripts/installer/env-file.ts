@@ -32,3 +32,13 @@ export function parseDotenv(text: string): EnvLine[] {
   }
   return out;
 }
+
+export function serialize(lines: EnvLine[]): string {
+  const parts: string[] = [];
+  for (const line of lines) {
+    if (line.kind === "kv") parts.push(`${line.key}=${line.value}`);
+    else if (line.kind === "comment") parts.push(line.raw);
+    else parts.push("");
+  }
+  return parts.join("\n") + "\n";
+}

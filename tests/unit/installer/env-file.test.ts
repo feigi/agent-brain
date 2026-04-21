@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseDotenv } from "../../../scripts/installer/env-file.js";
+import { parseDotenv, serialize } from "../../../scripts/installer/env-file.js";
 
 describe("parseDotenv", () => {
   it("parses KEY=VALUE lines", () => {
@@ -42,5 +42,35 @@ describe("parseDotenv", () => {
 
   it("throws with line number for malformed line", () => {
     expect(() => parseDotenv("FOO=bar\nnot a kv line\n")).toThrow(/line 2/);
+  });
+});
+
+describe("serialize", () => {
+  it("emits KEY=VALUE with trailing newline", () => {
+    const out = serialize([{ kind: "kv", key: "FOO", value: "bar" }]);
+    expect(out).toBe("FOO=bar\n");
+  });
+
+  it("preserves comment raw text", () => {
+    const out = serialize([
+      { kind: "comment", raw: "# hello" },
+      { kind: "kv", key: "FOO", value: "bar" },
+    ]);
+    expect(out).toBe("# hello\nFOO=bar\n");
+  });
+
+  it("emits blank lines as empty", () => {
+    const out = serialize([
+      { kind: "kv", key: "FOO", value: "bar" },
+      { kind: "blank" },
+      { kind: "kv", key: "BAZ", value: "qux" },
+    ]);
+    expect(out).toBe("FOO=bar\n\nBAZ=qux\n");
+  });
+
+  it("roundtrips canonical .env.example content", () => {
+    const input =
+      "# Project\nPROJECT_ID=my-project\n\n# DB\nDATABASE_URL=postgresql://a@b/c\n";
+    expect(serialize(parseDotenv(input))).toBe(input);
   });
 });
