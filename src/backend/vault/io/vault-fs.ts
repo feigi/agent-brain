@@ -37,6 +37,29 @@ export async function deleteMarkdown(
   await rm(join(root, relPath));
 }
 
+// Ensure the parent directory of an absolute path exists.
+export async function ensureParentDir(abs: string): Promise<void> {
+  await mkdir(dirname(abs), { recursive: true });
+}
+
+// Ensure a file exists so proper-lockfile has a target. Creates parent
+// directories and a zero-byte file if missing; EEXIST is swallowed as
+// a racing creator won.
+export async function ensureFileExists(abs: string): Promise<void> {
+  await mkdir(dirname(abs), { recursive: true });
+  try {
+    await writeFile(abs, "", { flag: "wx" });
+  } catch (err: unknown) {
+    if (
+      typeof err === "object" &&
+      err !== null &&
+      (err as { code?: string }).code === "EEXIST"
+    )
+      return;
+    throw err;
+  }
+}
+
 // Recursively list all *.md files under root, returning POSIX-style
 // relative paths so callers can concatenate with `/` portably.
 export async function listMarkdownFiles(root: string): Promise<string[]> {
