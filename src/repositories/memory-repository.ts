@@ -102,27 +102,45 @@ export class DrizzleMemoryRepository implements MemoryRepository {
   }
 
   async create(memory: Memory & { embedding: number[] }): Promise<Memory> {
-    const result = await this.db
-      .insert(memories)
-      .values({
-        id: memory.id,
-        project_id: memory.project_id,
-        workspace_id: memory.workspace_id,
-        content: memory.content,
-        title: memory.title,
-        type: memory.type,
-        scope: memory.scope,
-        tags: memory.tags,
-        author: memory.author,
-        source: memory.source,
-        session_id: memory.session_id,
-        metadata: memory.metadata,
-        embedding: memory.embedding,
-        embedding_model: memory.embedding_model,
-        embedding_dimensions: memory.embedding_dimensions,
-        version: memory.version,
-      })
-      .returning(baseMemoryColumns);
+    let result;
+    try {
+      result = await this.db
+        .insert(memories)
+        .values({
+          id: memory.id,
+          project_id: memory.project_id,
+          workspace_id: memory.workspace_id,
+          content: memory.content,
+          title: memory.title,
+          type: memory.type,
+          scope: memory.scope,
+          tags: memory.tags,
+          author: memory.author,
+          source: memory.source,
+          session_id: memory.session_id,
+          metadata: memory.metadata,
+          embedding: memory.embedding,
+          embedding_model: memory.embedding_model,
+          embedding_dimensions: memory.embedding_dimensions,
+          version: memory.version,
+          created_at: memory.created_at,
+          updated_at: memory.updated_at,
+          verified_at: memory.verified_at,
+          verified_by: memory.verified_by,
+          archived_at: memory.archived_at,
+        })
+        .returning(baseMemoryColumns);
+    } catch (err: unknown) {
+      // Unique constraint violation (PG error code 23505).
+      // Drizzle wraps the pg error, so check both err.code and err.cause.code.
+      const pgCode =
+        (err as { code?: string } | null)?.code ??
+        (err as { cause?: { code?: string } } | null)?.cause?.code;
+      if (pgCode === "23505") {
+        throw new ConflictError(`memory already exists: ${memory.id}`);
+      }
+      throw err;
+    }
 
     // New memories have no comments, flags, or relationships yet -- set counts to 0 explicitly
     return rowToMemory({

@@ -78,6 +78,9 @@ export class VaultMemoryRepository implements MemoryRepository {
   async create(
     memory: Memory & { embedding: number[] },
   ): Promise<Memory> {
+    if (this.index.has(memory.id)) {
+      throw new ConflictError(`memory already exists: ${memory.id}`);
+    }
     const loc = locationFor(memory);
     const rel = memoryPath(loc);
     const md = serializeMemoryFile({
@@ -195,6 +198,7 @@ export class VaultMemoryRepository implements MemoryRepository {
     return await withFileLock(abs, async () => {
       const raw = await readMarkdown(this.cfg.root, entry.path);
       const parsed = parseMemoryFile(raw);
+      if (parsed.memory.archived_at !== null) return null;
       const now = new Date();
       const next: Memory = {
         ...parsed.memory,
@@ -250,7 +254,7 @@ export class VaultMemoryRepository implements MemoryRepository {
           m.project_id === options.project_id &&
           m.workspace_id === options.workspace_id &&
           m.archived_at === null &&
-          m.updated_at.getTime() < cutoff.getTime(),
+          (m.verified_at ?? m.created_at).getTime() < cutoff.getTime(),
       )
       .sort((a, b) => compareMemory(a, b, "created_at", "asc"));
     const sliced = applyCursor(filtered, options.cursor, "created_at", "asc");
@@ -295,7 +299,7 @@ export class VaultMemoryRepository implements MemoryRepository {
           ((m.scope === "workspace" && m.workspace_id === options.workspace_id) ||
             (m.scope === "user" && m.author === options.user_id)),
       )
-      .sort((a, b) => compareMemory(a, b, "updated_at", "desc"))
+      .sort((a, b) => compareMemory(a, b, "created_at", "desc"))
       .slice(0, options.limit);
   }
 
@@ -304,14 +308,25 @@ export class VaultMemoryRepository implements MemoryRepository {
   ): Promise<Memory[]> {
     const all = await this.#loadAll();
     return all
-      .filter(
-        (m) =>
-          m.project_id === options.project_id &&
-          m.workspace_id === options.workspace_id &&
-          m.archived_at === null &&
-          m.updated_at.getTime() >= options.since.getTime() &&
-          (!options.exclude_self || m.author !== options.user_id),
-      )
+      .filter((m) => {
+        if (m.archived_at !== null) return false;
+        if (m.project_id !== options.project_id) return false;
+        // Time filter: created_at >= since OR updated_at >= since
+        const sinceMs = options.since.getTime();
+        if (
+          m.created_at.getTime() < sinceMs &&
+          m.updated_at.getTime() < sinceMs
+        )
+          return false;
+        // exclude_self
+        if (options.exclude_self && m.author === options.user_id) return false;
+        // Scope enforcement: workspace memories matching ws, all project-scope, user-scope authored by caller
+        if (m.scope === "workspace" && m.workspace_id === options.workspace_id)
+          return true;
+        if (m.scope === "project") return true;
+        if (m.scope === "user" && m.author === options.user_id) return true;
+        return false;
+      })
       .sort((a, b) => compareMemory(a, b, "updated_at", "desc"))
       .slice(0, options.limit);
   }
@@ -322,25 +337,22 @@ export class VaultMemoryRepository implements MemoryRepository {
     userId: string,
     since: Date,
   ): Promise<TeamActivityCounts> {
+    // D-30: team_activity includes the user's own changes -- do NOT filter by author
     const all = await this.#loadAll();
     const scoped = all.filter(
       (m) =>
         m.project_id === projectId &&
         m.workspace_id === workspaceId &&
-        m.archived_at === null &&
-        m.author !== userId,
+        m.archived_at === null,
     );
     let new_memories = 0;
     let updated_memories = 0;
     let commented_memories = 0;
+    const sinceMs = since.getTime();
     for (const m of scoped) {
-      if (m.created_at.getTime() >= since.getTime()) new_memories += 1;
-      else if (m.updated_at.getTime() >= since.getTime())
-        updated_memories += 1;
-      if (
-        m.last_comment_at !== null &&
-        m.last_comment_at.getTime() >= since.getTime()
-      )
+      if (m.created_at.getTime() > sinceMs) new_memories += 1;
+      else if (m.updated_at.getTime() > sinceMs) updated_memories += 1;
+      if (m.last_comment_at !== null && m.last_comment_at.getTime() > sinceMs)
         commented_memories += 1;
     }
     return { new_memories, updated_memories, commented_memories };
@@ -358,6 +370,7 @@ export class VaultMemoryRepository implements MemoryRepository {
 
   // ---- Vector methods (Phase 3) ---------------------------------------
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async search(_options: SearchOptions): Promise<MemoryWithRelevance[]> {
     throw new NotImplementedError("search");
   }
@@ -399,7 +412,7 @@ function locationFor(memory: Memory): MemoryLocation {
     id: memory.id,
     scope: memory.scope,
     workspaceId: memory.workspace_id,
-    userId: null, // user-scope userId currently not encoded on Memory
+    userId: memory.scope === "user" ? memory.author : null,
   };
 }
 
