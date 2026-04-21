@@ -24,7 +24,12 @@ describe("installer uninstall", () => {
 
   it("removes copied hook scripts for claude", async () => {
     await runInstaller(
-      { targets: ["claude"], dryRun: false, uninstall: false },
+      {
+        targets: ["claude"],
+        dryRun: false,
+        uninstall: false,
+        skipEnvBootstrap: true,
+      },
       { repoRoot: REPO_ROOT, home },
     );
     expect(
@@ -32,7 +37,12 @@ describe("installer uninstall", () => {
     ).toBe(true);
 
     await runInstaller(
-      { targets: ["claude"], dryRun: false, uninstall: true },
+      {
+        targets: ["claude"],
+        dryRun: false,
+        uninstall: true,
+        skipEnvBootstrap: true,
+      },
       { repoRoot: REPO_ROOT, home },
     );
     expect(
@@ -51,11 +61,21 @@ describe("installer uninstall", () => {
     );
 
     await runInstaller(
-      { targets: ["claude"], dryRun: false, uninstall: false },
+      {
+        targets: ["claude"],
+        dryRun: false,
+        uninstall: false,
+        skipEnvBootstrap: true,
+      },
       { repoRoot: REPO_ROOT, home },
     );
     await runInstaller(
-      { targets: ["claude"], dryRun: false, uninstall: true },
+      {
+        targets: ["claude"],
+        dryRun: false,
+        uninstall: true,
+        skipEnvBootstrap: true,
+      },
       { repoRoot: REPO_ROOT, home },
     );
 
@@ -78,7 +98,12 @@ describe("installer uninstall", () => {
 
   it("strips markers from CLAUDE.md, preserves user content", async () => {
     await runInstaller(
-      { targets: ["claude"], dryRun: false, uninstall: false },
+      {
+        targets: ["claude"],
+        dryRun: false,
+        uninstall: false,
+        skipEnvBootstrap: true,
+      },
       { repoRoot: REPO_ROOT, home },
     );
     const before = readFileSync(join(home, ".claude", "CLAUDE.md"), "utf8");
@@ -88,7 +113,12 @@ describe("installer uninstall", () => {
     );
 
     await runInstaller(
-      { targets: ["claude"], dryRun: false, uninstall: true },
+      {
+        targets: ["claude"],
+        dryRun: false,
+        uninstall: true,
+        skipEnvBootstrap: true,
+      },
       { repoRoot: REPO_ROOT, home },
     );
     const after = readFileSync(join(home, ".claude", "CLAUDE.md"), "utf8");
@@ -100,7 +130,12 @@ describe("installer uninstall", () => {
   it("uninstall of never-installed target is a no-op (ENOENT ignored)", async () => {
     await expect(
       runInstaller(
-        { targets: ["copilot"], dryRun: false, uninstall: true },
+        {
+          targets: ["copilot"],
+          dryRun: false,
+          uninstall: true,
+          skipEnvBootstrap: true,
+        },
         { repoRoot: REPO_ROOT, home },
       ),
     ).resolves.toBeUndefined();
@@ -108,11 +143,21 @@ describe("installer uninstall", () => {
 
   it("uninstall of copilot removes both JSON files' agent-brain keys", async () => {
     await runInstaller(
-      { targets: ["copilot"], dryRun: false, uninstall: false },
+      {
+        targets: ["copilot"],
+        dryRun: false,
+        uninstall: false,
+        skipEnvBootstrap: true,
+      },
       { repoRoot: REPO_ROOT, home },
     );
     await runInstaller(
-      { targets: ["copilot"], dryRun: false, uninstall: true },
+      {
+        targets: ["copilot"],
+        dryRun: false,
+        uninstall: true,
+        skipEnvBootstrap: true,
+      },
       { repoRoot: REPO_ROOT, home },
     );
 
