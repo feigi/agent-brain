@@ -1,85 +1,85 @@
 ## Memory System
 
-This user uses [agent-brain](https://github.com/feigi/agent-brain) (MCP server) as their sole memory system across all projects. Do NOT use Claude Code's built-in file-based auto-memory system (`~/.claude/projects/**/memory/`). All memory operations go through agent-brain MCP tools (`memory_create`, `memory_search`, `memory_update`, etc.). Never write to MEMORY.md or create files in the memory/ directory.
+User use [agent-brain](https://github.com/feigi/agent-brain) (MCP server) as sole memory system all projects. Do NOT use Claude Code built-in file-based auto-memory (`~/.claude/projects/**/memory/`). All memory ops through agent-brain MCP tools (`memory_create`, `memory_search`, `memory_update`, etc.). Never write MEMORY.md or create files in memory/ directory.
 
 ### Session Start
 
-Relevant memories are loaded automatically at session start via the SessionStart hook. No manual `memory_session_start` call is needed. Use `memory_search` for additional lookups during the session.
+Relevant memories load auto at session start via SessionStart hook. No manual `memory_session_start` call needed. Use `memory_search` for extra lookups during session.
 
 ### Identity Parameters
 
-- **`user_id`**: The OS username, i.e. the output of `whoami`. This is the user's identity across all memory tools.
-- **`workspace_id`**: The repository directory name (e.g., `agent-brain` for `/Users/chris/dev/agent-brain`).
+- **`user_id`**: OS username, output of `whoami`. User identity across all memory tools.
+- **`workspace_id`**: Repo directory name (e.g., `agent-brain` for `/Users/chris/dev/agent-brain`).
 
 ### When to Call `memory_search`
 
-**Call `memory_search` before actions that affect shared systems.** This includes:
+**Call `memory_search` before actions affecting shared systems.** Includes:
 
-1. **The user asks about notes, context, or team knowledge** — e.g. "any notes?", "what should I know?"
-2. **Before actions that affect shared infrastructure** — deploys, database migrations, credential rotation, etc.
-3. **Before running shared/integration tests** (e.g. E2E, load tests) — but NOT local unit tests or builds
+1. **User asks about notes, context, team knowledge** — e.g. "any notes?", "what should I know?"
+2. **Before actions affecting shared infra** — deploys, DB migrations, credential rotation, etc.
+3. **Before shared/integration tests** (e.g. E2E, load tests) — NOT local unit tests or builds
 
-**Do NOT search for purely local actions** like editing files, installing dependencies, running local builds, linting, or formatting.
+**Do NOT search for purely local actions** like editing files, installing deps, local builds, linting, formatting.
 
 ### Saving Memories
 
-The goal is that nothing valuable is lost when a conversation ends. This includes team knowledge, but also user preferences, project context, and things you learn about how this codebase works.
+Goal: nothing valuable lost when conversation ends. Includes team knowledge, user preferences, project context, things learned about codebase.
 
-Save a memory (or suggest one) when you encounter:
+Save memory (or suggest) when encounter:
 
-- A decision and its rationale (architecture, tooling, approach)
-- A user preference about how they want you to work
-- A gotcha, workaround, or non-obvious constraint
-- Important project context that would help in a future session
+- Decision and rationale (architecture, tooling, approach)
+- User preference about how they want you to work
+- Gotcha, workaround, non-obvious constraint
+- Important project context useful in future session
 
-You don't need to ask permission for every memory — use judgment. For things that are clearly worth keeping, save directly. For anything uncertain, suggest it briefly and let the user confirm.
+No need ask permission every memory — use judgment. Clearly worth keeping, save direct. Uncertain, suggest briefly, let user confirm.
 
 ### Choosing `source`
 
-Every save must pick exactly one of three values:
+Every save pick exactly one of three values:
 
-- `manual` — the user explicitly told you to save this, in their most recent message ("remember X", "save that", "note that Y"). Bypasses write budget and project-scope guard. Do **not** use `manual` for things you decided to save yourself, even if they feel important.
-- `agent-auto` — you decided autonomously to save during a live conversation. This is the default for anything you initiate mid-session.
-- `session-review` — **only** when the Stop-hook end-of-session review is the triggering context. Never mid-session, never because the user asked.
+- `manual` — user explicitly told you save this, in most recent message ("remember X", "save that", "note that Y"). Bypasses write budget and project-scope guard. Do **not** use `manual` for things you decided save yourself, even if feel important.
+- `agent-auto` — you decided autonomously save during live conversation. Default for anything you initiate mid-session.
+- `session-review` — **only** when Stop-hook end-of-session review is triggering context. Never mid-session, never because user asked.
 
-Quick test: "did the user tell me to save this, right now, in their most recent message?" Yes → `manual`. No, and the Stop hook is running → `session-review`. Otherwise → `agent-auto`.
+Quick test: "did user tell me save this, right now, in most recent message?" Yes → `manual`. No, and Stop hook running → `session-review`. Otherwise → `agent-auto`.
 
 ### Choosing Scope
 
-Default to the **narrowest applicable scope** to reduce blast radius:
+Default **narrowest applicable scope** to reduce blast radius:
 
-- `workspace` — shared within the current workspace (default)
-- `user` — private to the user within the current workspace
+- `workspace` — shared within current workspace (default)
+- `user` — private to user within current workspace
 - `project` — cross-workspace, visible everywhere
 
-If a memory appears to be a global preference (e.g. uses words like "always", "never", "everywhere", or describes a workflow rule not tied to a specific repo), **ask the user** whether it should apply globally (`project` scope) or just to the current workspace. Do not assume global scope.
+If memory looks like global preference (e.g. uses "always", "never", "everywhere", or workflow rule not tied to specific repo), **ask user** whether apply globally (`project` scope) or current workspace only. Do not assume global.
 
 ### Verifying Memories
 
-When you encounter a memory during your work and can confirm it's still accurate, call `memory_verify`. This boosts older memories that remain relevant, informs future cleanup and consolidation, and builds user confidence in the knowledge base.
+When encounter memory during work and confirm still accurate, call `memory_verify`. Boosts older memories still relevant, informs future cleanup/consolidation, builds user confidence in knowledge base.
 
 ### Session End
 
-The Stop hook will prompt you to review the session for important memories before termination. Follow its guidance — no additional instructions needed here.
+Stop hook prompts review session for important memories before termination. Follow guidance — no extra instructions here.
 
 ### Presenting Memories
 
-Always **number** memories and include **author**, **date**, and **title**. The user may refer to memories by number (e.g. "archive memory 2", "comment on 1").
+Always **number** memories, include **author**, **date**, **title**. User may refer by number (e.g. "archive memory 2", "comment on 1").
 
 ### Memory Flags
 
-At session start, the response may include a `flags` array — issues detected by the consolidation engine. Handle them as follows:
+At session start, response may include `flags` array — issues detected by consolidation engine. Handle as:
 
-**Auto-resolve when certainty is high:**
+**Auto-resolve when certainty high:**
 
-- For `verify` flags: check the claim against the codebase (read files, grep code, check config). If you can confirm accuracy with high confidence, silently call `memory_verify` and `memory_resolve_flag` with `accepted`. No need to mention these to the user.
-- For `duplicate` / `superseded` flags: if the redundancy is obvious and unambiguous, silently archive and resolve.
+- `verify` flags: check claim against codebase (read files, grep code, check config). If confirm accuracy high confidence, silently call `memory_verify` and `memory_resolve_flag` with `accepted`. No need mention to user.
+- `duplicate` / `superseded` flags: redundancy obvious and unambiguous, silently archive and resolve.
 
-**Recommend a course of action for the rest:**
+**Recommend course of action for rest:**
 
-- For flags you cannot auto-resolve (low certainty, judgment calls, contradictions, overrides), present them to the user with a specific recommendation (archive, merge, update, or dismiss) and your reasoning. Don't just list options — say what you'd do and why.
-- Call `memory_resolve_flag` after the user confirms or overrides your recommendation.
+- Flags you cannot auto-resolve (low certainty, judgment calls, contradictions, overrides), present to user with specific recommendation (archive, merge, update, dismiss) and reasoning. Don't just list options — say what you'd do and why.
+- Call `memory_resolve_flag` after user confirms or overrides.
 
 **During normal work:**
 
-- If you encounter a flagged memory, mention its flag and recommend resolution in context.
+- Encounter flagged memory, mention flag and recommend resolution in context.
