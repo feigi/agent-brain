@@ -1,6 +1,7 @@
 import type { CommentRepository } from "../../../repositories/types.js";
 import type { Comment } from "../../../types/memory.js";
 import { VaultMemoryFiles } from "./memory-files.js";
+import { compareByCreatedAsc } from "./util.js";
 
 export interface VaultCommentConfig {
   root: string;
@@ -28,15 +29,11 @@ export class VaultCommentRepository implements CommentRepository {
         content: comment.content,
         created_at: now,
       };
-      // Parity with DrizzleCommentRepository.create: bumps updated_at +
-      // last_comment_at on the parent memory, but not version.
-      const nextMemory = {
-        ...parsed.memory,
-        updated_at: now,
-        last_comment_at: now,
-      };
+      // last_comment_at is derived from comments[] on read, so only
+      // updated_at needs bumping here (matches pg's no-version-bump).
+      const nextMemory = { ...parsed.memory, updated_at: now };
       return {
-        parsed: {
+        next: {
           ...parsed,
           memory: nextMemory,
           comments: [...parsed.comments, record],
@@ -67,8 +64,4 @@ export class VaultCommentRepository implements CommentRepository {
     const parsed = await this.files.read(memoryId);
     return parsed?.comments.length ?? 0;
   }
-}
-
-function compareByCreatedAsc(a: Comment, b: Comment): number {
-  return a.created_at.getTime() - b.created_at.getTime();
 }

@@ -13,9 +13,27 @@ export async function withFileLock<T>(
     stale: 5_000,
     realpath: false,
   });
+  let primary: unknown;
   try {
     return await fn();
+  } catch (err) {
+    primary = err;
+    throw err;
   } finally {
-    await release();
+    try {
+      await release();
+    } catch (releaseErr) {
+      // Release failure must not mask the primary error.
+      if (primary === undefined) {
+        // eslint-disable-next-line no-unsafe-finally
+        throw releaseErr;
+      }
+      // Primary already thrown; swallow release error to avoid masking.
+      // Surface it on stderr so ops can spot lock-release anomalies.
+      console.warn(
+        `proper-lockfile release failed for ${absPath}:`,
+        releaseErr,
+      );
+    }
   }
 }

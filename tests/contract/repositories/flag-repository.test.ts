@@ -262,4 +262,36 @@ describe.each(factories)("FlagRepository contract — $name", (factory) => {
     const open = await backend.flagRepo.findOpenByWorkspace("p1", "ws1", 3);
     expect(open).toHaveLength(3);
   });
+
+  it("create rejects when memory_id does not exist", async () => {
+    await expect(
+      backend.flagRepo.create(
+        makeFlag({ id: "f-ghost", memory_id: "missing" }),
+      ),
+    ).rejects.toThrow();
+  });
+
+  it("findByMemoryIds silently skips unknown ids mixed with real ones", async () => {
+    await backend.flagRepo.create(makeFlag());
+    const found = await backend.flagRepo.findByMemoryIds(["m1", "ghost"]);
+    expect(found.map((f) => f.id)).toEqual(["f1"]);
+  });
+
+  it("concurrent create on same memory preserves all flags", async () => {
+    const ids = ["f1", "f2", "f3", "f4", "f5"];
+    await Promise.all(
+      ids.map((id, i) =>
+        backend.flagRepo.create(
+          makeFlag({
+            id,
+            created_at: new Date(
+              Date.parse("2026-04-21T10:00:00.000Z") + i * 1000,
+            ),
+          }),
+        ),
+      ),
+    );
+    const found = await backend.flagRepo.findByMemoryId("m1");
+    expect(found.map((f) => f.id).sort()).toEqual(ids);
+  });
 });

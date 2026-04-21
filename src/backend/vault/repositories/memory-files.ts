@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { NotFoundError } from "../../../utils/errors.js";
+import { DomainError, NotFoundError } from "../../../utils/errors.js";
 import {
   parseMemoryFile,
   serializeMemoryFile,
@@ -17,12 +17,22 @@ export interface VaultMemoryFilesConfig {
   root: string;
 }
 
-// Shared read/write coordination for the three repositories that persist
-// inside a memory's markdown file (comments, flags, relationships).
-// Uses a scan-based id→path lookup rather than an in-memory index so
-// each embedded repo can be constructed independently. O(N) per call
-// where N = memory file count — acceptable at Phase 2 scale; Phase 2b.3
-// may lift the index into a shared service used by all vault repos.
+export class VaultParseError extends DomainError {
+  constructor(
+    public readonly relPath: string,
+    public readonly cause: unknown,
+  ) {
+    super(
+      `failed to parse memory file ${relPath}: ${describeCause(cause)}`,
+      "VAULT_PARSE_ERROR",
+      500,
+    );
+  }
+}
+
+// Shared id-to-path resolution + locked read-modify-write for every
+// repository that persists inside a memory's markdown file. Scan-based
+// lookup; no cross-repo index.
 export class VaultMemoryFiles {
   constructor(private readonly cfg: VaultMemoryFilesConfig) {}
 
@@ -38,17 +48,15 @@ export class VaultMemoryFiles {
   async read(memoryId: string): Promise<ParsedMemoryFile | null> {
     const rel = await this.resolvePath(memoryId);
     if (rel === null) return null;
-    const raw = await readMarkdown(this.cfg.root, rel);
-    return parseMemoryFile(raw);
+    return await parseAt(this.cfg.root, rel);
   }
 
-  // Read-modify-write under file lock. Mutator returns the next parsed
-  // file plus an arbitrary caller result. Throws NotFoundError if the
-  // memory does not exist (same parity as pg FK failures).
+  // Throws NotFoundError if the memory has disappeared by the time the
+  // lock is acquired — matches pg FK behavior.
   async edit<T>(
     memoryId: string,
     mutator: (parsed: ParsedMemoryFile) => {
-      parsed: ParsedMemoryFile;
+      next: ParsedMemoryFile;
       result: T;
     },
   ): Promise<T> {
@@ -56,16 +64,20 @@ export class VaultMemoryFiles {
     if (rel === null) throw new NotFoundError("memory", memoryId);
     const abs = join(this.cfg.root, rel);
     return await withFileLock(abs, async () => {
-      const raw = await readMarkdown(this.cfg.root, rel);
-      const parsed = parseMemoryFile(raw);
-      const { parsed: next, result } = mutator(parsed);
-      await writeMarkdownAtomic(this.cfg.root, rel, serializeMemoryFile(next));
+      const raw = await readMarkdownOrNotFound(this.cfg.root, rel, memoryId);
+      const parsed = parseOrRaise(raw, rel);
+      const { next, result } = mutator(parsed);
+      if (next !== parsed) {
+        await writeMarkdownAtomic(
+          this.cfg.root,
+          rel,
+          serializeMemoryFile(next),
+        );
+      }
       return result;
     });
   }
 
-  // Full-vault read for cross-memory queries (findOpenByWorkspace, etc.).
-  // Non-memory files (e.g. _workspace.md, _audit/) are skipped.
   async listAllParsed(): Promise<
     Array<{ rel: string; parsed: ParsedMemoryFile }>
   > {
@@ -74,10 +86,35 @@ export class VaultMemoryFiles {
     for (const rel of files) {
       const loc = inferScopeFromPath(rel);
       if (loc === null) continue;
-      const raw = await readMarkdown(this.cfg.root, rel);
-      out.push({ rel, parsed: parseMemoryFile(raw) });
+      out.push({ rel, parsed: await parseAt(this.cfg.root, rel) });
     }
     return out;
+  }
+}
+
+async function parseAt(root: string, rel: string): Promise<ParsedMemoryFile> {
+  const raw = await readMarkdown(root, rel);
+  return parseOrRaise(raw, rel);
+}
+
+function parseOrRaise(raw: string, rel: string): ParsedMemoryFile {
+  try {
+    return parseMemoryFile(raw);
+  } catch (err) {
+    throw new VaultParseError(rel, err);
+  }
+}
+
+async function readMarkdownOrNotFound(
+  root: string,
+  rel: string,
+  memoryId: string,
+): Promise<string> {
+  try {
+    return await readMarkdown(root, rel);
+  } catch (err: unknown) {
+    if (isErrnoCode(err, "ENOENT")) throw new NotFoundError("memory", memoryId);
+    throw err;
   }
 }
 
@@ -85,12 +122,20 @@ async function safeListMd(root: string): Promise<string[]> {
   try {
     return await listMarkdownFiles(root);
   } catch (err: unknown) {
-    if (
-      typeof err === "object" &&
-      err !== null &&
-      (err as { code?: string }).code === "ENOENT"
-    )
-      return [];
+    if (isErrnoCode(err, "ENOENT")) return [];
     throw err;
   }
+}
+
+function isErrnoCode(err: unknown, code: string): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    (err as { code?: string }).code === code
+  );
+}
+
+function describeCause(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err);
 }

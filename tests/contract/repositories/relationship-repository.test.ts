@@ -112,19 +112,29 @@ describe.each(factories)(
       expect(rels.map((r) => r.id)).toEqual(["r1"]);
     });
 
-    it("findByMemoryId both returns outgoing + incoming", async () => {
+    it("findByMemoryId both returns outgoing + incoming ordered by created_at asc", async () => {
       await backend.relationshipRepo.create(
-        makeRel({ id: "r1", source_id: "m1", target_id: "m2" }),
+        makeRel({
+          id: "r1",
+          source_id: "m1",
+          target_id: "m2",
+          created_at: new Date("2026-04-21T10:00:00.000Z"),
+        }),
       );
       await backend.relationshipRepo.create(
-        makeRel({ id: "r2", source_id: "m2", target_id: "m1" }),
+        makeRel({
+          id: "r2",
+          source_id: "m2",
+          target_id: "m1",
+          created_at: new Date("2026-04-21T11:00:00.000Z"),
+        }),
       );
       const rels = await backend.relationshipRepo.findByMemoryId(
         "p1",
         "m1",
         "both",
       );
-      expect(rels.map((r) => r.id).sort()).toEqual(["r1", "r2"]);
+      expect(rels.map((r) => r.id)).toEqual(["r1", "r2"]);
     });
 
     it("findByMemoryId filters by type when provided", async () => {
@@ -170,16 +180,26 @@ describe.each(factories)(
         embedding: ZERO_EMB,
       });
       await backend.relationshipRepo.create(
-        makeRel({ id: "r1", source_id: "m1", target_id: "m2" }),
+        makeRel({
+          id: "r1",
+          source_id: "m1",
+          target_id: "m2",
+          created_at: new Date("2026-04-21T10:00:00.000Z"),
+        }),
       );
       await backend.relationshipRepo.create(
-        makeRel({ id: "r2", source_id: "m2", target_id: "m3" }),
+        makeRel({
+          id: "r2",
+          source_id: "m2",
+          target_id: "m3",
+          created_at: new Date("2026-04-21T11:00:00.000Z"),
+        }),
       );
-      // This one has an endpoint outside the queried set.
       await backend.memoryRepo.create({
         ...makeMemory({ id: "m4" }),
         embedding: ZERO_EMB,
       });
+      // endpoint outside queried set
       await backend.relationshipRepo.create(
         makeRel({ id: "r3", source_id: "m1", target_id: "m4" }),
       );
@@ -189,7 +209,7 @@ describe.each(factories)(
         "m2",
         "m3",
       ]);
-      expect(between.map((r) => r.id).sort()).toEqual(["r1", "r2"]);
+      expect(between.map((r) => r.id)).toEqual(["r1", "r2"]);
     });
 
     it("findBetweenMemories returns [] for fewer than 2 ids", async () => {
@@ -242,23 +262,33 @@ describe.each(factories)(
       expect(await backend.relationshipRepo.archiveById("nope")).toBe(false);
     });
 
-    it("findByMemoryIds collects across direction", async () => {
+    it("findByMemoryIds collects across direction ordered by created_at asc", async () => {
       await backend.memoryRepo.create({
         ...makeMemory({ id: "m3" }),
         embedding: ZERO_EMB,
       });
       await backend.relationshipRepo.create(
-        makeRel({ id: "r1", source_id: "m1", target_id: "m2" }),
+        makeRel({
+          id: "r1",
+          source_id: "m1",
+          target_id: "m2",
+          created_at: new Date("2026-04-21T10:00:00.000Z"),
+        }),
       );
       await backend.relationshipRepo.create(
-        makeRel({ id: "r2", source_id: "m3", target_id: "m1" }),
+        makeRel({
+          id: "r2",
+          source_id: "m3",
+          target_id: "m1",
+          created_at: new Date("2026-04-21T11:00:00.000Z"),
+        }),
       );
       const both = await backend.relationshipRepo.findByMemoryIds(
         "p1",
         ["m1"],
         "both",
       );
-      expect(both.map((r) => r.id).sort()).toEqual(["r1", "r2"]);
+      expect(both.map((r) => r.id)).toEqual(["r1", "r2"]);
       const outgoing = await backend.relationshipRepo.findByMemoryIds(
         "p1",
         ["m1"],
@@ -284,6 +314,76 @@ describe.each(factories)(
       await backend.relationshipRepo.create(makeRel({ description }));
       const found = await backend.relationshipRepo.findById("r1");
       expect(found?.description).toBe(description);
+    });
+
+    it("create rejects when source_id does not exist", async () => {
+      await expect(
+        backend.relationshipRepo.create(
+          makeRel({ id: "r-ghost", source_id: "missing", target_id: "m1" }),
+        ),
+      ).rejects.toThrow();
+    });
+
+    it("findByMemoryId returns [] when project_id does not match source", async () => {
+      await backend.relationshipRepo.create(makeRel());
+      const rels = await backend.relationshipRepo.findByMemoryId(
+        "other-project",
+        "m1",
+        "outgoing",
+      );
+      expect(rels).toEqual([]);
+    });
+
+    it("findExisting returns null when project_id does not match source", async () => {
+      await backend.relationshipRepo.create(
+        makeRel({ id: "r1", type: "overrides" }),
+      );
+      expect(
+        await backend.relationshipRepo.findExisting(
+          "other-project",
+          "m1",
+          "m2",
+          "overrides",
+        ),
+      ).toBeNull();
+    });
+
+    it("concurrent create on same source preserves all relationships", async () => {
+      await backend.memoryRepo.create({
+        ...makeMemory({ id: "m3" }),
+        embedding: ZERO_EMB,
+      });
+      await backend.memoryRepo.create({
+        ...makeMemory({ id: "m4" }),
+        embedding: ZERO_EMB,
+      });
+      await backend.memoryRepo.create({
+        ...makeMemory({ id: "m5" }),
+        embedding: ZERO_EMB,
+      });
+      const targets = ["m2", "m3", "m4", "m5"];
+      await Promise.all(
+        targets.map((target, i) =>
+          backend.relationshipRepo.create(
+            makeRel({
+              id: `r-${target}`,
+              source_id: "m1",
+              target_id: target,
+              created_at: new Date(
+                Date.parse("2026-04-21T10:00:00.000Z") + i * 1000,
+              ),
+            }),
+          ),
+        ),
+      );
+      const found = await backend.relationshipRepo.findByMemoryId(
+        "p1",
+        "m1",
+        "outgoing",
+      );
+      expect(found.map((r) => r.id).sort()).toEqual(
+        targets.map((t) => `r-${t}`),
+      );
     });
   },
 );

@@ -1,6 +1,8 @@
 import type { FlagRepository } from "../../../repositories/types.js";
 import type { Flag, FlagResolution, FlagType } from "../../../types/flag.js";
+import { NotFoundError } from "../../../utils/errors.js";
 import { VaultMemoryFiles } from "./memory-files.js";
+import { compareByCreatedAsc, compareByCreatedDesc } from "./util.js";
 
 export interface VaultFlagConfig {
   root: string;
@@ -15,7 +17,7 @@ export class VaultFlagRepository implements FlagRepository {
 
   async create(flag: Flag): Promise<Flag> {
     return await this.files.edit(flag.memory_id, (parsed) => ({
-      parsed: { ...parsed, flags: [...parsed.flags, flag] },
+      next: { ...parsed, flags: [...parsed.flags, flag] },
       result: flag,
     }));
   }
@@ -37,9 +39,6 @@ export class VaultFlagRepository implements FlagRepository {
     return out.sort(compareByCreatedDesc);
   }
 
-  // Mirrors DrizzleFlagRepository.findOpenByWorkspace: needs_review flags
-  // with resolved_at=null on memories that are either in workspaceId or
-  // project-scoped, ordered by created_at asc.
   async findOpenByWorkspace(
     projectId: string,
     workspaceId: string,
@@ -64,46 +63,52 @@ export class VaultFlagRepository implements FlagRepository {
     resolvedBy: string,
     resolution: FlagResolution,
   ): Promise<Flag | null> {
-    // Scan to find the memory that owns this flag (and only if unresolved,
-    // mirroring pg's WHERE id=? AND resolved_at IS NULL).
     const all = await this.files.listAllParsed();
     const owner = all.find(({ parsed }) =>
       parsed.flags.some((f) => f.id === id && f.resolved_at === null),
     );
     if (!owner) return null;
 
-    return await this.files.edit(owner.parsed.memory.id, (parsed) => {
-      const idx = parsed.flags.findIndex(
-        (f) => f.id === id && f.resolved_at === null,
-      );
-      if (idx < 0) return { parsed, result: null }; // lost race under lock
-      const now = new Date();
-      const current = parsed.flags[idx]!;
-      const next: Flag =
-        resolution === "deferred"
-          ? { ...current, created_at: now }
-          : { ...current, resolved_at: now, resolved_by: resolvedBy };
-      const nextFlags = parsed.flags.slice();
-      nextFlags[idx] = next;
-      return { parsed: { ...parsed, flags: nextFlags }, result: next };
-    });
+    try {
+      return await this.files.edit(owner.parsed.memory.id, (parsed) => {
+        const idx = parsed.flags.findIndex(
+          (f) => f.id === id && f.resolved_at === null,
+        );
+        // Owning memory still there but another writer resolved the flag first.
+        if (idx < 0) return { next: parsed, result: null };
+        const now = new Date();
+        const current = parsed.flags[idx]!;
+        const next: Flag =
+          resolution === "deferred"
+            ? { ...current, created_at: now }
+            : { ...current, resolved_at: now, resolved_by: resolvedBy };
+        const nextFlags = parsed.flags.slice();
+        nextFlags[idx] = next;
+        return { next: { ...parsed, flags: nextFlags }, result: next };
+      });
+    } catch (err) {
+      // Owning memory archived between scan and lock → pg returns null here.
+      if (err instanceof NotFoundError) return null;
+      throw err;
+    }
   }
 
   async autoResolveByMemoryId(memoryId: string): Promise<number> {
-    // pg returns 0 when the memory has no unresolved flags (or doesn't
-    // exist — FKs make flag rows impossible without the memory).
-    const rel = await this.files.resolvePath(memoryId);
-    if (rel === null) return 0;
-    return await this.files.edit(memoryId, (parsed) => {
-      const now = new Date();
-      let count = 0;
-      const nextFlags = parsed.flags.map((f) => {
-        if (f.resolved_at !== null) return f;
-        count += 1;
-        return { ...f, resolved_at: now, resolved_by: "system" };
+    try {
+      return await this.files.edit(memoryId, (parsed) => {
+        const now = new Date();
+        let count = 0;
+        const nextFlags = parsed.flags.map((f) => {
+          if (f.resolved_at !== null) return f;
+          count += 1;
+          return { ...f, resolved_at: now, resolved_by: "system" };
+        });
+        return { next: { ...parsed, flags: nextFlags }, result: count };
       });
-      return { parsed: { ...parsed, flags: nextFlags }, result: count };
-    });
+    } catch (err) {
+      if (err instanceof NotFoundError) return 0;
+      throw err;
+    }
   }
 
   async hasOpenFlag(
@@ -121,12 +126,4 @@ export class VaultFlagRepository implements FlagRepository {
           f.details.related_memory_id === relatedMemoryId),
     );
   }
-}
-
-function compareByCreatedAsc(a: Flag, b: Flag): number {
-  return a.created_at.getTime() - b.created_at.getTime();
-}
-
-function compareByCreatedDesc(a: Flag, b: Flag): number {
-  return b.created_at.getTime() - a.created_at.getTime();
 }

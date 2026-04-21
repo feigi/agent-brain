@@ -168,4 +168,43 @@ describe.each(factories)("CommentRepository contract — $name", (factory) => {
     const [found] = await backend.commentRepo.findByMemoryId("m1");
     expect(found?.content).toBe(content);
   });
+
+  it("create rejects when memory_id does not exist", async () => {
+    await expect(
+      backend.commentRepo.create({
+        id: "c-ghost",
+        memory_id: "missing",
+        author: "chris",
+        content: "x",
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("findByMemoryIds silently skips unknown ids mixed with real ones", async () => {
+    await backend.commentRepo.create({
+      id: "c1",
+      memory_id: "m1",
+      author: "a",
+      content: "real",
+    });
+    const found = await backend.commentRepo.findByMemoryIds(["m1", "ghost"]);
+    expect(found.map((c) => c.id)).toEqual(["c1"]);
+  });
+
+  it("concurrent create on same memory preserves all comments", async () => {
+    const ids = ["c1", "c2", "c3", "c4", "c5"];
+    await Promise.all(
+      ids.map((id) =>
+        backend.commentRepo.create({
+          id,
+          memory_id: "m1",
+          author: "chris",
+          content: id,
+        }),
+      ),
+    );
+    expect(await backend.commentRepo.countByMemoryId("m1")).toBe(5);
+    const found = await backend.commentRepo.findByMemoryId("m1");
+    expect(found.map((c) => c.id).sort()).toEqual(ids);
+  });
 });

@@ -1,17 +1,16 @@
 import type { RelationshipRepository } from "../../../repositories/types.js";
 import type { Relationship } from "../../../types/relationship.js";
+import { NotFoundError } from "../../../utils/errors.js";
 import { VaultMemoryFiles } from "./memory-files.js";
+import { compareByCreatedAsc } from "./util.js";
 
 export interface VaultRelationshipConfig {
   root: string;
 }
 
-// Relationships are stored in the source memory's markdown file under
-// `## Relationships`. Archive is implemented as line removal — pg keeps
-// a tombstone via `archived_at` but every public method filters on
-// `isNull(archived_at)`, so the observable behavior is identical.
-// Incoming-direction queries (and findById, findExisting) scan all
-// memory files; cost is O(N * avg-rel-count) and accepted at Phase 2 scale.
+// Relationships live in the source memory's file under `## Relationships`.
+// Archive is line removal — pg keeps a tombstone but every public method
+// filters `isNull(archived_at)`, so hard-delete is observationally equivalent.
 export class VaultRelationshipRepository implements RelationshipRepository {
   private readonly files: VaultMemoryFiles;
 
@@ -20,11 +19,10 @@ export class VaultRelationshipRepository implements RelationshipRepository {
   }
 
   async create(relationship: Relationship): Promise<Relationship> {
-    // Stored in the source memory's file. `archived_at` is dropped
-    // because the parser always reads it as null (archive = delete).
+    // Parser always reads archived_at as null, so coerce here too.
     const persisted: Relationship = { ...relationship, archived_at: null };
     return await this.files.edit(persisted.source_id, (parsed) => ({
-      parsed: {
+      next: {
         ...parsed,
         relationships: [...parsed.relationships, persisted],
       },
@@ -140,36 +138,47 @@ export class VaultRelationshipRepository implements RelationshipRepository {
     return out.sort(compareByCreatedAsc);
   }
 
+  // Not atomic across files: a crash or IO failure mid-loop can leave
+  // outgoing wiped but some incoming links still present. pg runs this
+  // as a single UPDATE. Deferred to Phase 2b.3.
   async archiveByMemoryId(
     memoryId: string,
     projectId: string,
   ): Promise<number> {
     let count = 0;
 
-    // Outgoing: wipe relationships stored in memoryId's own file.
     const rel = await this.files.resolvePath(memoryId);
     if (rel !== null) {
-      await this.files.edit(memoryId, (parsed) => {
-        if (parsed.memory.project_id !== projectId) {
-          return { parsed, result: null };
-        }
-        count += parsed.relationships.length;
-        return { parsed: { ...parsed, relationships: [] }, result: null };
-      });
+      try {
+        await this.files.edit(memoryId, (parsed) => {
+          if (parsed.memory.project_id !== projectId) {
+            return { next: parsed, result: null };
+          }
+          count += parsed.relationships.length;
+          return { next: { ...parsed, relationships: [] }, result: null };
+        });
+      } catch (err) {
+        if (!(err instanceof NotFoundError)) throw err;
+        // Memory vanished between resolve and lock — nothing to archive.
+      }
     }
 
-    // Incoming: scan other memories and drop lines pointing at memoryId.
     const all = await this.files.listAllParsed();
     for (const { parsed } of all) {
       if (parsed.memory.id === memoryId) continue;
       if (parsed.memory.project_id !== projectId) continue;
       const hits = parsed.relationships.filter((r) => r.target_id === memoryId);
       if (hits.length === 0) continue;
-      await this.files.edit(parsed.memory.id, (p) => {
-        const next = p.relationships.filter((r) => r.target_id !== memoryId);
-        count += p.relationships.length - next.length;
-        return { parsed: { ...p, relationships: next }, result: null };
-      });
+      try {
+        await this.files.edit(parsed.memory.id, (p) => {
+          const next = p.relationships.filter((r) => r.target_id !== memoryId);
+          count += p.relationships.length - next.length;
+          return { next: { ...p, relationships: next }, result: null };
+        });
+      } catch (err) {
+        if (err instanceof NotFoundError) continue;
+        throw err;
+      }
     }
 
     return count;
@@ -181,17 +190,18 @@ export class VaultRelationshipRepository implements RelationshipRepository {
       parsed.relationships.some((r) => r.id === id),
     );
     if (!owner) return false;
-    return await this.files.edit(owner.parsed.memory.id, (parsed) => {
-      const before = parsed.relationships.length;
-      const next = parsed.relationships.filter((r) => r.id !== id);
-      return {
-        parsed: { ...parsed, relationships: next },
-        result: next.length < before,
-      };
-    });
+    try {
+      return await this.files.edit(owner.parsed.memory.id, (parsed) => {
+        const before = parsed.relationships.length;
+        const next = parsed.relationships.filter((r) => r.id !== id);
+        return {
+          next: { ...parsed, relationships: next },
+          result: next.length < before,
+        };
+      });
+    } catch (err) {
+      if (err instanceof NotFoundError) return false;
+      throw err;
+    }
   }
-}
-
-function compareByCreatedAsc(a: Relationship, b: Relationship): number {
-  return a.created_at.getTime() - b.created_at.getTime();
 }
