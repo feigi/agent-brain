@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   parseDotenv,
   serialize,
@@ -189,5 +189,91 @@ describe("promptFresh", () => {
     await expect(
       promptFresh(asker({ PROJECT_ID: "proj-x", EMBEDDING_PROVIDER: "gpt4" })),
     ).rejects.toThrow(/titan|mock|ollama/);
+  });
+});
+
+import {
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+  readFileSync,
+  existsSync,
+  readdirSync,
+} from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { bootstrapEnv } from "../../../scripts/installer/env-file.js";
+
+describe("bootstrapEnv (fresh)", () => {
+  let dir: string;
+  const exampleText =
+    "# Project\nPROJECT_ID=my-project\n\n# Embedding\nEMBEDDING_PROVIDER=ollama\nEMBEDDING_DIMENSIONS=768\n";
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "envboot-"));
+    writeFileSync(join(dir, ".env.example"), exampleText);
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("creates .env with answers substituted, no .bak", async () => {
+    const logs: string[] = [];
+    const plan = await bootstrapEnv(dir, {
+      dryRun: false,
+      ask: async (q) => {
+        if (q.includes("PROJECT_ID")) return "real-proj";
+        if (q.includes("EMBEDDING_PROVIDER")) return "titan";
+        throw new Error(`unexpected prompt: ${q}`);
+      },
+      log: (m) => logs.push(m),
+    });
+    expect(plan.mode).toBe("fresh");
+    expect(plan.added).toEqual([
+      "PROJECT_ID",
+      "EMBEDDING_PROVIDER",
+      "EMBEDDING_DIMENSIONS",
+    ]);
+    const written = readFileSync(join(dir, ".env"), "utf8");
+    expect(written).toContain("PROJECT_ID=real-proj");
+    expect(written).toContain("EMBEDDING_PROVIDER=titan");
+    expect(written).toContain("EMBEDDING_DIMENSIONS=768");
+    expect(readdirSync(dir).some((n) => n.startsWith(".env.bak"))).toBe(false);
+  });
+
+  it("fresh + dryRun does not write .env", async () => {
+    await bootstrapEnv(dir, {
+      dryRun: true,
+      ask: async () => "real-proj",
+      log: () => undefined,
+    });
+    expect(existsSync(join(dir, ".env"))).toBe(false);
+  });
+
+  it("throws when .env.example missing", async () => {
+    rmSync(join(dir, ".env.example"));
+    await expect(
+      bootstrapEnv(dir, {
+        dryRun: false,
+        ask: async () => "x",
+        log: () => undefined,
+      }),
+    ).rejects.toThrow(/\.env\.example/);
+  });
+
+  it("throws when repo root is not writable", async () => {
+    const { chmodSync } = await import("node:fs");
+    chmodSync(dir, 0o555);
+    try {
+      await expect(
+        bootstrapEnv(dir, {
+          dryRun: false,
+          ask: async () => "real-proj",
+          log: () => undefined,
+        }),
+      ).rejects.toThrow(/writ/i);
+    } finally {
+      chmodSync(dir, 0o755);
+    }
   });
 });
