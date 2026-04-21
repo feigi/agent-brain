@@ -25,7 +25,9 @@
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1014.0",
+    "@lancedb/lancedb": "^0.27.2",
     "@modelcontextprotocol/sdk": "^1.27.1",
+    "apache-arrow": "^18.1.0",
     "cron-parser": "^4.9.0",
     "dotenv": "^16.0.0",
     "drizzle-kit": "^0.31.10",
