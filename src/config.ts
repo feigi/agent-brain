@@ -3,6 +3,7 @@ import { z } from "zod";
 
 const configSchema = z.object({
   projectId: z.string().default(""),
+  backend: z.enum(["postgres", "vault"]).default("postgres"),
   databaseUrl: z
     .string()
     .default("postgresql://agentic:agentic@localhost:5432/agent_brain"),
@@ -49,6 +50,7 @@ const configSchema = z.object({
 
 export const config = configSchema.parse({
   projectId: process.env.PROJECT_ID ?? "",
+  backend: process.env.AGENT_BRAIN_BACKEND,
   databaseUrl: process.env.DATABASE_URL,
   embeddingProvider: process.env.EMBEDDING_PROVIDER,
   embeddingDimensions: process.env.EMBEDDING_DIMENSIONS,
