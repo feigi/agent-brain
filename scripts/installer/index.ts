@@ -10,6 +10,7 @@ import { copilotTarget } from "./targets/copilot.js";
 import { applyPlan } from "./apply.js";
 import { uninstallTarget } from "./uninstall.js";
 import { isDirectory } from "./fs-util.js";
+import { bootstrapEnv } from "./env-file.js";
 
 const TARGETS: Record<TargetName, Target> = {
   claude: claudeTarget,
@@ -28,6 +29,19 @@ export async function runInstaller(opts: RunOptions, env: Env): Promise<void> {
 
   for (const name of opts.targets) {
     await TARGETS[name].preflight(env.home);
+  }
+
+  if (!opts.uninstall) {
+    const rl = createInterface({ input: stdin, output: stdout });
+    try {
+      await bootstrapEnv(env.repoRoot, {
+        dryRun: opts.dryRun,
+        ask: (q) => rl.question(q),
+        log: (m) => console.log(m),
+      });
+    } finally {
+      rl.close();
+    }
   }
 
   for (const name of opts.targets) {
