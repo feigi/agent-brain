@@ -159,7 +159,9 @@ export class VaultVectorIndex {
       clauses.push(`scope = 'project'`);
     } else {
       if (params.workspaceId === null) {
-        throw new Error("workspaceId is required for workspace-scoped pairwise");
+        throw new Error(
+          "workspaceId is required for workspace-scoped pairwise",
+        );
       }
       clauses.push(
         `scope = 'workspace'`,
