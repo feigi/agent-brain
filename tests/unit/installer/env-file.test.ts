@@ -3,6 +3,7 @@ import {
   parseDotenv,
   serialize,
   mergeEnv,
+  promptFresh,
 } from "../../../scripts/installer/env-file.js";
 
 describe("parseDotenv", () => {
@@ -137,5 +138,56 @@ describe("mergeEnv", () => {
     const template = parse("PROJECT_ID=my-project\nPORT=19898\n");
     const r = mergeEnv(existing, template);
     expect(serialize(r.lines)).not.toContain("# Keys not in .env.example");
+  });
+});
+
+describe("promptFresh", () => {
+  function asker(answers: Record<string, string>) {
+    return async (q: string) => {
+      for (const key of Object.keys(answers)) {
+        if (q.includes(key)) return answers[key];
+      }
+      throw new Error(`Unexpected prompt: ${q}`);
+    };
+  }
+
+  it("collects PROJECT_ID and EMBEDDING_PROVIDER", async () => {
+    const got = await promptFresh(
+      asker({ PROJECT_ID: "proj-x", EMBEDDING_PROVIDER: "titan" }),
+    );
+    expect(got).toEqual({
+      PROJECT_ID: "proj-x",
+      EMBEDDING_PROVIDER: "titan",
+    });
+  });
+
+  it("defaults EMBEDDING_PROVIDER to ollama on empty input", async () => {
+    const got = await promptFresh(
+      asker({ PROJECT_ID: "proj-x", EMBEDDING_PROVIDER: "" }),
+    );
+    expect(got.EMBEDDING_PROVIDER).toBe("ollama");
+  });
+
+  it("rejects empty PROJECT_ID", async () => {
+    await expect(
+      promptFresh(asker({ PROJECT_ID: "", EMBEDDING_PROVIDER: "ollama" })),
+    ).rejects.toThrow(/PROJECT_ID/);
+  });
+
+  it("rejects placeholder PROJECT_ID 'my-project'", async () => {
+    await expect(
+      promptFresh(
+        asker({
+          PROJECT_ID: "my-project",
+          EMBEDDING_PROVIDER: "ollama",
+        }),
+      ),
+    ).rejects.toThrow(/placeholder/);
+  });
+
+  it("rejects invalid EMBEDDING_PROVIDER", async () => {
+    await expect(
+      promptFresh(asker({ PROJECT_ID: "proj-x", EMBEDDING_PROVIDER: "gpt4" })),
+    ).rejects.toThrow(/titan|mock|ollama/);
   });
 });
