@@ -81,6 +81,7 @@ describe("copilotTarget.plan", () => {
       "/home/u/.copilot/copilot-instructions.md",
     );
     expect(plan.markdownPrepends[0].markerId).toBe("agent-brain");
+    expect(plan.markdownPrepends[0].snippet).toMatch(/^__fromFile:/);
   });
 
   it("postInstructions include docker-compose command", () => {
