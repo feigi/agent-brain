@@ -16,6 +16,7 @@ export class DrizzleAuditRepository implements AuditRepository {
       actor: entry.actor,
       reason: entry.reason,
       diff: entry.diff,
+      created_at: entry.created_at,
     });
   }
 

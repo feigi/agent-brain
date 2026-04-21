@@ -10,9 +10,9 @@ export interface MemoryLocation {
 // Any segment interpolated into a vault path must not contain path
 // separators or `.`/`..` traversal tokens — otherwise a crafted id or
 // workspace slug could escape the vault root.
-const UNSAFE_SEGMENT = /[/\\]|^\.\.?$|\0/;
+export const UNSAFE_SEGMENT = /[/\\]|^\.\.?$|\0/;
 
-function safeSegment(value: string, name: string): string {
+export function safeSegment(value: string, name: string): string {
   if (value.length === 0 || UNSAFE_SEGMENT.test(value))
     throw new Error(`invalid ${name}: ${JSON.stringify(value)}`);
   return value;
