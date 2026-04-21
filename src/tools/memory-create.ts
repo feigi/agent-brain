@@ -7,6 +7,7 @@ import {
   contentSchema,
   memoryTypeEnum,
   memoryScopeEnum,
+  memorySourceEnum,
 } from "../utils/validation.js";
 import { toolResponse, withErrorHandling } from "./tool-utils.js";
 
@@ -50,11 +51,10 @@ export function registerMemoryCreate(
             "Set true after the user has explicitly confirmed cross-workspace (project) scope. Required alongside scope:'project' when source is 'agent-auto' or 'session-review'.",
           ),
         user_id: userIdSchema,
-        source: z
-          .string()
+        source: memorySourceEnum
           .optional()
           .describe(
-            "Origin: 'manual', 'agent-auto', 'session-review', or custom",
+            "Origin of the save. Choose exactly one: 'manual' = user explicitly asked you to save (e.g. 'remember X', 'save that'); bypasses budget and project-scope guards. 'agent-auto' = autonomous save during a live conversation; use this as the default for agent-initiated captures. 'session-review' = ONLY for autonomous saves triggered by the end-of-session Stop-hook review; do not use mid-session.",
           ),
         session_id: z
           .string()

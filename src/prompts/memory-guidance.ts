@@ -53,6 +53,16 @@ Save at natural breakpoints throughout the session -- don't wait until the end:
 - After resolving a tricky bug (save the root cause + fix)
 - When the user shares team context, decisions, or background information
 
+### Choosing \`source\`
+
+Every autonomous or user-directed save must pick exactly one source. Get this right -- it drives budget accounting and project-scope guards.
+
+- \`manual\` -- the user explicitly told you to save ("remember this", "save that", "note that X"). Bypasses write budget and the project-scope confirmation guard. Do NOT use \`manual\` for inferences you made yourself, even if they feel important.
+- \`agent-auto\` -- you decided autonomously to save during a live conversation. This is the default for anything you initiate mid-session.
+- \`session-review\` -- ONLY use when the Stop-hook end-of-session review is the triggering context. Never mid-session, never because the user asked you to save something.
+
+If in doubt between \`manual\` and \`agent-auto\`: ask "did the user tell me to save this, right now, in their most recent message?" If yes -> \`manual\`. If no -> \`agent-auto\`.
+
 ### When NOT to Save
 
 - Trivial facts easily found in code (import paths, obvious function signatures)
@@ -63,7 +73,7 @@ Save at natural breakpoints throughout the session -- don't wait until the end:
 ### Session-End Review
 
 When the session is ending, review your work and extract any remaining learnings not yet captured.
-Use source: 'session-review' for end-of-session saves to distinguish them from mid-session captures.
+This is the ONLY context in which \`source: 'session-review'\` is correct. Any save triggered mid-conversation -- even one made as part of a wrap-up summary before the Stop hook fires -- must use \`agent-auto\` or \`manual\` instead.
 
 Focus your review on:
 - Decisions made that aren't obvious from the code

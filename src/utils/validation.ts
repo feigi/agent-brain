@@ -37,6 +37,17 @@ export const memoryTypeEnum = z.enum([
 
 export const memoryScopeEnum = z.enum(["workspace", "user", "project"]);
 
+// Source-of-save enum — locked to three values to prevent label drift.
+// - "manual": user explicitly asked the agent to save ("remember X", "save that").
+//   Bypasses write budget and project-scope confirmation guard.
+// - "agent-auto": autonomous save during a live conversation. Default for agent-initiated captures.
+// - "session-review": autonomous save triggered ONLY by the end-of-session Stop-hook review.
+export const memorySourceEnum = z.enum([
+  "manual",
+  "agent-auto",
+  "session-review",
+]);
+
 /** Parse cursor string (format: "created_at|id") into object for the repository layer */
 export function parseCursor(
   cursor: string | undefined,

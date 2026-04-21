@@ -34,6 +34,16 @@ Save a memory (or suggest one) when you encounter:
 
 You don't need to ask permission for every memory — use judgment. For things that are clearly worth keeping, save directly. For anything uncertain, suggest it briefly and let the user confirm.
 
+### Choosing `source`
+
+Every save must pick exactly one of three values:
+
+- `manual` — the user explicitly told you to save this, in their most recent message ("remember X", "save that", "note that Y"). Bypasses write budget and project-scope guard. Do **not** use `manual` for things you decided to save yourself, even if they feel important.
+- `agent-auto` — you decided autonomously to save during a live conversation. This is the default for anything you initiate mid-session.
+- `session-review` — **only** when the Stop-hook end-of-session review is the triggering context. Never mid-session, never because the user asked.
+
+Quick test: "did the user tell me to save this, right now, in their most recent message?" Yes → `manual`. No, and the Stop hook is running → `session-review`. Otherwise → `agent-auto`.
+
 ### Choosing Scope
 
 Default to the **narrowest applicable scope** to reduce blast radius:
