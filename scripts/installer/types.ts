@@ -34,7 +34,6 @@ export interface Target {
 
 export interface RunOptions {
   dryRun: boolean;
-  yes: boolean;
   uninstall: boolean;
   targets: TargetName[];
 }

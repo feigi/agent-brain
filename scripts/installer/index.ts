@@ -19,8 +19,8 @@ export interface Env {
 
 export async function runInstaller(opts: RunOptions, env: Env): Promise<void> {
   // Preflight all targets before any apply
+  process.env.HOME = env.home;
   for (const name of opts.targets) {
-    process.env.HOME = env.home; // preflight reads HOME
     await TARGETS[name].preflight();
   }
 
@@ -57,7 +57,6 @@ export async function main(argv: string[]): Promise<void> {
     options: {
       target: { type: "string" },
       "dry-run": { type: "boolean", default: false },
-      yes: { type: "boolean", short: "y", default: false },
       uninstall: { type: "boolean", default: false },
       help: { type: "boolean", default: false },
     },
@@ -65,7 +64,7 @@ export async function main(argv: string[]): Promise<void> {
 
   if (values.help) {
     console.log(
-      `Usage: npm run install:agent -- [--target=claude|copilot|both] [--dry-run] [--yes] [--uninstall]`,
+      `Usage: npm run install:agent -- [--target=claude|copilot|both] [--dry-run] [--uninstall]`,
     );
     return;
   }
@@ -82,16 +81,19 @@ export async function main(argv: string[]): Promise<void> {
     throw new Error("--target required when not running interactively");
   }
 
+  if (!process.env.HOME) {
+    throw new Error("HOME environment variable is not set");
+  }
+
   await runInstaller(
     {
       targets,
       dryRun: Boolean(values["dry-run"]),
-      yes: Boolean(values.yes),
       uninstall: Boolean(values.uninstall),
     },
     {
       repoRoot: process.cwd(),
-      home: process.env.HOME ?? "",
+      home: process.env.HOME,
     },
   );
 }

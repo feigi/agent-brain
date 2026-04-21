@@ -47,7 +47,7 @@ export async function prependWithMarkers(
     const after = afterRaw.startsWith("\n") ? afterRaw.slice(1) : afterRaw;
     next = before + block + after;
   } else if (existed) {
-    const sep = existing.startsWith("\n") || existing === "" ? "" : "\n";
+    const sep = existing.startsWith("\n") ? "" : "\n";
     next = block + sep + existing;
   } else {
     next = block;
