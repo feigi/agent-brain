@@ -53,6 +53,6 @@ export interface RunOptions {
   dryRun: boolean;
   uninstall: boolean;
   targets: TargetName[];
-  // Test escape hatch — skip the repo-.env bootstrap step.
+  // Test escape hatch: skip the repo-root `.env` bootstrap step.
   skipEnvBootstrap?: boolean;
 }
