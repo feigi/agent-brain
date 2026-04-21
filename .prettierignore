@@ -4,3 +4,4 @@ dist/
 drizzle/
 coverage/
 iac/
+tests/fixtures/

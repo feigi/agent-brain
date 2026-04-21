@@ -1,8 +1,4 @@
-import type {
-  Flag,
-  FlagType,
-  FlagSeverity,
-} from "../../../types/flag.js";
+import type { Flag, FlagType, FlagSeverity } from "../../../types/flag.js";
 
 const FLAG_TYPES: FlagType[] = [
   "duplicate",
@@ -47,7 +43,10 @@ function parseOne(entry: unknown, ctx: ParseCtx, i: number): Flag {
   const e = entry as Record<string, unknown>;
 
   const flagType = e.type;
-  if (typeof flagType !== "string" || !FLAG_TYPES.includes(flagType as FlagType)) {
+  if (
+    typeof flagType !== "string" ||
+    !FLAG_TYPES.includes(flagType as FlagType)
+  ) {
     throw new Error(`flags[${i}].flag_type invalid: ${String(flagType)}`);
   }
   const severity = e.severity;

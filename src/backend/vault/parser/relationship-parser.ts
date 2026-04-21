@@ -80,7 +80,8 @@ function parseMeta(meta: string): Map<string, string> {
     head = meta.slice(0, descIdx);
     const descStart = descIdx + ', description: "'.length;
     const descEnd = meta.lastIndexOf('"');
-    if (descEnd <= descStart) throw new Error(`Unterminated description in: ${meta}`);
+    if (descEnd <= descStart)
+      throw new Error(`Unterminated description in: ${meta}`);
     out.set("description", meta.slice(descStart, descEnd));
   }
 

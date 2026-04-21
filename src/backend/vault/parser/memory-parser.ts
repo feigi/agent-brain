@@ -64,9 +64,7 @@ export function parseMemoryFile(md: string): ParsedMemoryFile {
     ? (fm.tags as unknown[]).filter((t): t is string => typeof t === "string")
     : null;
   const tags =
-    tagsRaw === null
-      ? null
-      : tagsRaw.filter((t) => !FLAG_TAG_RE.test(t));
+    tagsRaw === null ? null : tagsRaw.filter((t) => !FLAG_TAG_RE.test(t));
 
   const lastCommentAt =
     comments.length === 0
@@ -241,7 +239,9 @@ function enumField<T extends string>(
   name: string,
 ): T {
   if (typeof v !== "string" || !options.includes(v as T)) {
-    throw new Error(`${name} must be one of ${options.join("|")}; got ${String(v)}`);
+    throw new Error(
+      `${name} must be one of ${options.join("|")}; got ${String(v)}`,
+    );
   }
   return v as T;
 }
