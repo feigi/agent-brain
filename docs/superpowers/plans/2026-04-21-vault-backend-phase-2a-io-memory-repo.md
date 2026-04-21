@@ -12,14 +12,14 @@
 
 **Scope boundary (locked):**
 
-| In scope | Out of scope (later phase) |
-|---|---|
-| Parser strictness + ergonomics + docs (all 15 items from `docs/phase-2-TODOs.md`) | Git commit/push/pull (Phase 4) |
-| `io/paths.ts`, `io/vault-fs.ts`, `io/lock.ts` | LanceDB index, embedding store (Phase 3) |
-| `VaultMemoryRepository` non-vector methods | Chokidar watcher (Phase 5) |
-| `VaultWorkspaceRepository` | Comment / Flag / Relationship / Session / Scheduler / Audit repos (Phase 2b) |
-| Parameterized contract tests for Memory + Workspace repos | VaultBackend class wiring (Phase 2b) |
-| Vector methods throwing `NotImplementedError` | Migration CLI (Phase 6) |
+| In scope                                                                          | Out of scope (later phase)                                                   |
+| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Parser strictness + ergonomics + docs (all 15 items from `docs/phase-2-TODOs.md`) | Git commit/push/pull (Phase 4)                                               |
+| `io/paths.ts`, `io/vault-fs.ts`, `io/lock.ts`                                     | LanceDB index, embedding store (Phase 3)                                     |
+| `VaultMemoryRepository` non-vector methods                                        | Chokidar watcher (Phase 5)                                                   |
+| `VaultWorkspaceRepository`                                                        | Comment / Flag / Relationship / Session / Scheduler / Audit repos (Phase 2b) |
+| Parameterized contract tests for Memory + Workspace repos                         | VaultBackend class wiring (Phase 2b)                                         |
+| Vector methods throwing `NotImplementedError`                                     | Migration CLI (Phase 6)                                                      |
 
 ---
 
@@ -82,11 +82,11 @@ docs/phase-2-TODOs.md               # delete (items now folded into this plan)
 
 ### Scope → path resolution
 
-| `memory.scope` | Path shape |
-|---|---|
-| `workspace` | `workspaces/<workspace_slug>/memories/<id>.md` |
-| `project` | `project/memories/<id>.md` |
-| `user` | `users/<user_id>/<workspace_slug>/<id>.md` |
+| `memory.scope` | Path shape                                     |
+| -------------- | ---------------------------------------------- |
+| `workspace`    | `workspaces/<workspace_slug>/memories/<id>.md` |
+| `project`      | `project/memories/<id>.md`                     |
+| `user`         | `users/<user_id>/<workspace_slug>/<id>.md`     |
 
 `workspace_slug` is `memory.workspace_id` as-is (caller normalizes). Filename is the nanoid id, stable across renames.
 
@@ -123,8 +123,12 @@ describe.each([
   ["vault", vaultFactory],
 ])("MemoryRepository (%s)", (name, factory) => {
   let backend: TestBackend;
-  beforeEach(async () => { backend = await factory(); });
-  afterEach(async () => { await backend.close(); });
+  beforeEach(async () => {
+    backend = await factory();
+  });
+  afterEach(async () => {
+    await backend.close();
+  });
   // behavioural tests
 });
 ```
@@ -136,6 +140,7 @@ describe.each([
 ## Task 1: Install proper-lockfile
 
 **Files:**
+
 - Modify: `package.json`, `package-lock.json`
 
 - [ ] **Step 1: Install runtime dep**
@@ -162,6 +167,7 @@ git commit -m "chore(deps): add proper-lockfile for vault per-file locks"
 Covers `docs/phase-2-TODOs.md` items: `parseFiniteNumber` helper, `parseIsoDate` helper, relationship `confidence` finiteness, flag `created`/`resolved` date validation, memory `version`/`embedding_dimensions` finiteness, memory date fields validation.
 
 **Files:**
+
 - Modify: `src/backend/vault/parser/memory-parser.ts`
 - Modify: `src/backend/vault/parser/flag-parser.ts`
 - Modify: `src/backend/vault/parser/relationship-parser.ts`
@@ -226,21 +232,21 @@ describe("parser negative paths — number/date finiteness", () => {
   });
 
   it("memory updated: invalid date throws", () => {
-    expect(() =>
-      parseMemoryFile(wrapMemoryMd({ updated: "nope" })),
-    ).toThrow(/updated.*ISO.*date/);
+    expect(() => parseMemoryFile(wrapMemoryMd({ updated: "nope" }))).toThrow(
+      /updated.*ISO.*date/,
+    );
   });
 
   it("memory verified: invalid date (when present) throws", () => {
-    expect(() =>
-      parseMemoryFile(wrapMemoryMd({ verified: "bad" })),
-    ).toThrow(/verified.*ISO.*date/);
+    expect(() => parseMemoryFile(wrapMemoryMd({ verified: "bad" }))).toThrow(
+      /verified.*ISO.*date/,
+    );
   });
 
   it("memory archived: invalid date (when present) throws", () => {
-    expect(() =>
-      parseMemoryFile(wrapMemoryMd({ archived: "bad" })),
-    ).toThrow(/archived.*ISO.*date/);
+    expect(() => parseMemoryFile(wrapMemoryMd({ archived: "bad" }))).toThrow(
+      /archived.*ISO.*date/,
+    );
   });
 
   it("flag created: invalid date throws", () => {
@@ -347,17 +353,18 @@ function isoDate(v: unknown, name: string): Date {
 Replace the flag date construction in `parseOne`:
 
 ```ts
-  return {
-    id,
-    project_id: ctx.projectId,
-    memory_id: ctx.memoryId,
-    flag_type: flagType as FlagType,
-    severity: severity as FlagSeverity,
-    details,
-    resolved_at: resolved === null ? null : isoDate(resolved, `flags[${i}].resolved`),
-    resolved_by: resolvedBy,
-    created_at: isoDate(created, `flags[${i}].created`),
-  };
+return {
+  id,
+  project_id: ctx.projectId,
+  memory_id: ctx.memoryId,
+  flag_type: flagType as FlagType,
+  severity: severity as FlagSeverity,
+  details,
+  resolved_at:
+    resolved === null ? null : isoDate(resolved, `flags[${i}].resolved`),
+  resolved_by: resolvedBy,
+  created_at: isoDate(created, `flags[${i}].created`),
+};
 ```
 
 - [ ] **Step 5: Apply finite-number check to relationship-parser.ts**
@@ -365,12 +372,12 @@ Replace the flag date construction in `parseOne`:
 In `src/backend/vault/parser/relationship-parser.ts`, change the confidence parse:
 
 ```ts
-    const confidenceRaw = required(kv, "confidence", line);
-    const confidence = Number(confidenceRaw);
-    if (!Number.isFinite(confidence))
-      throw new Error(
-        `confidence must be a finite number in: ${line}; got ${confidenceRaw}`,
-      );
+const confidenceRaw = required(kv, "confidence", line);
+const confidence = Number(confidenceRaw);
+if (!Number.isFinite(confidence))
+  throw new Error(
+    `confidence must be a finite number in: ${line}; got ${confidenceRaw}`,
+  );
 ```
 
 - [ ] **Step 6: Run negative tests — all pass**
@@ -400,6 +407,7 @@ git commit -m "fix(vault-parser): reject NaN and invalid dates in frontmatter"
 Covers `docs/phase-2-TODOs.md` items: reject non-object `fm.metadata` (arrays/primitives), strict `flags[i].related` / `relationship_id` / `similarity` (throw on wrong type instead of silently dropping).
 
 **Files:**
+
 - Modify: `src/backend/vault/parser/memory-parser.ts`
 - Modify: `src/backend/vault/parser/flag-parser.ts`
 - Modify: `tests/unit/backend/vault/parser/negative.test.ts`
@@ -409,49 +417,49 @@ Covers `docs/phase-2-TODOs.md` items: reject non-object `fm.metadata` (arrays/pr
 Append to the existing `describe` block in `tests/unit/backend/vault/parser/negative.test.ts`:
 
 ```ts
-  it("memory metadata: array rejected", () => {
-    expect(() => parseMemoryFile(wrapMemoryMd({ metadata: [1, 2] }))).toThrow(
-      /metadata must be an object/,
-    );
-  });
+it("memory metadata: array rejected", () => {
+  expect(() => parseMemoryFile(wrapMemoryMd({ metadata: [1, 2] }))).toThrow(
+    /metadata must be an object/,
+  );
+});
 
-  it("memory metadata: primitive rejected", () => {
-    expect(() => parseMemoryFile(wrapMemoryMd({ metadata: 42 }))).toThrow(
-      /metadata must be an object/,
-    );
-  });
+it("memory metadata: primitive rejected", () => {
+  expect(() => parseMemoryFile(wrapMemoryMd({ metadata: 42 }))).toThrow(
+    /metadata must be an object/,
+  );
+});
 
-  it("flag related: non-string rejected", () => {
-    const bad = {
-      id: "f1",
-      type: "verify",
-      severity: "needs_review",
-      reason: "r",
-      related: 123,
-      created: "2026-04-21T00:00:00.000Z",
-      resolved: null,
-      resolved_by: null,
-    };
-    expect(() =>
-      parseFlags([bad], { projectId: "p", memoryId: "m" }),
-    ).toThrow(/flags\[0\].related must be string/);
-  });
+it("flag related: non-string rejected", () => {
+  const bad = {
+    id: "f1",
+    type: "verify",
+    severity: "needs_review",
+    reason: "r",
+    related: 123,
+    created: "2026-04-21T00:00:00.000Z",
+    resolved: null,
+    resolved_by: null,
+  };
+  expect(() => parseFlags([bad], { projectId: "p", memoryId: "m" })).toThrow(
+    /flags\[0\].related must be string/,
+  );
+});
 
-  it("flag similarity: string rejected", () => {
-    const bad = {
-      id: "f1",
-      type: "verify",
-      severity: "needs_review",
-      reason: "r",
-      similarity: "high",
-      created: "2026-04-21T00:00:00.000Z",
-      resolved: null,
-      resolved_by: null,
-    };
-    expect(() =>
-      parseFlags([bad], { projectId: "p", memoryId: "m" }),
-    ).toThrow(/flags\[0\].similarity must be a finite number/);
-  });
+it("flag similarity: string rejected", () => {
+  const bad = {
+    id: "f1",
+    type: "verify",
+    severity: "needs_review",
+    reason: "r",
+    similarity: "high",
+    created: "2026-04-21T00:00:00.000Z",
+    resolved: null,
+    resolved_by: null,
+  };
+  expect(() => parseFlags([bad], { projectId: "p", memoryId: "m" })).toThrow(
+    /flags\[0\].similarity must be a finite number/,
+  );
+});
 ```
 
 - [ ] **Step 2: Run test — fail**
@@ -473,15 +481,8 @@ In `src/backend/vault/parser/memory-parser.ts`, replace the metadata assignment 
 Add helper near the other validators:
 
 ```ts
-function plainObject(
-  v: unknown,
-  name: string,
-): Record<string, unknown> {
-  if (
-    typeof v !== "object" ||
-    v === null ||
-    Array.isArray(v)
-  )
+function plainObject(v: unknown, name: string): Record<string, unknown> {
+  if (typeof v !== "object" || v === null || Array.isArray(v))
     throw new Error(`${name} must be an object`);
   return v as Record<string, unknown>;
 }
@@ -492,27 +493,29 @@ function plainObject(
 In `src/backend/vault/parser/flag-parser.ts`, replace the `details` building block in `parseOne`:
 
 ```ts
-  const details: Flag["details"] = { reason };
-  if (e.related !== undefined) {
-    if (typeof e.related !== "string")
-      throw new Error(`flags[${i}].related must be string; got ${String(e.related)}`);
-    details.related_memory_id = e.related;
-  }
-  if (e.relationship_id !== undefined) {
-    if (typeof e.relationship_id !== "string")
-      throw new Error(
-        `flags[${i}].relationship_id must be string; got ${String(e.relationship_id)}`,
-      );
-    details.relationship_id = e.relationship_id;
-  }
-  if (e.similarity !== undefined) {
-    const sim = Number(e.similarity);
-    if (!Number.isFinite(sim))
-      throw new Error(
-        `flags[${i}].similarity must be a finite number; got ${String(e.similarity)}`,
-      );
-    details.similarity = sim;
-  }
+const details: Flag["details"] = { reason };
+if (e.related !== undefined) {
+  if (typeof e.related !== "string")
+    throw new Error(
+      `flags[${i}].related must be string; got ${String(e.related)}`,
+    );
+  details.related_memory_id = e.related;
+}
+if (e.relationship_id !== undefined) {
+  if (typeof e.relationship_id !== "string")
+    throw new Error(
+      `flags[${i}].relationship_id must be string; got ${String(e.relationship_id)}`,
+    );
+  details.relationship_id = e.relationship_id;
+}
+if (e.similarity !== undefined) {
+  const sim = Number(e.similarity);
+  if (!Number.isFinite(sim))
+    throw new Error(
+      `flags[${i}].similarity must be a finite number; got ${String(e.similarity)}`,
+    );
+  details.similarity = sim;
+}
 ```
 
 - [ ] **Step 5: Run negative tests**
@@ -541,6 +544,7 @@ git commit -m "fix(vault-parser): enforce object metadata and typed flag details
 Covers `docs/phase-2-TODOs.md` items: shared `parser/types.ts` with unified `ParseCtx`, `flags[i].flag_type invalid` → `flags[i].type invalid` message fix, description quote escape/unescape.
 
 **Files:**
+
 - Create: `src/backend/vault/parser/types.ts`
 - Modify: `src/backend/vault/parser/flag-parser.ts`
 - Modify: `src/backend/vault/parser/relationship-parser.ts`
@@ -553,29 +557,29 @@ Covers `docs/phase-2-TODOs.md` items: shared `parser/types.ts` with unified `Par
 Append to `tests/unit/backend/vault/parser/negative.test.ts`:
 
 ```ts
-  it("flag type invalid: error message uses 'type' not 'flag_type'", () => {
-    const bad = {
-      id: "f1",
-      type: "bogus",
-      severity: "needs_review",
-      reason: "r",
-      created: "2026-04-21T00:00:00.000Z",
-      resolved: null,
-      resolved_by: null,
-    };
-    expect(() =>
-      parseFlags([bad], { projectId: "p", memoryId: "m" }),
-    ).toThrow(/flags\[0\]\.type invalid/);
-  });
+it("flag type invalid: error message uses 'type' not 'flag_type'", () => {
+  const bad = {
+    id: "f1",
+    type: "bogus",
+    severity: "needs_review",
+    reason: "r",
+    created: "2026-04-21T00:00:00.000Z",
+    resolved: null,
+    resolved_by: null,
+  };
+  expect(() => parseFlags([bad], { projectId: "p", memoryId: "m" })).toThrow(
+    /flags\[0\]\.type invalid/,
+  );
+});
 
-  it("relationship description with embedded quote: roundtrips escaped", () => {
-    const line = `- related:: [[t1]] — id: r1, confidence: 1, by: u, at: 2026-04-21T00:00:00.000Z, description: "he said \\"hi\\""`;
-    const rels = parseRelationshipSection(line, {
-      projectId: "p",
-      sourceId: "s",
-    });
-    expect(rels[0].description).toBe('he said "hi"');
+it("relationship description with embedded quote: roundtrips escaped", () => {
+  const line = `- related:: [[t1]] — id: r1, confidence: 1, by: u, at: 2026-04-21T00:00:00.000Z, description: "he said \\"hi\\""`;
+  const rels = parseRelationshipSection(line, {
+    projectId: "p",
+    sourceId: "s",
   });
+  expect(rels[0].description).toBe('he said "hi"');
+});
 ```
 
 Append to `tests/unit/backend/vault/parser/roundtrip.property.test.ts` — widen the `desc` arbitrary to include `"`:
@@ -583,16 +587,16 @@ Append to `tests/unit/backend/vault/parser/roundtrip.property.test.ts` — widen
 In the `relArb` function, replace the `desc` definition:
 
 ```ts
-  // Description may contain commas AND quotes (parser escapes/unescapes '"').
-  const desc = fc.string({
-    unit: fc.constantFrom(
-      ..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -.,?!:;()\"".split(
-        "",
-      ),
+// Description may contain commas AND quotes (parser escapes/unescapes '"').
+const desc = fc.string({
+  unit: fc.constantFrom(
+    ...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -.,?!:;()"'.split(
+      "",
     ),
-    minLength: 1,
-    maxLength: 40,
-  });
+  ),
+  minLength: 1,
+  maxLength: 40,
+});
 ```
 
 - [ ] **Step 2: Run tests — fail**
@@ -632,12 +636,12 @@ Remove the `interface ParseCtx { ... }` block.
 Fix the error message at the flag-type enum check:
 
 ```ts
-  if (
-    typeof flagType !== "string" ||
-    !FLAG_TYPES.includes(flagType as FlagType)
-  ) {
-    throw new Error(`flags[${i}].type invalid: ${String(flagType)}`);
-  }
+if (
+  typeof flagType !== "string" ||
+  !FLAG_TYPES.includes(flagType as FlagType)
+) {
+  throw new Error(`flags[${i}].type invalid: ${String(flagType)}`);
+}
 ```
 
 - [ ] **Step 5: Update relationship-parser to use shared ParseCtx**
@@ -740,6 +744,7 @@ git commit -m "refactor(vault-parser): shared ParseCtx, fix type-invalid msg, es
 Covers `docs/phase-2-TODOs.md` items: comment `flag/<type>` derived-tag asymmetry (`memory-parser.ts:37`, `:121`), `parseMeta` description delimiter invariant (`relationship-parser.ts:75`), `formatConfidence` 4-decimal precision contract (`relationship-parser.ts:70`), `body.replace(/^\n+/, "")` rationale (`memory-parser.ts:180`), unknown-H2-section decision (intentional silent fold).
 
 **Files:**
+
 - Modify: `src/backend/vault/parser/memory-parser.ts`
 - Modify: `src/backend/vault/parser/relationship-parser.ts`
 
@@ -762,11 +767,11 @@ const FLAG_TAG_RE = /^flag\//;
 Above the `flagTypeTags` injection in `serializeMemoryFile` (near current line 121):
 
 ```ts
-  // Derived-tag injection (see FLAG_TAG_RE doc). Null tags + zero flags
-  // stay null; otherwise the array materializes with flag/* tags merged.
-  const flagTypeTags = Array.from(
-    new Set(flags.map((f) => `flag/${f.flag_type}`)),
-  );
+// Derived-tag injection (see FLAG_TAG_RE doc). Null tags + zero flags
+// stay null; otherwise the array materializes with flag/* tags merged.
+const flagTypeTags = Array.from(
+  new Set(flags.map((f) => `flag/${f.flag_type}`)),
+);
 ```
 
 Above the `splitBody` helper (near current line 174):
@@ -829,6 +834,7 @@ git commit -m "docs(vault-parser): document roundtrip invariants and unknown-sec
 Covers `docs/phase-2-TODOs.md` items: ~12 negative-path branches, tags-null asymmetry pin, golden fixtures for `tags: null`/populated `metadata`/archived state.
 
 **Files:**
+
 - Modify: `tests/unit/backend/vault/parser/negative.test.ts`
 - Modify: `tests/unit/backend/vault/parser/fixtures.test.ts`
 - Create: `tests/fixtures/vault/memory-tags-null.md`
@@ -840,84 +846,82 @@ Covers `docs/phase-2-TODOs.md` items: ~12 negative-path branches, tags-null asym
 Append to the existing `describe` block:
 
 ```ts
-  it("memory: section ordering violation (Comments before Relationships) throws", () => {
-    const md = `---\nid: m1\ntitle: T\ntype: fact\nscope: project\nworkspace_id: null\nproject_id: p\nauthor: a\nsource: null\nsession_id: null\ntags: null\nversion: 1\ncreated: "2026-04-21T00:00:00.000Z"\nupdated: "2026-04-21T00:00:00.000Z"\nverified: null\nverified_by: null\narchived: null\nembedding_model: null\nembedding_dimensions: null\nmetadata: null\nflags: []\n---\n\n# T\n\nbody\n\n## Comments\n\n> [!comment] a · 2026-04-21T00:00:00.000Z · c1\n> hi\n\n## Relationships\n\n- related:: [[x]] — id: r, confidence: 1, by: a, at: 2026-04-21T00:00:00.000Z\n`;
-    expect(() => parseMemoryFile(md)).toThrow(
-      /Relationships.*before.*Comments/,
-    );
-  });
+it("memory: section ordering violation (Comments before Relationships) throws", () => {
+  const md = `---\nid: m1\ntitle: T\ntype: fact\nscope: project\nworkspace_id: null\nproject_id: p\nauthor: a\nsource: null\nsession_id: null\ntags: null\nversion: 1\ncreated: "2026-04-21T00:00:00.000Z"\nupdated: "2026-04-21T00:00:00.000Z"\nverified: null\nverified_by: null\narchived: null\nembedding_model: null\nembedding_dimensions: null\nmetadata: null\nflags: []\n---\n\n# T\n\nbody\n\n## Comments\n\n> [!comment] a · 2026-04-21T00:00:00.000Z · c1\n> hi\n\n## Relationships\n\n- related:: [[x]] — id: r, confidence: 1, by: a, at: 2026-04-21T00:00:00.000Z\n`;
+  expect(() => parseMemoryFile(md)).toThrow(/Relationships.*before.*Comments/);
+});
 
-  it("memory: missing H1 throws", () => {
-    const md = `---\nid: m1\ntitle: T\ntype: fact\nscope: project\nworkspace_id: null\nproject_id: p\nauthor: a\nsource: null\nsession_id: null\ntags: null\nversion: 1\ncreated: "2026-04-21T00:00:00.000Z"\nupdated: "2026-04-21T00:00:00.000Z"\nverified: null\nverified_by: null\narchived: null\nembedding_model: null\nembedding_dimensions: null\nmetadata: null\nflags: []\n---\n\nno heading here\n`;
-    expect(() => parseMemoryFile(md)).toThrow(/title line/);
-  });
+it("memory: missing H1 throws", () => {
+  const md = `---\nid: m1\ntitle: T\ntype: fact\nscope: project\nworkspace_id: null\nproject_id: p\nauthor: a\nsource: null\nsession_id: null\ntags: null\nversion: 1\ncreated: "2026-04-21T00:00:00.000Z"\nupdated: "2026-04-21T00:00:00.000Z"\nverified: null\nverified_by: null\narchived: null\nembedding_model: null\nembedding_dimensions: null\nmetadata: null\nflags: []\n---\n\nno heading here\n`;
+  expect(() => parseMemoryFile(md)).toThrow(/title line/);
+});
 
-  it("memory: invalid type enum throws", () => {
-    expect(() =>
-      parseMemoryFile(wrapMemoryMd({ type: "idea" })),
-    ).toThrow(/type.*fact.*decision.*learning.*pattern.*preference.*architecture/);
-  });
+it("memory: invalid type enum throws", () => {
+  expect(() => parseMemoryFile(wrapMemoryMd({ type: "idea" }))).toThrow(
+    /type.*fact.*decision.*learning.*pattern.*preference.*architecture/,
+  );
+});
 
-  it("memory: invalid scope enum throws", () => {
-    expect(() =>
-      parseMemoryFile(wrapMemoryMd({ scope: "team" })),
-    ).toThrow(/scope.*workspace.*user.*project/);
-  });
+it("memory: invalid scope enum throws", () => {
+  expect(() => parseMemoryFile(wrapMemoryMd({ scope: "team" }))).toThrow(
+    /scope.*workspace.*user.*project/,
+  );
+});
 
-  it("memory: missing version throws", () => {
-    const md = wrapMemoryMd({}).replace(/version: 1\n/, "");
-    expect(() => parseMemoryFile(md)).toThrow(/version.*required/);
-  });
+it("memory: missing version throws", () => {
+  const md = wrapMemoryMd({}).replace(/version: 1\n/, "");
+  expect(() => parseMemoryFile(md)).toThrow(/version.*required/);
+});
 
-  it("memory: non-string workspace_id throws", () => {
-    expect(() =>
-      parseMemoryFile(wrapMemoryMd({ workspace_id: 42 })),
-    ).toThrow(/workspace_id must be string or null/);
-  });
+it("memory: non-string workspace_id throws", () => {
+  expect(() => parseMemoryFile(wrapMemoryMd({ workspace_id: 42 }))).toThrow(
+    /workspace_id must be string or null/,
+  );
+});
 
-  it("relationship: malformed line throws", () => {
-    expect(() =>
-      parseRelationshipSection("- not a valid line", {
-        projectId: "p",
-        sourceId: "s",
-      }),
-    ).toThrow(/Invalid relationship line/);
-  });
+it("relationship: malformed line throws", () => {
+  expect(() =>
+    parseRelationshipSection("- not a valid line", {
+      projectId: "p",
+      sourceId: "s",
+    }),
+  ).toThrow(/Invalid relationship line/);
+});
 
-  it("relationship: missing id throws", () => {
-    const line = `- related:: [[t]] — confidence: 1, by: a, at: 2026-04-21T00:00:00.000Z`;
-    expect(() =>
-      parseRelationshipSection(line, { projectId: "p", sourceId: "s" }),
-    ).toThrow(/Missing "id"/);
-  });
+it("relationship: missing id throws", () => {
+  const line = `- related:: [[t]] — confidence: 1, by: a, at: 2026-04-21T00:00:00.000Z`;
+  expect(() =>
+    parseRelationshipSection(line, { projectId: "p", sourceId: "s" }),
+  ).toThrow(/Missing "id"/);
+});
 
-  it("relationship: unterminated description throws", () => {
-    const line = `- related:: [[t]] — id: r, confidence: 1, by: a, at: 2026-04-21T00:00:00.000Z, description: "no end quote`;
-    expect(() =>
-      parseRelationshipSection(line, { projectId: "p", sourceId: "s" }),
-    ).toThrow(/Unterminated description/);
-  });
+it("relationship: unterminated description throws", () => {
+  const line = `- related:: [[t]] — id: r, confidence: 1, by: a, at: 2026-04-21T00:00:00.000Z, description: "no end quote`;
+  expect(() =>
+    parseRelationshipSection(line, { projectId: "p", sourceId: "s" }),
+  ).toThrow(/Unterminated description/);
+});
 
-  it("flag: invalid severity throws", () => {
-    const bad = {
-      id: "f1",
-      type: "verify",
-      severity: "CRITICAL",
-      reason: "r",
-      created: "2026-04-21T00:00:00.000Z",
-      resolved: null,
-      resolved_by: null,
-    };
-    expect(() =>
-      parseFlags([bad], { projectId: "p", memoryId: "m" }),
-    ).toThrow(/flags\[0\]\.severity invalid/);
-  });
+it("flag: invalid severity throws", () => {
+  const bad = {
+    id: "f1",
+    type: "verify",
+    severity: "CRITICAL",
+    reason: "r",
+    created: "2026-04-21T00:00:00.000Z",
+    resolved: null,
+    resolved_by: null,
+  };
+  expect(() => parseFlags([bad], { projectId: "p", memoryId: "m" })).toThrow(
+    /flags\[0\]\.severity invalid/,
+  );
+});
 
-  it("flag: non-object entry throws", () => {
-    expect(() =>
-      parseFlags(["not-an-object"], { projectId: "p", memoryId: "m" }),
-    ).toThrow(/flags\[0\] must be an object/);
-  });
+it("flag: non-object entry throws", () => {
+  expect(() =>
+    parseFlags(["not-an-object"], { projectId: "p", memoryId: "m" }),
+  ).toThrow(/flags\[0\] must be an object/);
+});
 ```
 
 - [ ] **Step 2: Run — 11 new assertions fail (one existing test "invalid type enum" may already pass)**
@@ -1101,32 +1105,32 @@ rm scripts/regen-phase2a-fixtures.mjs
 Append to `tests/unit/backend/vault/parser/fixtures.test.ts`:
 
 ```ts
-  it("parses tags-null fixture and round-trips with tags=[]", () => {
-    const md = readFileSync("tests/fixtures/vault/memory-tags-null.md", "utf8");
-    const parsed = parseMemoryFile(md);
-    expect(parsed.memory.tags).toEqual([]);
-    expect(parsed.flags).toHaveLength(1);
-    const reserialized = serializeMemoryFile(parsed);
-    expect(reserialized).toBe(md);
-  });
+it("parses tags-null fixture and round-trips with tags=[]", () => {
+  const md = readFileSync("tests/fixtures/vault/memory-tags-null.md", "utf8");
+  const parsed = parseMemoryFile(md);
+  expect(parsed.memory.tags).toEqual([]);
+  expect(parsed.flags).toHaveLength(1);
+  const reserialized = serializeMemoryFile(parsed);
+  expect(reserialized).toBe(md);
+});
 
-  it("parses metadata fixture byte-exact", () => {
-    const md = readFileSync("tests/fixtures/vault/memory-metadata.md", "utf8");
-    const parsed = parseMemoryFile(md);
-    expect(parsed.memory.metadata).toEqual({ key_a: "alpha", key_b: "beta" });
-    const reserialized = serializeMemoryFile(parsed);
-    expect(reserialized).toBe(md);
-  });
+it("parses metadata fixture byte-exact", () => {
+  const md = readFileSync("tests/fixtures/vault/memory-metadata.md", "utf8");
+  const parsed = parseMemoryFile(md);
+  expect(parsed.memory.metadata).toEqual({ key_a: "alpha", key_b: "beta" });
+  const reserialized = serializeMemoryFile(parsed);
+  expect(reserialized).toBe(md);
+});
 
-  it("parses archived fixture byte-exact", () => {
-    const md = readFileSync("tests/fixtures/vault/memory-archived.md", "utf8");
-    const parsed = parseMemoryFile(md);
-    expect(parsed.memory.archived_at?.toISOString()).toBe(
-      "2026-04-22T00:00:00.000Z",
-    );
-    const reserialized = serializeMemoryFile(parsed);
-    expect(reserialized).toBe(md);
-  });
+it("parses archived fixture byte-exact", () => {
+  const md = readFileSync("tests/fixtures/vault/memory-archived.md", "utf8");
+  const parsed = parseMemoryFile(md);
+  expect(parsed.memory.archived_at?.toISOString()).toBe(
+    "2026-04-22T00:00:00.000Z",
+  );
+  const reserialized = serializeMemoryFile(parsed);
+  expect(reserialized).toBe(md);
+});
 ```
 
 - [ ] **Step 6: Run all parser tests — pass**
@@ -1153,6 +1157,7 @@ git commit -m "docs: remove phase-2-TODOs — folded into phase-2a"
 ## Task 7: Path resolver (`io/paths.ts`)
 
 **Files:**
+
 - Create: `src/backend/vault/io/paths.ts`
 - Test: `tests/unit/backend/vault/io/paths.test.ts`
 
@@ -1297,8 +1302,7 @@ export function memoryPath(loc: MemoryLocation): string {
       return `project/memories/${loc.id}.md`;
     case "user": {
       if (!loc.userId) throw new Error("user scope requires userId");
-      if (!loc.workspaceId)
-        throw new Error("user scope requires workspaceId");
+      if (!loc.workspaceId) throw new Error("user scope requires workspaceId");
       return `users/${loc.userId}/${loc.workspaceId}/${loc.id}.md`;
     }
   }
@@ -1362,6 +1366,7 @@ git commit -m "feat(vault-io): path resolver for memory scope layout"
 ## Task 8: Atomic file IO (`io/vault-fs.ts`)
 
 **Files:**
+
 - Create: `src/backend/vault/io/vault-fs.ts`
 - Test: `tests/unit/backend/vault/io/vault-fs.test.ts`
 
@@ -1371,7 +1376,14 @@ Create `tests/unit/backend/vault/io/vault-fs.test.ts`:
 
 ```ts
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, rm, readFile, writeFile, mkdir, readdir } from "node:fs/promises";
+import {
+  mkdtemp,
+  rm,
+  readFile,
+  writeFile,
+  mkdir,
+  readdir,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -1522,6 +1534,7 @@ git commit -m "feat(vault-io): atomic markdown read/write/delete/list"
 ## Task 9: Per-file lock (`io/lock.ts`)
 
 **Files:**
+
 - Create: `src/backend/vault/io/lock.ts`
 - Test: `tests/unit/backend/vault/io/lock.test.ts`
 
@@ -1644,6 +1657,7 @@ git commit -m "feat(vault-io): per-file advisory lock via proper-lockfile"
 ## Task 10: Vault-specific errors (`errors.ts`)
 
 **Files:**
+
 - Create: `src/backend/vault/errors.ts`
 
 - [ ] **Step 1: Create errors module**
@@ -1684,6 +1698,7 @@ git commit -m "feat(vault): add NotImplementedError for phase-3 vector stubs"
 ## Task 11: `VaultWorkspaceRepository`
 
 **Files:**
+
 - Create: `src/backend/vault/repositories/workspace-repository.ts`
 - Test: `tests/unit/backend/vault/repositories/workspace-repository.test.ts`
 
@@ -1766,10 +1781,7 @@ import matter from "gray-matter";
 import { join } from "node:path";
 import type { WorkspaceRepository } from "../../../repositories/types.js";
 import { workspaceMetaPath } from "../io/paths.js";
-import {
-  readMarkdown,
-  writeMarkdownAtomic,
-} from "../io/vault-fs.js";
+import { readMarkdown, writeMarkdownAtomic } from "../io/vault-fs.js";
 import { withFileLock } from "../io/lock.js";
 
 export interface VaultWorkspaceConfig {
@@ -1784,9 +1796,7 @@ interface WorkspaceFm {
 export class VaultWorkspaceRepository implements WorkspaceRepository {
   constructor(private readonly cfg: VaultWorkspaceConfig) {}
 
-  async findOrCreate(
-    slug: string,
-  ): Promise<{ id: string; created_at: Date }> {
+  async findOrCreate(slug: string): Promise<{ id: string; created_at: Date }> {
     const rel = workspaceMetaPath(slug);
     const abs = join(this.cfg.root, rel);
 
@@ -1855,6 +1865,7 @@ git commit -m "feat(vault-repo): VaultWorkspaceRepository — _workspace.md per 
 Implements: `create`, `findById`, `findByIdIncludingArchived`, `findByIds`, `update` (with optimistic lock), `archive`, `verify`.
 
 **Files:**
+
 - Create: `src/backend/vault/repositories/memory-repository.ts`
 - Test: `tests/unit/backend/vault/repositories/memory-repository.test.ts`
 
@@ -2076,9 +2087,7 @@ export class VaultMemoryRepository implements MemoryRepository {
     this.index = initialIndex;
   }
 
-  static async create(
-    cfg: VaultMemoryConfig,
-  ): Promise<VaultMemoryRepository> {
+  static async create(cfg: VaultMemoryConfig): Promise<VaultMemoryRepository> {
     const index = new Map<string, IndexEntry>();
     const files = await safeListMd(cfg.root);
     for (const rel of files) {
@@ -2096,9 +2105,7 @@ export class VaultMemoryRepository implements MemoryRepository {
 
   // ---- CRUD -----------------------------------------------------------
 
-  async create(
-    memory: Memory & { embedding: number[] },
-  ): Promise<Memory> {
+  async create(memory: Memory & { embedding: number[] }): Promise<Memory> {
     const loc = locationFor(memory);
     const rel = memoryPath(loc);
     const md = serializeMemoryFile({
@@ -2246,9 +2253,7 @@ export class VaultMemoryRepository implements MemoryRepository {
   ): ReturnType<MemoryRepository["findStale"]> {
     throw new NotImplementedError("findStale");
   }
-  async listProjectScoped(
-    _options: ProjectScopedOptions,
-  ): Promise<Memory[]> {
+  async listProjectScoped(_options: ProjectScopedOptions): Promise<Memory[]> {
     throw new NotImplementedError("listProjectScoped");
   }
   async listRecentWorkspaceAndUser(
@@ -2256,9 +2261,7 @@ export class VaultMemoryRepository implements MemoryRepository {
   ): Promise<Memory[]> {
     throw new NotImplementedError("listRecentWorkspaceAndUser");
   }
-  async findRecentActivity(
-    _options: RecentActivityOptions,
-  ): Promise<Memory[]> {
+  async findRecentActivity(_options: RecentActivityOptions): Promise<Memory[]> {
     throw new NotImplementedError("findRecentActivity");
   }
   async countTeamActivity(
@@ -2348,6 +2351,7 @@ Implements: `list`, `findStale`, `listProjectScoped`, `listRecentWorkspaceAndUse
 Approach: each query reads all files in `this.index`, parses, applies filters + sort + pagination in JS. O(N) per call is acceptable for Phase 2 — LanceDB will accelerate the hot paths in Phase 3. Parsing cost is mitigated by keeping per-call scope narrow.
 
 **Files:**
+
 - Modify: `src/backend/vault/repositories/memory-repository.ts`
 - Modify: `tests/unit/backend/vault/repositories/memory-repository.test.ts`
 
@@ -2828,6 +2832,7 @@ git commit -m "feat(vault-repo): VaultMemoryRepository listing queries"
 Runs a shared behaviour suite against both backends. Skips cases tagged `vector-only` when the backend is vault.
 
 **Files:**
+
 - Create: `tests/contract/repositories/_factories.ts`
 - Create: `tests/contract/repositories/memory-repository.test.ts`
 - Create: `tests/contract/repositories/workspace-repository.test.ts`
@@ -2843,7 +2848,10 @@ import { join } from "node:path";
 import { PostgresBackend } from "../../../src/backend/postgres/index.js";
 import { VaultMemoryRepository } from "../../../src/backend/vault/repositories/memory-repository.js";
 import { VaultWorkspaceRepository } from "../../../src/backend/vault/repositories/workspace-repository.js";
-import type { MemoryRepository, WorkspaceRepository } from "../../../src/repositories/types.js";
+import type {
+  MemoryRepository,
+  WorkspaceRepository,
+} from "../../../src/repositories/types.js";
 
 export interface TestBackend {
   name: "postgres" | "vault";
@@ -2898,7 +2906,9 @@ export const factories: Factory[] = [pgFactory, vaultFactory];
 
 // Methods that require the vector index — skip these on the vault
 // backend until Phase 3.
-export const VECTOR_ONLY_SKIP = { skip: (b: TestBackend) => b.name === "vault" };
+export const VECTOR_ONLY_SKIP = {
+  skip: (b: TestBackend) => b.name === "vault",
+};
 ```
 
 - [ ] **Step 2: Write memory contract test**
@@ -3065,35 +3075,32 @@ Create `tests/contract/repositories/workspace-repository.test.ts`:
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { factories, type TestBackend } from "./_factories.js";
 
-describe.each(factories)(
-  "WorkspaceRepository contract — $name",
-  (factory) => {
-    let backend: TestBackend;
-    beforeEach(async () => {
-      backend = await factory.create();
-    });
-    afterEach(async () => {
-      await backend.close();
-    });
+describe.each(factories)("WorkspaceRepository contract — $name", (factory) => {
+  let backend: TestBackend;
+  beforeEach(async () => {
+    backend = await factory.create();
+  });
+  afterEach(async () => {
+    await backend.close();
+  });
 
-    it("findById returns null for unknown", async () => {
-      expect(await backend.workspaceRepo.findById("never")).toBeNull();
-    });
+  it("findById returns null for unknown", async () => {
+    expect(await backend.workspaceRepo.findById("never")).toBeNull();
+  });
 
-    it("findOrCreate is idempotent", async () => {
-      const a = await backend.workspaceRepo.findOrCreate("alpha");
-      const b = await backend.workspaceRepo.findOrCreate("alpha");
-      expect(a.id).toBe("alpha");
-      expect(a.created_at.toISOString()).toBe(b.created_at.toISOString());
-    });
+  it("findOrCreate is idempotent", async () => {
+    const a = await backend.workspaceRepo.findOrCreate("alpha");
+    const b = await backend.workspaceRepo.findOrCreate("alpha");
+    expect(a.id).toBe("alpha");
+    expect(a.created_at.toISOString()).toBe(b.created_at.toISOString());
+  });
 
-    it("findById returns created workspace", async () => {
-      await backend.workspaceRepo.findOrCreate("beta");
-      const got = await backend.workspaceRepo.findById("beta");
-      expect(got?.id).toBe("beta");
-    });
-  },
-);
+  it("findById returns created workspace", async () => {
+    await backend.workspaceRepo.findOrCreate("beta");
+    const got = await backend.workspaceRepo.findById("beta");
+    expect(got?.id).toBe("beta");
+  });
+});
 ```
 
 - [ ] **Step 4: Add contract test path to vitest config if excluded**

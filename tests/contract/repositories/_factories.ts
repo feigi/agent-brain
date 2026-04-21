@@ -29,12 +29,10 @@ export const pgFactory: Factory = {
   async create() {
     const db = getTestDb();
     await truncateAll();
-    const { DrizzleMemoryRepository } = await import(
-      "../../../src/repositories/memory-repository.js"
-    );
-    const { DrizzleWorkspaceRepository } = await import(
-      "../../../src/repositories/workspace-repository.js"
-    );
+    const { DrizzleMemoryRepository } =
+      await import("../../../src/repositories/memory-repository.js");
+    const { DrizzleWorkspaceRepository } =
+      await import("../../../src/repositories/workspace-repository.js");
     return {
       name: "postgres",
       memoryRepo: new DrizzleMemoryRepository(db),

@@ -273,15 +273,8 @@ function finiteNumber(v: unknown, name: string): number {
   return n;
 }
 
-function plainObject(
-  v: unknown,
-  name: string,
-): Record<string, unknown> {
-  if (
-    typeof v !== "object" ||
-    v === null ||
-    Array.isArray(v)
-  )
+function plainObject(v: unknown, name: string): Record<string, unknown> {
+  if (typeof v !== "object" || v === null || Array.isArray(v))
     throw new Error(`${name} must be an object`);
   return v as Record<string, unknown>;
 }

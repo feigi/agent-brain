@@ -18,8 +18,7 @@ export function memoryPath(loc: MemoryLocation): string {
       return `project/memories/${loc.id}.md`;
     case "user": {
       if (!loc.userId) throw new Error("user scope requires userId");
-      if (!loc.workspaceId)
-        throw new Error("user scope requires workspaceId");
+      if (!loc.workspaceId) throw new Error("user scope requires workspaceId");
       return `users/${loc.userId}/${loc.workspaceId}/${loc.id}.md`;
     }
   }

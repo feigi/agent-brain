@@ -55,9 +55,7 @@ export class VaultMemoryRepository implements MemoryRepository {
     this.index = initialIndex;
   }
 
-  static async create(
-    cfg: VaultMemoryConfig,
-  ): Promise<VaultMemoryRepository> {
+  static async create(cfg: VaultMemoryConfig): Promise<VaultMemoryRepository> {
     const index = new Map<string, IndexEntry>();
     const files = await safeListMd(cfg.root);
     for (const rel of files) {
@@ -75,9 +73,7 @@ export class VaultMemoryRepository implements MemoryRepository {
 
   // ---- CRUD -----------------------------------------------------------
 
-  async create(
-    memory: Memory & { embedding: number[] },
-  ): Promise<Memory> {
+  async create(memory: Memory & { embedding: number[] }): Promise<Memory> {
     if (this.index.has(memory.id)) {
       throw new ConflictError(`memory already exists: ${memory.id}`);
     }
@@ -244,9 +240,7 @@ export class VaultMemoryRepository implements MemoryRepository {
   async findStale(
     options: StaleOptions,
   ): ReturnType<MemoryRepository["findStale"]> {
-    const cutoff = new Date(
-      Date.now() - options.threshold_days * 86_400_000,
-    );
+    const cutoff = new Date(Date.now() - options.threshold_days * 86_400_000);
     const all = await this.#loadAll();
     const filtered = all
       .filter(
@@ -272,9 +266,7 @@ export class VaultMemoryRepository implements MemoryRepository {
     };
   }
 
-  async listProjectScoped(
-    options: ProjectScopedOptions,
-  ): Promise<Memory[]> {
+  async listProjectScoped(options: ProjectScopedOptions): Promise<Memory[]> {
     const all = await this.#loadAll();
     return all
       .filter(
@@ -296,16 +288,15 @@ export class VaultMemoryRepository implements MemoryRepository {
         (m) =>
           m.project_id === options.project_id &&
           m.archived_at === null &&
-          ((m.scope === "workspace" && m.workspace_id === options.workspace_id) ||
+          ((m.scope === "workspace" &&
+            m.workspace_id === options.workspace_id) ||
             (m.scope === "user" && m.author === options.user_id)),
       )
       .sort((a, b) => compareMemory(a, b, "created_at", "desc"))
       .slice(0, options.limit);
   }
 
-  async findRecentActivity(
-    options: RecentActivityOptions,
-  ): Promise<Memory[]> {
+  async findRecentActivity(options: RecentActivityOptions): Promise<Memory[]> {
     const all = await this.#loadAll();
     return all
       .filter((m) => {

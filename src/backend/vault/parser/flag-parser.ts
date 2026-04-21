@@ -62,7 +62,9 @@ function parseOne(entry: unknown, ctx: ParseCtx, i: number): Flag {
   const details: Flag["details"] = { reason };
   if (e.related !== undefined) {
     if (typeof e.related !== "string")
-      throw new Error(`flags[${i}].related must be string; got ${String(e.related)}`);
+      throw new Error(
+        `flags[${i}].related must be string; got ${String(e.related)}`,
+      );
     details.related_memory_id = e.related;
   }
   if (e.relationship_id !== undefined) {
@@ -88,7 +90,8 @@ function parseOne(entry: unknown, ctx: ParseCtx, i: number): Flag {
     flag_type: flagType as FlagType,
     severity: severity as FlagSeverity,
     details,
-    resolved_at: resolved === null ? null : isoDate(resolved, `flags[${i}].resolved`),
+    resolved_at:
+      resolved === null ? null : isoDate(resolved, `flags[${i}].resolved`),
     resolved_by: resolvedBy,
     created_at: isoDate(created, `flags[${i}].created`),
   };

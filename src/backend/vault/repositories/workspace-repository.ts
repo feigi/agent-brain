@@ -18,9 +18,7 @@ interface WorkspaceFm {
 export class VaultWorkspaceRepository implements WorkspaceRepository {
   constructor(private readonly cfg: VaultWorkspaceConfig) {}
 
-  async findOrCreate(
-    slug: string,
-  ): Promise<{ id: string; created_at: Date }> {
+  async findOrCreate(slug: string): Promise<{ id: string; created_at: Date }> {
     const rel = workspaceMetaPath(slug);
     const abs = join(this.cfg.root, rel);
 

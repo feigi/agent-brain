@@ -169,7 +169,7 @@ function relArb(
   // Description may contain commas AND quotes (parser escapes/unescapes '"').
   const desc = fc.string({
     unit: fc.constantFrom(
-      ..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -.,?!:;()\"".split(
+      ...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -.,?!:;()"'.split(
         "",
       ),
     ),

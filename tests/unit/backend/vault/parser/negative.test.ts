@@ -53,21 +53,21 @@ describe("parser negative paths — number/date finiteness", () => {
   });
 
   it("memory updated: invalid date throws", () => {
-    expect(() =>
-      parseMemoryFile(wrapMemoryMd({ updated: "nope" })),
-    ).toThrow(/updated.*ISO.*date/);
+    expect(() => parseMemoryFile(wrapMemoryMd({ updated: "nope" }))).toThrow(
+      /updated.*ISO.*date/,
+    );
   });
 
   it("memory verified: invalid date (when present) throws", () => {
-    expect(() =>
-      parseMemoryFile(wrapMemoryMd({ verified: "bad" })),
-    ).toThrow(/verified.*ISO.*date/);
+    expect(() => parseMemoryFile(wrapMemoryMd({ verified: "bad" }))).toThrow(
+      /verified.*ISO.*date/,
+    );
   });
 
   it("memory archived: invalid date (when present) throws", () => {
-    expect(() =>
-      parseMemoryFile(wrapMemoryMd({ archived: "bad" })),
-    ).toThrow(/archived.*ISO.*date/);
+    expect(() => parseMemoryFile(wrapMemoryMd({ archived: "bad" }))).toThrow(
+      /archived.*ISO.*date/,
+    );
   });
 
   it("flag created: invalid date throws", () => {
@@ -130,9 +130,9 @@ describe("parser negative paths — number/date finiteness", () => {
       resolved: null,
       resolved_by: null,
     };
-    expect(() =>
-      parseFlags([bad], { projectId: "p", memoryId: "m" }),
-    ).toThrow(/flags\[0\].related must be string/);
+    expect(() => parseFlags([bad], { projectId: "p", memoryId: "m" })).toThrow(
+      /flags\[0\].related must be string/,
+    );
   });
 
   it("flag similarity: string rejected", () => {
@@ -146,9 +146,9 @@ describe("parser negative paths — number/date finiteness", () => {
       resolved: null,
       resolved_by: null,
     };
-    expect(() =>
-      parseFlags([bad], { projectId: "p", memoryId: "m" }),
-    ).toThrow(/flags\[0\].similarity must be a finite number/);
+    expect(() => parseFlags([bad], { projectId: "p", memoryId: "m" })).toThrow(
+      /flags\[0\].similarity must be a finite number/,
+    );
   });
 
   it("flag type invalid: error message uses 'type' not 'flag_type'", () => {
@@ -161,9 +161,9 @@ describe("parser negative paths — number/date finiteness", () => {
       resolved: null,
       resolved_by: null,
     };
-    expect(() =>
-      parseFlags([bad], { projectId: "p", memoryId: "m" }),
-    ).toThrow(/flags\[0\]\.type invalid/);
+    expect(() => parseFlags([bad], { projectId: "p", memoryId: "m" })).toThrow(
+      /flags\[0\]\.type invalid/,
+    );
   });
 
   it("relationship description with embedded quote: roundtrips escaped", () => {
@@ -188,15 +188,15 @@ describe("parser negative paths — number/date finiteness", () => {
   });
 
   it("memory: invalid type enum throws", () => {
-    expect(() =>
-      parseMemoryFile(wrapMemoryMd({ type: "idea" })),
-    ).toThrow(/type.*fact.*decision.*learning.*pattern.*preference.*architecture/);
+    expect(() => parseMemoryFile(wrapMemoryMd({ type: "idea" }))).toThrow(
+      /type.*fact.*decision.*learning.*pattern.*preference.*architecture/,
+    );
   });
 
   it("memory: invalid scope enum throws", () => {
-    expect(() =>
-      parseMemoryFile(wrapMemoryMd({ scope: "team" })),
-    ).toThrow(/scope.*workspace.*user.*project/);
+    expect(() => parseMemoryFile(wrapMemoryMd({ scope: "team" }))).toThrow(
+      /scope.*workspace.*user.*project/,
+    );
   });
 
   it("memory: missing version throws", () => {
@@ -205,9 +205,9 @@ describe("parser negative paths — number/date finiteness", () => {
   });
 
   it("memory: non-string workspace_id throws", () => {
-    expect(() =>
-      parseMemoryFile(wrapMemoryMd({ workspace_id: 42 })),
-    ).toThrow(/workspace_id must be string or null/);
+    expect(() => parseMemoryFile(wrapMemoryMd({ workspace_id: 42 }))).toThrow(
+      /workspace_id must be string or null/,
+    );
   });
 
   it("relationship: malformed line throws", () => {
@@ -243,9 +243,9 @@ describe("parser negative paths — number/date finiteness", () => {
       resolved: null,
       resolved_by: null,
     };
-    expect(() =>
-      parseFlags([bad], { projectId: "p", memoryId: "m" }),
-    ).toThrow(/flags\[0\]\.severity invalid/);
+    expect(() => parseFlags([bad], { projectId: "p", memoryId: "m" })).toThrow(
+      /flags\[0\]\.severity invalid/,
+    );
   });
 
   it("flag: non-object entry throws", () => {
