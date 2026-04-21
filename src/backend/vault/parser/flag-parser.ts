@@ -1,4 +1,5 @@
 import type { Flag, FlagType, FlagSeverity } from "../../../types/flag.js";
+import type { ParseCtx } from "./types.js";
 
 const FLAG_TYPES: FlagType[] = [
   "duplicate",
@@ -8,11 +9,6 @@ const FLAG_TYPES: FlagType[] = [
   "verify",
 ];
 const FLAG_SEVERITIES: FlagSeverity[] = ["auto_resolved", "needs_review"];
-
-interface ParseCtx {
-  projectId: string;
-  memoryId: string;
-}
 
 export interface FlagFrontmatter {
   id: string;
@@ -47,7 +43,7 @@ function parseOne(entry: unknown, ctx: ParseCtx, i: number): Flag {
     typeof flagType !== "string" ||
     !FLAG_TYPES.includes(flagType as FlagType)
   ) {
-    throw new Error(`flags[${i}].flag_type invalid: ${String(flagType)}`);
+    throw new Error(`flags[${i}].type invalid: ${String(flagType)}`);
   }
   const severity = e.severity;
   if (
@@ -64,10 +60,28 @@ function parseOne(entry: unknown, ctx: ParseCtx, i: number): Flag {
   const resolvedBy = nullableStr(e.resolved_by, `flags[${i}].resolved_by`);
 
   const details: Flag["details"] = { reason };
-  if (typeof e.related === "string") details.related_memory_id = e.related;
-  if (typeof e.relationship_id === "string")
+  if (e.related !== undefined) {
+    if (typeof e.related !== "string")
+      throw new Error(
+        `flags[${i}].related must be string; got ${String(e.related)}`,
+      );
+    details.related_memory_id = e.related;
+  }
+  if (e.relationship_id !== undefined) {
+    if (typeof e.relationship_id !== "string")
+      throw new Error(
+        `flags[${i}].relationship_id must be string; got ${String(e.relationship_id)}`,
+      );
     details.relationship_id = e.relationship_id;
-  if (typeof e.similarity === "number") details.similarity = e.similarity;
+  }
+  if (e.similarity !== undefined) {
+    const sim = Number(e.similarity);
+    if (!Number.isFinite(sim))
+      throw new Error(
+        `flags[${i}].similarity must be a finite number; got ${String(e.similarity)}`,
+      );
+    details.similarity = sim;
+  }
 
   return {
     id,
@@ -76,9 +90,10 @@ function parseOne(entry: unknown, ctx: ParseCtx, i: number): Flag {
     flag_type: flagType as FlagType,
     severity: severity as FlagSeverity,
     details,
-    resolved_at: resolved === null ? null : new Date(resolved),
+    resolved_at:
+      resolved === null ? null : isoDate(resolved, `flags[${i}].resolved`),
     resolved_by: resolvedBy,
-    created_at: new Date(created),
+    created_at: isoDate(created, `flags[${i}].created`),
   };
 }
 
@@ -101,6 +116,15 @@ export function serializeFlags(flags: Flag[]): FlagFrontmatter[] {
       out.similarity = f.details.similarity;
     return out;
   });
+}
+
+function isoDate(v: unknown, name: string): Date {
+  if (typeof v !== "string")
+    throw new Error(`${name} must be an ISO date string; got ${String(v)}`);
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime()))
+    throw new Error(`${name} must be an ISO date string; got ${v}`);
+  return d;
 }
 
 function str(v: unknown, name: string): string {

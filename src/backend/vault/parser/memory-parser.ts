@@ -34,6 +34,10 @@ const MEMORY_TYPES: MemoryType[] = [
 ];
 const MEMORY_SCOPES: MemoryScope[] = ["workspace", "user", "project"];
 
+// Derived-tag asymmetry: each flag emits a `flag/<type>` tag into the
+// frontmatter tag list on serialize (for Obsidian tag-pane grouping).
+// On parse these are stripped before the tags array is returned, so
+// tags round-trip with `flag/*` removed. See serializeMemoryFile.
 const FLAG_TAG_RE = /^flag\//;
 
 export function parseMemoryFile(md: string): ParsedMemoryFile {
@@ -88,25 +92,26 @@ export function parseMemoryFile(md: string): ParsedMemoryFile {
     metadata:
       fm.metadata === null || fm.metadata === undefined
         ? null
-        : (fm.metadata as Record<string, unknown>),
+        : plainObject(fm.metadata, "metadata"),
     embedding_model: nullableStr(fm.embedding_model, "embedding_model"),
     embedding_dimensions:
       fm.embedding_dimensions === null || fm.embedding_dimensions === undefined
         ? null
-        : Number(fm.embedding_dimensions),
-    version: Number(required(fm.version, "version")),
-    created_at: new Date(str(fm.created, "created")),
-    updated_at: new Date(str(fm.updated, "updated")),
+        : finiteNumber(fm.embedding_dimensions, "embedding_dimensions"),
+    version: finiteNumber(required(fm.version, "version"), "version"),
+    created_at: isoDate(fm.created, "created"),
+    updated_at: isoDate(fm.updated, "updated"),
     verified_at:
       fm.verified === null || fm.verified === undefined
         ? null
-        : new Date(String(fm.verified)),
+        : isoDate(fm.verified, "verified"),
     archived_at:
       fm.archived === null || fm.archived === undefined
         ? null
-        : new Date(String(fm.archived)),
+        : isoDate(fm.archived, "archived"),
     comment_count: comments.length,
-    flag_count: flags.length,
+    // Parity with pg: flag_count is unresolved flags only.
+    flag_count: flags.filter((f) => f.resolved_at === null).length,
     relationship_count: relationships.length,
     last_comment_at: lastCommentAt === null ? null : new Date(lastCommentAt),
     verified_by: nullableStr(fm.verified_by, "verified_by"),
@@ -118,6 +123,8 @@ export function parseMemoryFile(md: string): ParsedMemoryFile {
 export function serializeMemoryFile(input: ParsedMemoryFile): string {
   const { memory, flags, comments, relationships } = input;
 
+  // Derived-tag injection (see FLAG_TAG_RE doc). Null tags + zero flags
+  // stay null; otherwise the array materializes with flag/* tags merged.
   const flagTypeTags = Array.from(
     new Set(flags.map((f) => `flag/${f.flag_type}`)),
   );
@@ -171,6 +178,15 @@ export function serializeMemoryFile(input: ParsedMemoryFile): string {
   return matter.stringify(parts.join("\n"), fm);
 }
 
+// Body layout contract:
+//   # <title>\n\n<content>\n\n## Relationships\n...\n\n## Comments\n...
+// Unknown `## ` headings fold into <content> verbatim — users may
+// author arbitrary sections and we never strip them.
+//
+// Reserved-heading collision: scan from the END of the body so that
+// user content containing literal `## Relationships` / `## Comments`
+// headings earlier in the text is preserved. Only the last occurrence
+// of each reserved heading is treated as a section boundary.
 function splitBody(body: string): {
   title: string;
   content: string;
@@ -186,40 +202,21 @@ function splitBody(body: string): {
   let rest = lines.slice(1);
   if (rest[0] === "") rest = rest.slice(1);
 
-  const relIdx = rest.findIndex((l) => l === "## Relationships");
-  const comIdx = rest.findIndex((l) => l === "## Comments");
+  const comIdx = rest.lastIndexOf("## Comments");
+  const endForRel = comIdx >= 0 ? comIdx : rest.length;
+  const relIdx = rest.slice(0, endForRel).lastIndexOf("## Relationships");
 
-  const indices = [
-    { kind: "relationships" as const, idx: relIdx },
-    { kind: "comments" as const, idx: comIdx },
-  ]
-    .filter((x) => x.idx >= 0)
-    .sort((a, b) => a.idx - b.idx);
-
-  if (indices.length === 2 && indices[0]!.kind !== "relationships") {
-    throw new Error("## Relationships must come before ## Comments");
-  }
-
-  const firstKnown = indices[0]?.idx ?? rest.length;
+  const firstKnown = relIdx >= 0 ? relIdx : comIdx >= 0 ? comIdx : rest.length;
   const content = rest.slice(0, firstKnown).join("\n").replace(/\n+$/, "");
 
-  function sliceSection(kind: "relationships" | "comments"): string {
-    const start = indices.find((x) => x.kind === kind)?.idx;
-    if (start === undefined) return "";
-    const next = indices.find((x) => x.idx > start)?.idx ?? rest.length;
-    return rest
-      .slice(start + 1, next)
-      .join("\n")
-      .replace(/^\n+/, "")
-      .replace(/\n+$/, "");
-  }
+  const trim = (s: string): string => s.replace(/^\n+/, "").replace(/\n+$/, "");
 
-  return {
-    title,
-    content,
-    relationshipSection: sliceSection("relationships"),
-    commentSection: sliceSection("comments"),
-  };
+  const relationshipSection =
+    relIdx >= 0 ? trim(rest.slice(relIdx + 1, endForRel).join("\n")) : "";
+  const commentSection =
+    comIdx >= 0 ? trim(rest.slice(comIdx + 1).join("\n")) : "";
+
+  return { title, content, relationshipSection, commentSection };
 }
 
 function str(v: unknown, name: string): string {
@@ -250,4 +247,26 @@ function required(v: unknown, name: string): unknown {
   if (v === undefined || v === null)
     throw new Error(`${name} is required in frontmatter`);
   return v;
+}
+
+function finiteNumber(v: unknown, name: string): number {
+  const n = Number(v);
+  if (!Number.isFinite(n))
+    throw new Error(`${name} must be a finite number; got ${String(v)}`);
+  return n;
+}
+
+function plainObject(v: unknown, name: string): Record<string, unknown> {
+  if (typeof v !== "object" || v === null || Array.isArray(v))
+    throw new Error(`${name} must be an object`);
+  return v as Record<string, unknown>;
+}
+
+function isoDate(v: unknown, name: string): Date {
+  if (typeof v !== "string")
+    throw new Error(`${name} must be an ISO date string; got ${String(v)}`);
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime()))
+    throw new Error(`${name} must be an ISO date string; got ${v}`);
+  return d;
 }

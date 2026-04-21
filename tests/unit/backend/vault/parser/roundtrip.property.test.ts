@@ -166,11 +166,10 @@ function relArb(
   projectId: string,
   sourceId: string,
 ): fc.Arbitrary<Relationship> {
-  // Description may contain commas (handled specially by parser) but must
-  // not contain '"' (parser uses lastIndexOf('"') as end delimiter).
+  // Description may contain commas AND quotes (parser escapes/unescapes '"').
   const desc = fc.string({
     unit: fc.constantFrom(
-      ..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -.,?!:;()".split(
+      ...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -.,?!:;()"'.split(
         "",
       ),
     ),
@@ -196,6 +195,56 @@ function relArb(
     created_at: isoDate,
   });
 }
+
+describe("memory-parser tags-null asymmetry (pinned behaviour)", () => {
+  it("tags: null + non-empty flags ⇒ tags round-trips as [] (flag/* tags stripped)", () => {
+    const input: Memory = {
+      id: "m1",
+      project_id: "p",
+      workspace_id: null,
+      content: "body",
+      title: "T",
+      type: "fact",
+      scope: "project",
+      tags: null,
+      author: "a",
+      source: null,
+      session_id: null,
+      metadata: null,
+      embedding_model: null,
+      embedding_dimensions: null,
+      version: 1,
+      created_at: new Date("2026-04-21T00:00:00.000Z"),
+      updated_at: new Date("2026-04-21T00:00:00.000Z"),
+      verified_at: null,
+      archived_at: null,
+      comment_count: 0,
+      flag_count: 1,
+      relationship_count: 0,
+      last_comment_at: null,
+      verified_by: null,
+    };
+    const flag: Flag = {
+      id: "f1",
+      project_id: "p",
+      memory_id: "m1",
+      flag_type: "verify",
+      severity: "needs_review",
+      details: { reason: "r" },
+      resolved_at: null,
+      resolved_by: null,
+      created_at: new Date("2026-04-21T00:00:00.000Z"),
+    };
+    const md = serializeMemoryFile({
+      memory: input,
+      comments: [],
+      relationships: [],
+      flags: [flag],
+    });
+    const parsed = parseMemoryFile(md);
+    expect(parsed.memory.tags).toEqual([]); // not null!
+  });
+});
 
 describe("parser roundtrip (property-based)", () => {
   it("comments: parse(serialize(xs)) === xs", () => {
@@ -337,7 +386,10 @@ describe("parser roundtrip (property-based)", () => {
           const parsed = parseMemoryFile(md);
 
           expect(parsed.memory.comment_count).toBe(input.comments.length);
-          expect(parsed.memory.flag_count).toBe(input.flags.length);
+          // flag_count is unresolved flags only (parity with pg).
+          expect(parsed.memory.flag_count).toBe(
+            input.flags.filter((f) => f.resolved_at === null).length,
+          );
           expect(parsed.memory.relationship_count).toBe(
             input.relationships.length,
           );

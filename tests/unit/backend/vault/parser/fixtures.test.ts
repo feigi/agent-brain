@@ -36,6 +36,39 @@ describe("golden fixture: memory-minimal.md", () => {
   });
 });
 
+describe("golden fixture: memory-tags-null.md", () => {
+  it("parses tags-null fixture and round-trips with tags=[]", async () => {
+    const md = await readFixture("memory-tags-null.md");
+    const parsed = parseMemoryFile(md);
+    expect(parsed.memory.tags).toEqual([]);
+    expect(parsed.flags).toHaveLength(1);
+    const reserialized = serializeMemoryFile(parsed);
+    expect(reserialized).toBe(md);
+  });
+});
+
+describe("golden fixture: memory-metadata.md", () => {
+  it("parses metadata fixture byte-exact", async () => {
+    const md = await readFixture("memory-metadata.md");
+    const parsed = parseMemoryFile(md);
+    expect(parsed.memory.metadata).toEqual({ key_a: "alpha", key_b: "beta" });
+    const reserialized = serializeMemoryFile(parsed);
+    expect(reserialized).toBe(md);
+  });
+});
+
+describe("golden fixture: memory-archived.md", () => {
+  it("parses archived fixture byte-exact", async () => {
+    const md = await readFixture("memory-archived.md");
+    const parsed = parseMemoryFile(md);
+    expect(parsed.memory.archived_at?.toISOString()).toBe(
+      "2026-04-22T00:00:00.000Z",
+    );
+    const reserialized = serializeMemoryFile(parsed);
+    expect(reserialized).toBe(md);
+  });
+});
+
 describe("golden fixture: memory-full.md", () => {
   it("parses all sections", async () => {
     const md = await readFixture("memory-full.md");

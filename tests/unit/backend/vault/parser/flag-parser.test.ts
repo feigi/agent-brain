@@ -95,7 +95,7 @@ describe("parseFlags", () => {
         resolved_by: null,
       },
     ];
-    expect(() => parseFlags(raw, CTX)).toThrow(/flag_type/);
+    expect(() => parseFlags(raw, CTX)).toThrow(/\.type invalid/);
   });
 });
 
