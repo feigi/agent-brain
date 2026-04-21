@@ -176,10 +176,9 @@ export class VaultMemoryRepository implements MemoryRepository {
           `Memory ${id} update failed: version mismatch (expected ${expectedVersion}, found ${parsed.memory.version})`,
         );
 
-      // Embedding is stored outside the markdown file; callers may
-      // pass one through but the vault persists only scalar fields.
-      const { embedding: _emb, ...rest } = updates;
-      void _emb;
+      // The markdown file persists only scalar fields; the embedding
+      // (if provided) is written to the vector index below instead.
+      const { embedding, ...rest } = updates;
 
       const next: Memory = {
         ...parsed.memory,
@@ -194,6 +193,31 @@ export class VaultMemoryRepository implements MemoryRepository {
         flags: parsed.flags,
       });
       await writeMarkdownAtomic(this.cfg.root, entry.path, md);
+      if (embedding !== undefined && embedding !== null) {
+        await this.cfg.index.upsert([
+          {
+            id: next.id,
+            project_id: next.project_id,
+            workspace_id: next.workspace_id,
+            scope: next.scope,
+            author: next.author,
+            title: next.title,
+            archived: false,
+            content_hash: contentHash(next.content),
+            vector: embedding,
+          },
+        ]);
+      } else {
+        await this.cfg.index.upsertMetaOnly({
+          id: next.id,
+          project_id: next.project_id,
+          workspace_id: next.workspace_id,
+          scope: next.scope,
+          author: next.author,
+          title: next.title,
+          archived: false,
+        });
+      }
       const reread = await this.#read(id);
       return reread.memory;
     });
@@ -202,6 +226,7 @@ export class VaultMemoryRepository implements MemoryRepository {
   async archive(ids: string[]): Promise<number> {
     let count = 0;
     const now = new Date();
+    const archived: string[] = [];
     for (const id of ids) {
       const entry = this.index.get(id);
       if (!entry) continue;
@@ -218,7 +243,11 @@ export class VaultMemoryRepository implements MemoryRepository {
         });
         await writeMarkdownAtomic(this.cfg.root, entry.path, md);
         count += 1;
+        archived.push(id);
       });
+    }
+    for (const id of archived) {
+      await this.cfg.index.markArchived(id);
     }
     return count;
   }
