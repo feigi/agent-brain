@@ -34,6 +34,10 @@ const MEMORY_TYPES: MemoryType[] = [
 ];
 const MEMORY_SCOPES: MemoryScope[] = ["workspace", "user", "project"];
 
+// Derived-tag asymmetry: each flag emits a `flag/<type>` tag into the
+// frontmatter tag list on serialize (for Obsidian tag-pane grouping).
+// On parse these are stripped before the tags array is returned, so
+// tags round-trip with `flag/*` removed. See serializeMemoryFile.
 const FLAG_TAG_RE = /^flag\//;
 
 export function parseMemoryFile(md: string): ParsedMemoryFile {
@@ -118,6 +122,8 @@ export function parseMemoryFile(md: string): ParsedMemoryFile {
 export function serializeMemoryFile(input: ParsedMemoryFile): string {
   const { memory, flags, comments, relationships } = input;
 
+  // Derived-tag injection (see FLAG_TAG_RE doc). Null tags + zero flags
+  // stay null; otherwise the array materializes with flag/* tags merged.
   const flagTypeTags = Array.from(
     new Set(flags.map((f) => `flag/${f.flag_type}`)),
   );
@@ -171,6 +177,14 @@ export function serializeMemoryFile(input: ParsedMemoryFile): string {
   return matter.stringify(parts.join("\n"), fm);
 }
 
+// Body layout contract:
+//   # <title>\n\n<content>\n\n## Relationships\n...\n\n## Comments\n...
+// Unknown `## ` headings are folded into <content> verbatim (decision
+// pinned in 2026-04-21 phase-2a plan: users may author arbitrary
+// sections; we never strip). Section order is fixed; Comments after
+// Relationships. Leading newline from gray-matter is stripped because
+// `matter.stringify` emits `---\n<fm>\n---\n<body>` and splitting on
+// that raw body would produce an empty first line.
 function splitBody(body: string): {
   title: string;
   content: string;

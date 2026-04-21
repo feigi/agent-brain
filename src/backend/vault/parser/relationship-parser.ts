@@ -77,11 +77,22 @@ function unescapeDesc(s: string): string {
   return s.replace(/\\"/g, '"').replace(/\\\\/g, "\\");
 }
 
+// 4-decimal precision contract: values are rounded to 1e-4. Callers
+// storing higher-precision confidences will observe silent precision
+// loss on roundtrip — property tests enforce this by pre-rounding.
 function formatConfidence(c: number): string {
   const rounded = Math.round(c * 10_000) / 10_000;
   return String(rounded);
 }
 
+// Meta grammar:
+//   <k>: <v>, <k>: <v>, ..., description: "<escaped>"
+// Description, when present, MUST be the last field — `serializeOne`
+// enforces this by emitting it last. Non-description fields are split
+// on ", " (naive — no commas in values), so callers storing commas in
+// `created_by` / `created_via` / type will shred; property tests use
+// metaSafeString (comma-free) to guard. Description supports escaped
+// `\"` inside its value via escapeDesc/unescapeDesc.
 function parseMeta(meta: string): Map<string, string> {
   const out = new Map<string, string>();
   const descIdx = meta.indexOf(', description: "');
