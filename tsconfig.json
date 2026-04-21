@@ -18,6 +18,7 @@
   "include": [
     "src/**/*",
     "tests/**/*",
+    "scripts/**/*",
     "drizzle.config.ts",
     "vitest.config.ts",
     "vitest.ci.config.ts",
