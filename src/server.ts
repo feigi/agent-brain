@@ -38,6 +38,7 @@ async function main() {
     backend = await createBackend({
       backend: config.backend,
       databaseUrl: config.databaseUrl,
+      vaultRoot: config.vaultRoot,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
