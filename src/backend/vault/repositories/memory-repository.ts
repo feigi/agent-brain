@@ -214,41 +214,146 @@ export class VaultMemoryRepository implements MemoryRepository {
     });
   }
 
-  // ---- Listings (stubbed in Task 12; implemented in Task 13) ----------
+  // ---- Listings -------------------------------------------------------
 
-  async list(_options: ListOptions): ReturnType<MemoryRepository["list"]> {
-    throw new NotImplementedError("list");
+  async list(options: ListOptions): ReturnType<MemoryRepository["list"]> {
+    const all = await this.#loadAll();
+    const filtered = all.filter((m) => matchesList(m, options));
+    const sortBy = options.sort_by ?? "created_at";
+    const order = options.order ?? "desc";
+    filtered.sort((a, b) => compareMemory(a, b, sortBy, order));
+    const sliced = applyCursor(filtered, options.cursor, sortBy, order);
+    const limit = options.limit ?? 50;
+    const page = sliced.slice(0, limit);
+    const has_more = sliced.length > limit;
+    const last = page[page.length - 1];
+    return {
+      memories: page,
+      has_more,
+      cursor:
+        has_more && last
+          ? { created_at: last.created_at.toISOString(), id: last.id }
+          : undefined,
+    };
   }
+
   async findStale(
-    _options: StaleOptions,
+    options: StaleOptions,
   ): ReturnType<MemoryRepository["findStale"]> {
-    throw new NotImplementedError("findStale");
+    const cutoff = new Date(
+      Date.now() - options.threshold_days * 86_400_000,
+    );
+    const all = await this.#loadAll();
+    const filtered = all
+      .filter(
+        (m) =>
+          m.project_id === options.project_id &&
+          m.workspace_id === options.workspace_id &&
+          m.archived_at === null &&
+          m.updated_at.getTime() < cutoff.getTime(),
+      )
+      .sort((a, b) => compareMemory(a, b, "created_at", "asc"));
+    const sliced = applyCursor(filtered, options.cursor, "created_at", "asc");
+    const limit = options.limit ?? 50;
+    const page = sliced.slice(0, limit);
+    const has_more = sliced.length > limit;
+    const last = page[page.length - 1];
+    return {
+      memories: page,
+      has_more,
+      cursor:
+        has_more && last
+          ? { created_at: last.created_at.toISOString(), id: last.id }
+          : undefined,
+    };
   }
+
   async listProjectScoped(
-    _options: ProjectScopedOptions,
+    options: ProjectScopedOptions,
   ): Promise<Memory[]> {
-    throw new NotImplementedError("listProjectScoped");
+    const all = await this.#loadAll();
+    return all
+      .filter(
+        (m) =>
+          m.project_id === options.project_id &&
+          m.scope === "project" &&
+          m.archived_at === null,
+      )
+      .sort((a, b) => compareMemory(a, b, "created_at", "desc"))
+      .slice(0, options.limit);
   }
+
   async listRecentWorkspaceAndUser(
-    _options: RecentWorkspaceAndUserOptions,
+    options: RecentWorkspaceAndUserOptions,
   ): Promise<Memory[]> {
-    throw new NotImplementedError("listRecentWorkspaceAndUser");
+    const all = await this.#loadAll();
+    return all
+      .filter(
+        (m) =>
+          m.project_id === options.project_id &&
+          m.archived_at === null &&
+          ((m.scope === "workspace" && m.workspace_id === options.workspace_id) ||
+            (m.scope === "user" && m.author === options.user_id)),
+      )
+      .sort((a, b) => compareMemory(a, b, "updated_at", "desc"))
+      .slice(0, options.limit);
   }
+
   async findRecentActivity(
-    _options: RecentActivityOptions,
+    options: RecentActivityOptions,
   ): Promise<Memory[]> {
-    throw new NotImplementedError("findRecentActivity");
+    const all = await this.#loadAll();
+    return all
+      .filter(
+        (m) =>
+          m.project_id === options.project_id &&
+          m.workspace_id === options.workspace_id &&
+          m.archived_at === null &&
+          m.updated_at.getTime() >= options.since.getTime() &&
+          (!options.exclude_self || m.author !== options.user_id),
+      )
+      .sort((a, b) => compareMemory(a, b, "updated_at", "desc"))
+      .slice(0, options.limit);
   }
+
   async countTeamActivity(
-    _projectId: string,
-    _workspaceId: string,
-    _userId: string,
-    _since: Date,
+    projectId: string,
+    workspaceId: string,
+    userId: string,
+    since: Date,
   ): Promise<TeamActivityCounts> {
-    throw new NotImplementedError("countTeamActivity");
+    const all = await this.#loadAll();
+    const scoped = all.filter(
+      (m) =>
+        m.project_id === projectId &&
+        m.workspace_id === workspaceId &&
+        m.archived_at === null &&
+        m.author !== userId,
+    );
+    let new_memories = 0;
+    let updated_memories = 0;
+    let commented_memories = 0;
+    for (const m of scoped) {
+      if (m.created_at.getTime() >= since.getTime()) new_memories += 1;
+      else if (m.updated_at.getTime() >= since.getTime())
+        updated_memories += 1;
+      if (
+        m.last_comment_at !== null &&
+        m.last_comment_at.getTime() >= since.getTime()
+      )
+        commented_memories += 1;
+    }
+    return { new_memories, updated_memories, commented_memories };
   }
-  async listDistinctWorkspaces(_projectId: string): Promise<string[]> {
-    throw new NotImplementedError("listDistinctWorkspaces");
+
+  async listDistinctWorkspaces(projectId: string): Promise<string[]> {
+    const all = await this.#loadAll();
+    const set = new Set<string>();
+    for (const m of all) {
+      if (m.project_id === projectId && m.workspace_id !== null)
+        set.add(m.workspace_id);
+    }
+    return Array.from(set);
   }
 
   // ---- Vector methods (Phase 3) ---------------------------------------
@@ -271,6 +376,15 @@ export class VaultMemoryRepository implements MemoryRepository {
   }
 
   // ---- internals ------------------------------------------------------
+
+  async #loadAll(): Promise<Memory[]> {
+    const out: Memory[] = [];
+    for (const id of this.index.keys()) {
+      const { memory } = await this.#read(id);
+      out.push(memory);
+    }
+    return out;
+  }
 
   async #read(id: string): Promise<ParsedMemoryFile> {
     const entry = this.index.get(id);
@@ -319,4 +433,57 @@ async function ensurePlaceholder(abs: string): Promise<void> {
       return;
     throw err;
   }
+}
+
+function matchesList(m: Memory, o: ListOptions): boolean {
+  if (m.archived_at !== null) return false;
+  if (m.project_id !== o.project_id) return false;
+  if (!o.scope.includes(m.scope)) return false;
+  if (o.workspace_id !== undefined && m.workspace_id !== o.workspace_id)
+    return false;
+  if (o.type !== undefined && m.type !== o.type) return false;
+  if (o.tags !== undefined && o.tags.length > 0) {
+    const haystack = new Set(m.tags ?? []);
+    if (!o.tags.some((t) => haystack.has(t))) return false;
+  }
+  if (o.user_id !== undefined && m.scope === "user" && m.author !== o.user_id)
+    return false;
+  return true;
+}
+
+function compareMemory(
+  a: Memory,
+  b: Memory,
+  sortBy: "created_at" | "updated_at",
+  order: "asc" | "desc",
+): number {
+  const av = a[sortBy].getTime();
+  const bv = b[sortBy].getTime();
+  const primary = av - bv;
+  if (primary !== 0) return order === "asc" ? primary : -primary;
+  // Tiebreak on id for determinism.
+  const cmp = a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  return order === "asc" ? cmp : -cmp;
+}
+
+function applyCursor(
+  sorted: Memory[],
+  cursor: { created_at: string; id: string } | undefined,
+  sortBy: "created_at" | "updated_at",
+  order: "asc" | "desc",
+): Memory[] {
+  if (!cursor) return sorted;
+  const cutoff = new Date(cursor.created_at).getTime();
+  return sorted.filter((m) => {
+    const v = m[sortBy].getTime();
+    if (order === "desc") {
+      if (v < cutoff) return true;
+      if (v > cutoff) return false;
+      return m.id < cursor.id;
+    } else {
+      if (v > cutoff) return true;
+      if (v < cutoff) return false;
+      return m.id > cursor.id;
+    }
+  });
 }
