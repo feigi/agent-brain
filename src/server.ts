@@ -4,20 +4,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
 import { config } from "./config.js";
-import { createDb } from "./db/index.js";
-import { runMigrations } from "./db/migrate.js";
+import { createBackend } from "./backend/factory.js";
+import { PostgresBackend } from "./backend/postgres/index.js";
 import { createEmbeddingProvider } from "./providers/embedding/index.js";
-import { DrizzleMemoryRepository } from "./repositories/memory-repository.js";
-import { DrizzleWorkspaceRepository } from "./repositories/workspace-repository.js";
-import { DrizzleCommentRepository } from "./repositories/comment-repository.js";
-import {
-  DrizzleSessionTrackingRepository,
-  DrizzleSessionRepository,
-} from "./repositories/session-repository.js";
-import { DrizzleAuditRepository } from "./repositories/audit-repository.js";
-import { DrizzleFlagRepository } from "./repositories/flag-repository.js";
-import { DrizzleRelationshipRepository } from "./repositories/relationship-repository.js";
-import { DrizzleSchedulerStateRepository } from "./repositories/scheduler-state-repository.js";
 import { MemoryService } from "./services/memory-service.js";
 import { RelationshipService } from "./services/relationship-service.js";
 import { AuditService } from "./services/audit-service.js";
@@ -43,10 +32,13 @@ async function main() {
 
   logger.info(`v${config.version} starting...`);
 
-  // Initialize database
-  const db = createDb(config.databaseUrl);
+  // Initialize storage backend (runs migrations for postgres)
+  let backend;
   try {
-    await runMigrations(db);
+    backend = await createBackend({
+      backend: config.backend,
+      databaseUrl: config.databaseUrl,
+    });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     const code =
@@ -63,11 +55,11 @@ async function main() {
         `Database connection failed: ${msg}. Is PostgreSQL running? Try: docker compose up -d`,
       );
     } else {
-      logger.error(`Database migration failed: ${msg}`);
+      logger.error(`Backend initialization failed: ${msg}`);
     }
     throw err;
   }
-  logger.info("Database connected, migrations applied");
+  logger.info(`Backend ready: ${backend.name}`);
 
   // Initialize embedding provider
   const embedder = createEmbeddingProvider();
@@ -82,17 +74,20 @@ async function main() {
   }
   logger.info(`Project: ${config.projectId}`);
 
-  // Initialize repositories and service
-  const memoryRepo = new DrizzleMemoryRepository(db);
-  const workspaceRepo = new DrizzleWorkspaceRepository(db);
-  const commentRepo = new DrizzleCommentRepository(db);
-  const sessionRepo = new DrizzleSessionTrackingRepository(db);
-  const sessionLifecycleRepo = new DrizzleSessionRepository(db);
-  const auditRepo = new DrizzleAuditRepository(db);
+  // Destructure repositories from the backend
+  const {
+    memoryRepo,
+    workspaceRepo,
+    commentRepo,
+    sessionRepo,
+    sessionLifecycleRepo,
+    auditRepo,
+    flagRepo,
+    relationshipRepo,
+  } = backend;
+
   const auditService = new AuditService(auditRepo, config.projectId);
-  const flagRepo = new DrizzleFlagRepository(db);
   const flagService = new FlagService(flagRepo, auditService, config.projectId);
-  const relationshipRepo = new DrizzleRelationshipRepository(db);
   const relationshipService = new RelationshipService(
     relationshipRepo,
     memoryRepo,
@@ -130,22 +125,27 @@ async function main() {
   let consolidationScheduler: ConsolidationScheduler | null = null;
 
   if (config.consolidationEnabled) {
-    const schedulerStateRepo = new DrizzleSchedulerStateRepository(db);
-    const consolidationJob = new ConsolidationJob(
-      consolidationService,
-      db,
-      schedulerStateRepo,
-    );
-    consolidationScheduler = new ConsolidationScheduler(
-      consolidationJob,
-      config.consolidationCron,
-      schedulerStateRepo,
-      {
-        enabled: config.consolidationCatchupEnabled,
-        graceSeconds: config.consolidationCatchupGraceSeconds,
-      },
-    );
-    await consolidationScheduler.start();
+    if (!(backend instanceof PostgresBackend)) {
+      logger.warn(
+        `Consolidation scheduler requires postgres backend; current backend is '${backend.name}'. Scheduler disabled.`,
+      );
+    } else {
+      const consolidationJob = new ConsolidationJob(
+        consolidationService,
+        backend.db,
+        backend.schedulerStateRepo,
+      );
+      consolidationScheduler = new ConsolidationScheduler(
+        consolidationJob,
+        config.consolidationCron,
+        backend.schedulerStateRepo,
+        {
+          enabled: config.consolidationCatchupEnabled,
+          graceSeconds: config.consolidationCatchupGraceSeconds,
+        },
+      );
+      await consolidationScheduler.start();
+    }
   }
 
   // Factory: creates a fresh MCP server per session (tools + prompts registered)
@@ -225,7 +225,7 @@ async function main() {
     if (consolidationScheduler) {
       await consolidationScheduler.stop();
     }
-    await db.$client.end();
+    await backend.close();
     process.exit(0);
   };
   process.on("SIGTERM", shutdown);
