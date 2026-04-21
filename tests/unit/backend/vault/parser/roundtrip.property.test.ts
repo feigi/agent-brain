@@ -196,6 +196,56 @@ function relArb(
   });
 }
 
+describe("memory-parser tags-null asymmetry (pinned behaviour)", () => {
+  it("tags: null + non-empty flags ⇒ tags round-trips as [] (flag/* tags stripped)", () => {
+    const input: Memory = {
+      id: "m1",
+      project_id: "p",
+      workspace_id: null,
+      content: "body",
+      title: "T",
+      type: "fact",
+      scope: "project",
+      tags: null,
+      author: "a",
+      source: null,
+      session_id: null,
+      metadata: null,
+      embedding_model: null,
+      embedding_dimensions: null,
+      version: 1,
+      created_at: new Date("2026-04-21T00:00:00.000Z"),
+      updated_at: new Date("2026-04-21T00:00:00.000Z"),
+      verified_at: null,
+      archived_at: null,
+      comment_count: 0,
+      flag_count: 1,
+      relationship_count: 0,
+      last_comment_at: null,
+      verified_by: null,
+    };
+    const flag: Flag = {
+      id: "f1",
+      project_id: "p",
+      memory_id: "m1",
+      flag_type: "verify",
+      severity: "needs_review",
+      details: { reason: "r" },
+      resolved_at: null,
+      resolved_by: null,
+      created_at: new Date("2026-04-21T00:00:00.000Z"),
+    };
+    const md = serializeMemoryFile({
+      memory: input,
+      comments: [],
+      relationships: [],
+      flags: [flag],
+    });
+    const parsed = parseMemoryFile(md);
+    expect(parsed.memory.tags).toEqual([]); // not null!
+  });
+});
+
 describe("parser roundtrip (property-based)", () => {
   it("comments: parse(serialize(xs)) === xs", () => {
     fc.assert(

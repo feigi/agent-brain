@@ -174,4 +174,83 @@ describe("parser negative paths — number/date finiteness", () => {
     });
     expect(rels[0].description).toBe('he said "hi"');
   });
+
+  it("memory: section ordering violation (Comments before Relationships) throws", () => {
+    const md = `---\nid: m1\ntitle: T\ntype: fact\nscope: project\nworkspace_id: null\nproject_id: p\nauthor: a\nsource: null\nsession_id: null\ntags: null\nversion: 1\ncreated: "2026-04-21T00:00:00.000Z"\nupdated: "2026-04-21T00:00:00.000Z"\nverified: null\nverified_by: null\narchived: null\nembedding_model: null\nembedding_dimensions: null\nmetadata: null\nflags: []\n---\n\n# T\n\nbody\n\n## Comments\n\n> [!comment] a · 2026-04-21T00:00:00.000Z · c1\n> hi\n\n## Relationships\n\n- related:: [[x]] — id: r, confidence: 1, by: a, at: 2026-04-21T00:00:00.000Z\n`;
+    expect(() => parseMemoryFile(md)).toThrow(
+      /Relationships.*before.*Comments/,
+    );
+  });
+
+  it("memory: missing H1 throws", () => {
+    const md = `---\nid: m1\ntitle: T\ntype: fact\nscope: project\nworkspace_id: null\nproject_id: p\nauthor: a\nsource: null\nsession_id: null\ntags: null\nversion: 1\ncreated: "2026-04-21T00:00:00.000Z"\nupdated: "2026-04-21T00:00:00.000Z"\nverified: null\nverified_by: null\narchived: null\nembedding_model: null\nembedding_dimensions: null\nmetadata: null\nflags: []\n---\n\nno heading here\n`;
+    expect(() => parseMemoryFile(md)).toThrow(/title line/);
+  });
+
+  it("memory: invalid type enum throws", () => {
+    expect(() =>
+      parseMemoryFile(wrapMemoryMd({ type: "idea" })),
+    ).toThrow(/type.*fact.*decision.*learning.*pattern.*preference.*architecture/);
+  });
+
+  it("memory: invalid scope enum throws", () => {
+    expect(() =>
+      parseMemoryFile(wrapMemoryMd({ scope: "team" })),
+    ).toThrow(/scope.*workspace.*user.*project/);
+  });
+
+  it("memory: missing version throws", () => {
+    const md = wrapMemoryMd({}).replace(/version: 1\n/, "");
+    expect(() => parseMemoryFile(md)).toThrow(/version.*required/);
+  });
+
+  it("memory: non-string workspace_id throws", () => {
+    expect(() =>
+      parseMemoryFile(wrapMemoryMd({ workspace_id: 42 })),
+    ).toThrow(/workspace_id must be string or null/);
+  });
+
+  it("relationship: malformed line throws", () => {
+    expect(() =>
+      parseRelationshipSection("- not a valid line", {
+        projectId: "p",
+        sourceId: "s",
+      }),
+    ).toThrow(/Invalid relationship line/);
+  });
+
+  it("relationship: missing id throws", () => {
+    const line = `- related:: [[t]] — confidence: 1, by: a, at: 2026-04-21T00:00:00.000Z`;
+    expect(() =>
+      parseRelationshipSection(line, { projectId: "p", sourceId: "s" }),
+    ).toThrow(/Missing "id"/);
+  });
+
+  it("relationship: unterminated description throws", () => {
+    const line = `- related:: [[t]] — id: r, confidence: 1, by: a, at: 2026-04-21T00:00:00.000Z, description: "no end quote`;
+    expect(() =>
+      parseRelationshipSection(line, { projectId: "p", sourceId: "s" }),
+    ).toThrow(/Unterminated description/);
+  });
+
+  it("flag: invalid severity throws", () => {
+    const bad = {
+      id: "f1",
+      type: "verify",
+      severity: "CRITICAL",
+      reason: "r",
+      created: "2026-04-21T00:00:00.000Z",
+      resolved: null,
+      resolved_by: null,
+    };
+    expect(() =>
+      parseFlags([bad], { projectId: "p", memoryId: "m" }),
+    ).toThrow(/flags\[0\]\.severity invalid/);
+  });
+
+  it("flag: non-object entry throws", () => {
+    expect(() =>
+      parseFlags(["not-an-object"], { projectId: "p", memoryId: "m" }),
+    ).toThrow(/flags\[0\] must be an object/);
+  });
 });
