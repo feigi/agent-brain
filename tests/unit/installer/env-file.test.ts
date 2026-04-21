@@ -277,3 +277,91 @@ describe("bootstrapEnv (fresh)", () => {
     }
   });
 });
+
+describe("bootstrapEnv (existing)", () => {
+  let dir: string;
+  const exampleText =
+    "PROJECT_ID=my-project\nEMBEDDING_PROVIDER=ollama\nPORT=19898\n";
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "envboot-"));
+    writeFileSync(join(dir, ".env.example"), exampleText);
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("noop when .env has every template key", async () => {
+    writeFileSync(
+      join(dir, ".env"),
+      "PROJECT_ID=real\nEMBEDDING_PROVIDER=titan\nPORT=19898\n",
+    );
+    const logs: string[] = [];
+    const plan = await bootstrapEnv(dir, {
+      dryRun: false,
+      ask: async () => {
+        throw new Error("should not prompt on merge path");
+      },
+      log: (m) => logs.push(m),
+    });
+    expect(plan.mode).toBe("noop");
+    expect(plan.added).toEqual([]);
+    expect(plan.willBackup).toBe(false);
+    expect(readFileSync(join(dir, ".env"), "utf8")).toBe(
+      "PROJECT_ID=real\nEMBEDDING_PROVIDER=titan\nPORT=19898\n",
+    );
+    expect(readdirSync(dir).some((n) => n.startsWith(".env.bak"))).toBe(false);
+  });
+
+  it("merges missing key, writes backup", async () => {
+    writeFileSync(
+      join(dir, ".env"),
+      "PROJECT_ID=real\nEMBEDDING_PROVIDER=titan\n",
+    );
+    const plan = await bootstrapEnv(dir, {
+      dryRun: false,
+      ask: async () => {
+        throw new Error("should not prompt on merge path");
+      },
+      log: () => undefined,
+    });
+    expect(plan.mode).toBe("merge");
+    expect(plan.added).toEqual(["PORT"]);
+    expect(plan.willBackup).toBe(true);
+    const merged = readFileSync(join(dir, ".env"), "utf8");
+    expect(merged).toContain("PROJECT_ID=real");
+    expect(merged).toContain("EMBEDDING_PROVIDER=titan");
+    expect(merged).toContain("PORT=19898");
+    const baks = readdirSync(dir).filter((n) => n.startsWith(".env.bak."));
+    expect(baks).toHaveLength(1);
+  });
+
+  it("merge + dryRun does not write or backup", async () => {
+    writeFileSync(join(dir, ".env"), "PROJECT_ID=real\n");
+    const originalEnv = readFileSync(join(dir, ".env"), "utf8");
+    await bootstrapEnv(dir, {
+      dryRun: true,
+      ask: async () => {
+        throw new Error("no prompt expected");
+      },
+      log: () => undefined,
+    });
+    expect(readFileSync(join(dir, ".env"), "utf8")).toBe(originalEnv);
+    expect(readdirSync(dir).some((n) => n.startsWith(".env.bak"))).toBe(false);
+  });
+
+  it("warns when existing PROJECT_ID is placeholder", async () => {
+    writeFileSync(
+      join(dir, ".env"),
+      "PROJECT_ID=my-project\nEMBEDDING_PROVIDER=titan\nPORT=19898\n",
+    );
+    const plan = await bootstrapEnv(dir, {
+      dryRun: false,
+      ask: async () => {
+        throw new Error("no prompt");
+      },
+      log: () => undefined,
+    });
+    expect(plan.warnings.some((w) => w.includes("PROJECT_ID"))).toBe(true);
+  });
+});

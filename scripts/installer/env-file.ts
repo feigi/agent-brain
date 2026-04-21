@@ -1,3 +1,7 @@
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { atomicWrite, fileExists, writeBackup } from "./fs-util.js";
+
 export type EnvLine =
   | { kind: "kv"; key: string; value: string }
   | { kind: "comment"; raw: string }
@@ -104,10 +108,6 @@ export function mergeEnv(
   const changed = serialize(merged) !== serialize(existing);
   return { lines: merged, added, extras, changed };
 }
-
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { atomicWrite, fileExists } from "./fs-util.js";
 
 // Async asker returns the raw user input for a prompt. Injected instead of
 // using readline directly so tests can drive prompts without a TTY.
@@ -234,5 +234,58 @@ export async function bootstrapEnv(
     };
   }
 
-  throw new Error("merge path not yet implemented");
+  const existingText = await readFile(envPath, "utf8");
+  const existing = parseDotenv(existingText);
+  const merged = mergeEnv(existing, template);
+
+  const warnings: string[] = [];
+  const projectIdLine = existing.find(
+    (l): l is Extract<EnvLine, { kind: "kv" }> =>
+      l.kind === "kv" && l.key === "PROJECT_ID",
+  );
+  if (projectIdLine && projectIdLine.value === "my-project") {
+    warnings.push(
+      "warn: PROJECT_ID is still the placeholder 'my-project' in .env — set a real project id before starting the server",
+    );
+  }
+
+  if (!merged.changed) {
+    opts.log("OK .env up to date with .env.example");
+    for (const w of warnings) opts.log(w);
+    return {
+      mode: "noop",
+      added: merged.added,
+      extras: merged.extras,
+      willBackup: false,
+      warnings,
+    };
+  }
+
+  const nextText = serialize(merged.lines);
+  if (opts.dryRun) {
+    opts.log(
+      `dry-run: would merge .env (add: ${merged.added.join(", ") || "none"}; extras preserved: ${merged.extras.join(", ") || "none"})`,
+    );
+    for (const w of warnings) opts.log(w);
+    return {
+      mode: "merge",
+      added: merged.added,
+      extras: merged.extras,
+      willBackup: true,
+      warnings,
+    };
+  }
+
+  await writeBackup(envPath);
+  await atomicWrite(envPath, nextText);
+  opts.log(`OK merged .env (added: ${merged.added.join(", ") || "none"})`);
+  for (const w of warnings) opts.log(w);
+
+  return {
+    mode: "merge",
+    added: merged.added,
+    extras: merged.extras,
+    willBackup: true,
+    warnings,
+  };
 }
