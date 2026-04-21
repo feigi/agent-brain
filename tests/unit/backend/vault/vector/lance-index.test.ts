@@ -303,3 +303,76 @@ describe("VaultVectorIndex — findPairwiseSimilar", () => {
     expect(pairs).toEqual([]);
   });
 });
+
+describe("VaultVectorIndex — listEmbeddings + markArchived + upsertMetaOnly", () => {
+  let root: string;
+  let idx: VaultVectorIndex;
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "lance-test-"));
+    idx = await VaultVectorIndex.create({ root, dims: 3 });
+    await idx.upsert([
+      {
+        id: "a",
+        project_id: "p1",
+        workspace_id: "ws1",
+        scope: "workspace",
+        author: "u",
+        title: "A",
+        archived: false,
+        content_hash: "h",
+        vector: [1, 0, 0],
+      },
+      {
+        id: "b",
+        project_id: "p1",
+        workspace_id: "ws1",
+        scope: "workspace",
+        author: "u",
+        title: "B",
+        archived: false,
+        content_hash: "h",
+        vector: [0, 1, 0],
+      },
+    ]);
+  });
+  afterEach(async () => {
+    await idx.close();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("listEmbeddings returns ids with vectors, excludes archived", async () => {
+    await idx.markArchived("b");
+    const list = await idx.listEmbeddings({
+      projectId: "p1",
+      workspaceId: "ws1",
+      scope: "workspace",
+      userId: null,
+      limit: 10,
+    });
+    expect(list.map((r) => r.id)).toEqual(["a"]);
+    expect(list[0].vector).toHaveLength(3);
+    expect(list[0].vector[0]).toBeCloseTo(1, 5);
+  });
+
+  it("upsertMetaOnly preserves the existing vector", async () => {
+    await idx.upsertMetaOnly({
+      id: "a",
+      project_id: "p1",
+      workspace_id: "ws1",
+      scope: "workspace",
+      author: "u",
+      title: "A-renamed",
+      archived: false,
+    });
+    const list = await idx.listEmbeddings({
+      projectId: "p1",
+      workspaceId: "ws1",
+      scope: "workspace",
+      userId: null,
+      limit: 10,
+    });
+    const a = list.find((r) => r.id === "a")!;
+    expect(a.vector[0]).toBeCloseTo(1, 5);
+    expect(a.vector[1]).toBeCloseTo(0, 5);
+  });
+});

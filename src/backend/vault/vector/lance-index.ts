@@ -196,6 +196,75 @@ export class VaultVectorIndex {
     pairs.sort((a, b) => b.similarity - a.similarity);
     return pairs;
   }
+
+  async markArchived(id: string): Promise<void> {
+    await this.table.update({
+      where: `id = ${sqlStr(id)}`,
+      values: { archived: true },
+    });
+  }
+
+  async upsertMetaOnly(
+    meta: Omit<IndexRow, "content_hash" | "vector">,
+  ): Promise<void> {
+    await this.table.update({
+      where: `id = ${sqlStr(meta.id)}`,
+      values: {
+        project_id: meta.project_id,
+        scope: meta.scope,
+        author: meta.author,
+        title: meta.title,
+        archived: meta.archived,
+        workspace_id: meta.workspace_id,
+      },
+    });
+  }
+
+  async listEmbeddings(
+    params: ListEmbeddingsParams,
+  ): Promise<Array<{ id: string; vector: number[] }>> {
+    const clauses: string[] = [
+      `archived = false`,
+      `project_id = ${sqlStr(params.projectId)}`,
+    ];
+    if (params.scope === "workspace") {
+      if (params.workspaceId === null) {
+        throw new Error("workspaceId is required for workspace listEmbeddings");
+      }
+      clauses.push(
+        `scope = 'workspace'`,
+        `workspace_id = ${sqlStr(params.workspaceId)}`,
+      );
+    } else if (params.scope === "user") {
+      clauses.push(`scope = 'user'`);
+      if (params.userId !== null) {
+        clauses.push(`author = ${sqlStr(params.userId)}`);
+      }
+      if (params.workspaceId !== null) {
+        clauses.push(`workspace_id = ${sqlStr(params.workspaceId)}`);
+      }
+    } else {
+      clauses.push(`scope = 'project'`);
+    }
+    const rows = (await this.table
+      .query()
+      .where(clauses.join(" AND "))
+      .select(["id", "vector"])
+      .limit(params.limit)
+      .toArray()) as Array<{ id: string; vector: number[] | Float32Array }>;
+    return rows.map((r) => ({
+      id: r.id,
+      vector: Array.from(r.vector as ArrayLike<number>),
+    }));
+  }
+}
+
+export interface ListEmbeddingsParams {
+  projectId: string;
+  workspaceId: string | null;
+  scope: "workspace" | "user" | "project";
+  userId: string | null;
+  limit: number;
 }
 
 export interface PairwiseParams {
