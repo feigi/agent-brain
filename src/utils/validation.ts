@@ -16,7 +16,7 @@ export const slugSchema = z
 
 // Shared schema for user_id parameters — instructs agents to pass the OS username in lowercase
 export const userIdSchema = slugSchema.describe(
-  "Your OS username in lowercase. Run 'whoami' and convert to lowercase if needed (e.g., 'alice', not 'Alice' or 'ALICE'). Required for access control and to load user-scoped memories.",
+  "Your OS username, lowercase. Run 'whoami', lowercase it (e.g., 'alice', not 'Alice' or 'ALICE'). Required for access control + to load user-scoped memories.",
 );
 
 // D-75: Non-empty content validation for memory_create, memory_update, memory_comment
@@ -38,10 +38,10 @@ export const memoryTypeEnum = z.enum([
 export const memoryScopeEnum = z.enum(["workspace", "user", "project"]);
 
 // Source-of-save enum — locked to three values to prevent label drift.
-// - "manual": user explicitly asked the agent to save ("remember X", "save that").
-//   Bypasses write budget and project-scope confirmation guard.
-// - "agent-auto": autonomous save during a live conversation. Default for agent-initiated captures.
-// - "session-review": autonomous save triggered ONLY by the end-of-session Stop-hook review.
+// - "manual": user explicitly asked agent to save ("remember X", "save that").
+//   Bypasses write budget + project-scope confirmation guard.
+// - "agent-auto": autonomous save mid-conversation. Default for agent-initiated captures.
+// - "session-review": autonomous save triggered ONLY by end-of-session Stop-hook review.
 export const memorySourceEnum = z.enum([
   "manual",
   "agent-auto",

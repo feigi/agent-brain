@@ -19,7 +19,7 @@ export function registerMemoryCreate(
     "memory_create",
     {
       description:
-        'Save a new memory to the knowledge base. user_id is required for all operations and enforces scope-based access control. Include session_id from memory_session_start for budget tracking (optional). Example: memory_create({ workspace_id: "my-project", content: "Always run migrations before deploying", type: "decision", user_id: "alice" })',
+        'Save new memory. user_id required — enforces scope-based access control. Pass session_id from memory_session_start for budget tracking (optional). Example: memory_create({ workspace_id: "my-project", content: "Always run migrations before deploying", type: "decision", user_id: "alice" })',
       inputSchema: {
         workspace_id: slugSchema
           .optional()
@@ -27,7 +27,7 @@ export function registerMemoryCreate(
             "Workspace slug (e.g., 'my-project'). Required for workspace/user scope. Optional for project scope (cross-workspace).",
           ),
         content: contentSchema.describe(
-          "Memory content text. Must not be empty. Soft limit ~4000 chars.",
+          "Memory content. Non-empty. Soft limit ~4000 chars.",
         ),
         title: z
           .string()
@@ -42,19 +42,19 @@ export function registerMemoryCreate(
         scope: memoryScopeEnum
           .catch("workspace")
           .describe(
-            "'workspace' scopes to this workspace (shared with team), 'user' is private to you, 'project' is visible across all workspaces (set user_confirmed_project_scope:true after asking the user)",
+            "'workspace' = shared with team in this workspace, 'user' = private to you, 'project' = visible across all workspaces (set user_confirmed_project_scope:true after asking user)",
           ),
         user_confirmed_project_scope: z
           .boolean()
           .optional()
           .describe(
-            "Set true after the user has explicitly confirmed cross-workspace (project) scope. Required alongside scope:'project' when source is 'agent-auto' or 'session-review'.",
+            "Set true after user explicitly confirmed cross-workspace (project) scope. Required with scope:'project' when source is 'agent-auto' or 'session-review'.",
           ),
         user_id: userIdSchema,
         source: memorySourceEnum
           .optional()
           .describe(
-            "Origin of the save. Choose exactly one: 'manual' = user explicitly asked you to save (e.g. 'remember X', 'save that'); bypasses budget and project-scope guards. 'agent-auto' = autonomous save during a live conversation; use this as the default for agent-initiated captures. 'session-review' = ONLY for autonomous saves triggered by the end-of-session Stop-hook review; do not use mid-session.",
+            "Origin of save. Pick one: 'manual' = user explicitly asked to save (e.g. 'remember X', 'save that'); bypasses budget + project-scope guards. 'agent-auto' = autonomous save mid-conversation; default for agent-initiated captures. 'session-review' = ONLY for autonomous saves from end-of-session Stop-hook review; never mid-session.",
           ),
         session_id: z
           .string()

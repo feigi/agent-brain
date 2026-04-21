@@ -12,7 +12,7 @@ export function registerMemoryRelationships(
     "memory_relationships",
     {
       description:
-        'List relationships for one or more memories. Returns all relationships in the requested direction, optionally filtered by type. Example: memory_relationships({ memory_ids: ["abc123", "def456"], user_id: "alice", direction: "both" })',
+        'List relationships for memories. Returns all in requested direction, optionally filtered by type. Example: memory_relationships({ memory_ids: ["abc123", "def456"], user_id: "alice", direction: "both" })',
       inputSchema: {
         memory_ids: z
           .array(z.string().min(1))
@@ -23,12 +23,9 @@ export function registerMemoryRelationships(
           .enum(["outgoing", "incoming", "both"])
           .default("both")
           .describe(
-            'Direction to filter: "outgoing" (memory is source), "incoming" (memory is target), or "both" (default)',
+            'Direction: "outgoing" (memory is source), "incoming" (memory is target), or "both" (default)',
           ),
-        type: z
-          .string()
-          .optional()
-          .describe("Optional relationship type filter"),
+        type: z.string().optional().describe("Relationship type filter"),
         user_id: userIdSchema,
       },
     },

@@ -13,13 +13,13 @@ export function registerMemoryComment(
     {
       // D-69: Description with usage example and guidance
       description:
-        "Add a comment to an existing memory. Use to add context, follow-up, or discussion. " +
-        "For correcting the memory itself, use memory_update instead. " +
-        "Comments are append-only and cannot be edited or deleted. " +
-        "Cannot comment on your own memories. " +
+        "Add comment to existing memory. Use for context, follow-up, or discussion. " +
+        "To correct memory itself, use memory_update. " +
+        "Comments are append-only — cannot edit or delete. " +
+        "Cannot comment on own memories. " +
         'Example: memory_comment({ memory_id: "abc123", content: "Confirmed this is still the case after migration.", user_id: "bob" })',
       inputSchema: {
-        memory_id: z.string().describe("ID of the memory to comment on"),
+        memory_id: z.string().describe("ID of memory to comment on"),
         content: contentSchema.describe(
           "Comment text. Soft limit ~1000 chars.",
         ),

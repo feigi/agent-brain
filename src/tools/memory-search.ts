@@ -16,7 +16,7 @@ export function registerMemorySearch(
     "memory_search",
     {
       description:
-        'Search memories by semantic similarity across one or more scopes. Returns ranked results with relevance scores. user_id is required for all searches to enforce scope-based access control. Example: memory_search({ workspace_id: "my-project", query: "database migration patterns", user_id: "alice", scope: ["workspace", "user"] })',
+        'Search memories by semantic similarity across scopes. Returns ranked results with relevance scores. user_id required — enforces scope-based access control. Example: memory_search({ workspace_id: "my-project", query: "database migration patterns", user_id: "alice", scope: ["workspace", "user"] })',
       inputSchema: {
         workspace_id: slugSchema.describe(
           "Workspace slug to search within (e.g., 'my-project')",
@@ -27,7 +27,7 @@ export function registerMemorySearch(
           .min(1)
           .default(["workspace"])
           .describe(
-            'Scopes to search, e.g. ["workspace", "user", "project"]. Defaults to ["workspace"]. Scope is honored literally — pass "project" explicitly to include cross-workspace (global) memories.',
+            'Scopes to search, e.g. ["workspace", "user", "project"]. Defaults to ["workspace"]. Honored literally — pass "project" explicitly to include cross-workspace (global) memories.',
           ),
         user_id: userIdSchema,
         limit: z
@@ -36,13 +36,13 @@ export function registerMemorySearch(
           .min(1)
           .max(100)
           .default(10)
-          .describe("Max results to return (default 10)"),
+          .describe("Max results (default 10)"),
         min_similarity: z
           .number()
           .min(0)
           .max(1)
           .default(0.3)
-          .describe("Minimum similarity threshold (default 0.3)"),
+          .describe("Min similarity threshold (default 0.3)"),
       },
     },
     async (params) => {

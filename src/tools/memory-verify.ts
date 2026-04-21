@@ -12,7 +12,7 @@ export function registerMemoryVerify(
     "memory_verify",
     {
       description:
-        'Mark a memory as still accurate. Updates the verified_at timestamp and records who verified it. user_id is required. Project-scoped memories can be verified by anyone; user-scoped memories only by the owner. Example: memory_verify({ id: "abc123", user_id: "alice" })',
+        'Mark memory as still accurate. Updates verified_at timestamp, records verifier. user_id required. Project-scoped memories verifiable by anyone; user-scoped only by owner. Example: memory_verify({ id: "abc123", user_id: "alice" })',
       inputSchema: {
         id: z.string().describe("Memory ID to verify"),
         user_id: userIdSchema,

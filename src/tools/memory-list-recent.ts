@@ -12,8 +12,8 @@ export function registerMemoryListRecent(
     "memory_list_recent",
     {
       description:
-        "List memories created or updated after a given timestamp. Useful for team activity awareness. " +
-        "Each result includes a change_type indicating whether it was created, updated, or commented. " +
+        "List memories created or updated after a timestamp. For team activity awareness. " +
+        "Each result has change_type: created, updated, or commented. " +
         'Example: memory_list_recent({ workspace_id: "my-project", user_id: "alice", since: "2026-03-20T00:00:00Z" })',
       inputSchema: {
         workspace_id: slugSchema.describe("Workspace slug"),
@@ -21,7 +21,7 @@ export function registerMemoryListRecent(
         since: z
           .string()
           .datetime()
-          .describe("ISO timestamp -- return memories changed after this time"),
+          .describe("ISO timestamp — return memories changed after this time"),
         limit: z
           .number()
           .int()
@@ -33,7 +33,7 @@ export function registerMemoryListRecent(
           .boolean()
           .default(false)
           .describe(
-            "When true, exclude memories authored by you (useful for 'what did teammates do?')",
+            "If true, exclude memories authored by you (for 'what did teammates do?')",
           ),
       },
     },
