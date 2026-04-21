@@ -32,9 +32,10 @@ Both resolve to `tsx scripts/installer/index.ts` (uninstall passes `--uninstall`
 | -------------------------------- | ------------------------------------ |
 | `--target=claude\|copilot\|both` | Skip interactive target prompt       |
 | `--dry-run`                      | Print planned actions; write nothing |
-| `--yes` / `-y`                   | Skip confirmation prompt (CI)        |
 | `--uninstall`                    | Teardown mode                        |
 | `--help`                         | Usage                                |
+
+No pre-apply confirmation prompt. The installer writes directly once the target is resolved; `.bak` files, the dry-run mode, and idempotent re-run cover the "undo" need.
 
 Interactive behavior: if `--target` is missing and stdin is a TTY, prompt for target. Otherwise fail with an actionable error.
 
@@ -194,7 +195,7 @@ Fail fast. No silent catches. No fallback paths.
 
 **Atomicity:** writes are per-file, not transactional across files. Acceptable because re-run is idempotent.
 
-**Exit codes:** 0 success · 1 preflight fail · 2 runtime fail · 3 user declined confirmation.
+**Exit codes:** 0 success · 2 any failure (preflight or runtime). Differentiated codes were considered but dropped — `.bak` + dry-run + idempotent re-run cover the recovery need without needing scripts to branch on cause.
 
 ## Testing
 
