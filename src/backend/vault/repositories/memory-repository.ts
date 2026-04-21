@@ -20,7 +20,6 @@ import {
   NotFoundError,
   ValidationError,
 } from "../../../utils/errors.js";
-import { NotImplementedError } from "../errors.js";
 import {
   parseMemoryFile,
   serializeMemoryFile,
@@ -426,26 +425,85 @@ export class VaultMemoryRepository implements MemoryRepository {
     return Array.from(set);
   }
 
-  /* eslint-disable @typescript-eslint/no-unused-vars */
-  async search(_options: SearchOptions): Promise<MemoryWithRelevance[]> {
-    throw new NotImplementedError("search");
+  async search(options: SearchOptions): Promise<MemoryWithRelevance[]> {
+    if (options.scope.length === 0) {
+      throw new ValidationError("scope must contain at least one value");
+    }
+    for (const s of options.scope) {
+      if (s === "user" && !options.user_id) {
+        throw new ValidationError(
+          "user_id is required for user-scoped search",
+        );
+      }
+    }
+    const hits = await this.cfg.index.search({
+      embedding: options.embedding,
+      projectId: options.project_id,
+      workspaceId: options.workspace_id,
+      scope: options.scope,
+      userId: options.user_id ?? null,
+      limit: options.limit ?? 10,
+      minSimilarity: options.min_similarity ?? 0.3,
+    });
+    const out: MemoryWithRelevance[] = [];
+    for (const h of hits) {
+      const m = await this.findById(h.id);
+      if (m !== null) out.push({ ...m, relevance: h.relevance });
+    }
+    return out;
   }
+
   async findDuplicates(
-    _options: Parameters<MemoryRepository["findDuplicates"]>[0],
+    options: Parameters<MemoryRepository["findDuplicates"]>[0],
   ): ReturnType<MemoryRepository["findDuplicates"]> {
-    throw new NotImplementedError("findDuplicates");
+    if (options.scope === "workspace" && !options.workspaceId) {
+      throw new ValidationError(
+        "workspaceId is required for workspace-scoped dedup",
+      );
+    }
+    if (options.scope === "user" && !options.workspaceId) {
+      throw new ValidationError(
+        "workspaceId is required for user-scoped dedup",
+      );
+    }
+    return await this.cfg.index.findDuplicates({
+      embedding: options.embedding,
+      projectId: options.projectId,
+      workspaceId: options.workspaceId,
+      scope: options.scope,
+      userId: options.userId,
+      threshold: options.threshold,
+    });
   }
+
   async findPairwiseSimilar(
-    _options: Parameters<MemoryRepository["findPairwiseSimilar"]>[0],
+    options: Parameters<MemoryRepository["findPairwiseSimilar"]>[0],
   ): ReturnType<MemoryRepository["findPairwiseSimilar"]> {
-    throw new NotImplementedError("findPairwiseSimilar");
+    return await this.cfg.index.findPairwiseSimilar({
+      projectId: options.projectId,
+      workspaceId: options.workspaceId,
+      scope: options.scope,
+      threshold: options.threshold,
+    });
   }
+
   async listWithEmbeddings(
-    _options: Parameters<MemoryRepository["listWithEmbeddings"]>[0],
+    options: Parameters<MemoryRepository["listWithEmbeddings"]>[0],
   ): ReturnType<MemoryRepository["listWithEmbeddings"]> {
-    throw new NotImplementedError("listWithEmbeddings");
+    const rows = await this.cfg.index.listEmbeddings({
+      projectId: options.projectId,
+      workspaceId: options.workspaceId,
+      scope: options.scope,
+      userId: options.userId ?? null,
+      limit: options.limit,
+    });
+    const out: Array<Memory & { embedding: number[] }> = [];
+    for (const r of rows) {
+      const m = await this.findById(r.id);
+      if (m !== null) out.push({ ...m, embedding: r.vector });
+    }
+    return out;
   }
-  /* eslint-enable @typescript-eslint/no-unused-vars */
 
   async #loadAll(): Promise<Memory[]> {
     const out: Memory[] = [];
