@@ -166,11 +166,10 @@ function relArb(
   projectId: string,
   sourceId: string,
 ): fc.Arbitrary<Relationship> {
-  // Description may contain commas (handled specially by parser) but must
-  // not contain '"' (parser uses lastIndexOf('"') as end delimiter).
+  // Description may contain commas AND quotes (parser escapes/unescapes '"').
   const desc = fc.string({
     unit: fc.constantFrom(
-      ..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -.,?!:;()".split(
+      ..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -.,?!:;()\"".split(
         "",
       ),
     ),

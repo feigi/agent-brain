@@ -1,4 +1,5 @@
 import type { Flag, FlagType, FlagSeverity } from "../../../types/flag.js";
+import type { ParseCtx } from "./types.js";
 
 const FLAG_TYPES: FlagType[] = [
   "duplicate",
@@ -8,11 +9,6 @@ const FLAG_TYPES: FlagType[] = [
   "verify",
 ];
 const FLAG_SEVERITIES: FlagSeverity[] = ["auto_resolved", "needs_review"];
-
-interface ParseCtx {
-  projectId: string;
-  memoryId: string;
-}
 
 export interface FlagFrontmatter {
   id: string;
@@ -47,7 +43,7 @@ function parseOne(entry: unknown, ctx: ParseCtx, i: number): Flag {
     typeof flagType !== "string" ||
     !FLAG_TYPES.includes(flagType as FlagType)
   ) {
-    throw new Error(`flags[${i}].flag_type invalid: ${String(flagType)}`);
+    throw new Error(`flags[${i}].type invalid: ${String(flagType)}`);
   }
   const severity = e.severity;
   if (

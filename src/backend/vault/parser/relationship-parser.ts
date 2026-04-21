@@ -1,12 +1,8 @@
 import type { Relationship } from "../../../types/relationship.js";
+import type { RelationshipParseCtx as ParseCtx } from "./types.js";
 
 const LINE_RE =
   /^- (?<type>[A-Za-z_][A-Za-z0-9_-]*):: \[\[(?<target>[^\]|]+)\]\] — (?<meta>.+)$/;
-
-interface ParseCtx {
-  projectId: string;
-  sourceId: string;
-}
 
 export function parseRelationshipSection(
   section: string,
@@ -67,9 +63,18 @@ function serializeOne(r: Relationship): string {
     `at: ${r.created_at.toISOString()}`,
   ];
   if (r.created_via !== null) parts.push(`via: ${r.created_via}`);
-  if (r.description !== null) parts.push(`description: "${r.description}"`);
+  if (r.description !== null)
+    parts.push(`description: "${escapeDesc(r.description)}"`);
 
   return `- ${r.type}:: [[${r.target_id}]] — ${parts.join(", ")}`;
+}
+
+function escapeDesc(s: string): string {
+  return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function unescapeDesc(s: string): string {
+  return s.replace(/\\"/g, '"').replace(/\\\\/g, "\\");
 }
 
 function formatConfidence(c: number): string {
@@ -84,10 +89,23 @@ function parseMeta(meta: string): Map<string, string> {
   if (descIdx >= 0) {
     head = meta.slice(0, descIdx);
     const descStart = descIdx + ', description: "'.length;
-    const descEnd = meta.lastIndexOf('"');
-    if (descEnd <= descStart)
+    // Scan for unescaped closing quote.
+    let i = descStart;
+    let end = -1;
+    while (i < meta.length) {
+      if (meta[i] === "\\") {
+        i += 2;
+        continue;
+      }
+      if (meta[i] === '"') {
+        end = i;
+        break;
+      }
+      i += 1;
+    }
+    if (end <= descStart)
       throw new Error(`Unterminated description in: ${meta}`);
-    out.set("description", meta.slice(descStart, descEnd));
+    out.set("description", unescapeDesc(meta.slice(descStart, end)));
   }
 
   for (const part of head.split(", ")) {

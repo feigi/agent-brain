@@ -150,4 +150,28 @@ describe("parser negative paths — number/date finiteness", () => {
       parseFlags([bad], { projectId: "p", memoryId: "m" }),
     ).toThrow(/flags\[0\].similarity must be a finite number/);
   });
+
+  it("flag type invalid: error message uses 'type' not 'flag_type'", () => {
+    const bad = {
+      id: "f1",
+      type: "bogus",
+      severity: "needs_review",
+      reason: "r",
+      created: "2026-04-21T00:00:00.000Z",
+      resolved: null,
+      resolved_by: null,
+    };
+    expect(() =>
+      parseFlags([bad], { projectId: "p", memoryId: "m" }),
+    ).toThrow(/flags\[0\]\.type invalid/);
+  });
+
+  it("relationship description with embedded quote: roundtrips escaped", () => {
+    const line = `- related:: [[t1]] — id: r1, confidence: 1, by: u, at: 2026-04-21T00:00:00.000Z, description: "he said \\"hi\\""`;
+    const rels = parseRelationshipSection(line, {
+      projectId: "p",
+      sourceId: "s",
+    });
+    expect(rels[0].description).toBe('he said "hi"');
+  });
 });
