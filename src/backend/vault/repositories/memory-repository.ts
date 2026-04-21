@@ -37,9 +37,12 @@ import {
   writeMarkdownAtomic,
 } from "../io/vault-fs.js";
 import { withFileLock } from "../io/lock.js";
+import { VaultVectorIndex } from "../vector/lance-index.js";
+import { contentHash } from "../vector/hash.js";
 
 export interface VaultMemoryConfig {
   root: string;
+  index: VaultVectorIndex;
 }
 
 interface IndexEntry {
@@ -109,6 +112,19 @@ export class VaultMemoryRepository implements MemoryRepository {
       workspaceId: loc.workspaceId,
       userId: loc.userId,
     });
+    await this.cfg.index.upsert([
+      {
+        id: memory.id,
+        project_id: memory.project_id,
+        workspace_id: memory.workspace_id,
+        scope: memory.scope,
+        author: memory.author,
+        title: memory.title,
+        archived: false,
+        content_hash: contentHash(memory.content),
+        vector: memory.embedding,
+      },
+    ]);
     const saved = await this.#read(memory.id);
     return saved.memory;
   }

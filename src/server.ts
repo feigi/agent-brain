@@ -39,6 +39,7 @@ async function main() {
       backend: config.backend,
       databaseUrl: config.databaseUrl,
       vaultRoot: config.vaultRoot,
+      embeddingDimensions: config.embeddingDimensions,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

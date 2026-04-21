@@ -12,6 +12,7 @@ describe("createBackend", () => {
         backend: "vault",
         databaseUrl: "postgresql://unused",
         vaultRoot: root,
+        embeddingDimensions: 768,
       });
       expect(backend.name).toBe("vault");
       await backend.close();
@@ -26,6 +27,7 @@ describe("createBackend", () => {
         backend: "vault",
         databaseUrl: "postgresql://unused",
         vaultRoot: "",
+        embeddingDimensions: 768,
       }),
     ).rejects.toThrow(/AGENT_BRAIN_VAULT_ROOT/);
   });
@@ -37,6 +39,7 @@ describe("createBackend", () => {
         backend: "nosuch",
         databaseUrl: "postgresql://unused",
         vaultRoot: "",
+        embeddingDimensions: 768,
       }),
     ).rejects.toThrow(/unknown backend/i);
   });

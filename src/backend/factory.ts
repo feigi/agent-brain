@@ -7,6 +7,7 @@ export interface BackendConfig {
   backend: BackendName;
   databaseUrl: string;
   vaultRoot: string;
+  embeddingDimensions: number;
 }
 
 export async function createBackend(
@@ -21,7 +22,10 @@ export async function createBackend(
           "vault backend requires AGENT_BRAIN_VAULT_ROOT to be set",
         );
       }
-      return VaultBackend.create({ root: config.vaultRoot });
+      return VaultBackend.create({
+        root: config.vaultRoot,
+        embeddingDimensions: config.embeddingDimensions,
+      });
     default: {
       // Exhaustiveness + runtime guard for an env-var typo that slipped past zod.
       const _exhaustive: never = config.backend;

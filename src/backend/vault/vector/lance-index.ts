@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import * as lancedb from "@lancedb/lancedb";
+import type { VectorQuery } from "@lancedb/lancedb";
 import { memorySchema } from "./schema.js";
 
 export interface IndexRow {
@@ -61,7 +62,7 @@ export class VaultVectorIndex {
       .mergeInsert("id")
       .whenMatchedUpdateAll()
       .whenNotMatchedInsertAll()
-      .execute(rows);
+      .execute(rows as unknown as Record<string, unknown>[]);
   }
 
   async search(params: SearchParams): Promise<SearchHit[]> {
@@ -92,8 +93,7 @@ export class VaultVectorIndex {
     }
     if (scopeClauses.length === 0) return [];
     clauses.push(`(${scopeClauses.join(" OR ")})`);
-    const rows = (await this.table
-      .search(params.embedding)
+    const rows = (await (this.table.search(params.embedding) as VectorQuery)
       .distanceType("cosine")
       .where(clauses.join(" AND "))
       .limit(params.limit)
@@ -135,8 +135,7 @@ export class VaultVectorIndex {
           ` OR (scope = 'user' AND author = ${sqlStr(params.userId)}))`,
       );
     }
-    const rows = (await this.table
-      .search(params.embedding)
+    const rows = (await (this.table.search(params.embedding) as VectorQuery)
       .distanceType("cosine")
       .where(clauses.join(" AND "))
       .limit(1)
@@ -176,8 +175,7 @@ export class VaultVectorIndex {
     const pairs: PairwiseHit[] = [];
     for (const r of rows) {
       const vec = Array.from(r.vector as ArrayLike<number>);
-      const hits = (await this.table
-        .search(vec)
+      const hits = (await (this.table.search(vec) as VectorQuery)
         .distanceType("cosine")
         .where(`${where} AND id > ${sqlStr(r.id)}`)
         .limit(32)
