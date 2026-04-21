@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { claudeTarget } from "../../../scripts/installer/targets/claude.js";
+import { copilotTarget } from "../../../scripts/installer/targets/copilot.js";
 
 describe("claudeTarget.plan", () => {
   const repoRoot = "/repo";
@@ -40,6 +41,50 @@ describe("claudeTarget.plan", () => {
 
   it("postInstructions include docker-compose command", () => {
     const plan = claudeTarget.plan(repoRoot, home);
+    expect(
+      plan.postInstructions.some((s) => s.includes("docker compose")),
+    ).toBe(true);
+  });
+});
+
+describe("copilotTarget.plan", () => {
+  const repoRoot = "/repo";
+  const home = "/home/u";
+
+  it("copies 3 hook scripts", () => {
+    const plan = copilotTarget.plan(repoRoot, home);
+    const filenames = plan.copies.map((c) => c.dest.split("/").pop()).sort();
+    expect(filenames).toEqual([
+      "memory-pretool.sh",
+      "memory-session-end.sh",
+      "memory-session-start.sh",
+    ]);
+    for (const c of plan.copies) {
+      expect(c.dest.startsWith("/home/u/.copilot/hooks/")).toBe(true);
+      expect(c.mode).toBe(0o755);
+    }
+  });
+
+  it("merges two JSON files: mcp-config.json and hooks/hooks.json", () => {
+    const plan = copilotTarget.plan(repoRoot, home);
+    const files = plan.jsonMerges.map((m) => m.file).sort();
+    expect(files).toEqual([
+      "/home/u/.copilot/hooks/hooks.json",
+      "/home/u/.copilot/mcp-config.json",
+    ]);
+  });
+
+  it("prepends copilot-instructions.md with agent-brain marker", () => {
+    const plan = copilotTarget.plan(repoRoot, home);
+    expect(plan.markdownPrepends).toHaveLength(1);
+    expect(plan.markdownPrepends[0].file).toBe(
+      "/home/u/.copilot/copilot-instructions.md",
+    );
+    expect(plan.markdownPrepends[0].markerId).toBe("agent-brain");
+  });
+
+  it("postInstructions include docker-compose command", () => {
+    const plan = copilotTarget.plan(repoRoot, home);
     expect(
       plan.postInstructions.some((s) => s.includes("docker compose")),
     ).toBe(true);
