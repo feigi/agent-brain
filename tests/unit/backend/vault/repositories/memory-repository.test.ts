@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, rm, writeFile, mkdir, readFile } from "node:fs/promises";
+import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { VaultMemoryRepository } from "../../../../../src/backend/vault/repositories/memory-repository.js";
@@ -247,6 +247,7 @@ describe("VaultMemoryRepository — listings", () => {
         id: "old",
         project_id: "p",
         workspace_id: "ws",
+        created_at: old,
         updated_at: old,
       }),
       embedding: [0],
@@ -256,6 +257,7 @@ describe("VaultMemoryRepository — listings", () => {
         id: "fresh",
         project_id: "p",
         workspace_id: "ws",
+        created_at: fresh,
         updated_at: fresh,
       }),
       embedding: [0],

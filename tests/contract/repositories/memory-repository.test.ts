@@ -149,5 +149,111 @@ describe.each(factories)(
       });
       expect(memories).toHaveLength(0);
     });
+
+    it("create throws ConflictError on duplicate id", async () => {
+      await backend.memoryRepo.create({
+        ...makeMemory(),
+        embedding: ZERO_EMB,
+      });
+      await expect(
+        backend.memoryRepo.create({ ...makeMemory(), embedding: ZERO_EMB }),
+      ).rejects.toBeInstanceOf(ConflictError);
+    });
+
+    it("verify returns null for archived memory", async () => {
+      await backend.memoryRepo.create({
+        ...makeMemory(),
+        embedding: ZERO_EMB,
+      });
+      await backend.memoryRepo.archive(["m1"]);
+      const v = await backend.memoryRepo.verify("m1", "chris");
+      expect(v).toBeNull();
+    });
+
+    it("findStale uses verified_at (COALESCE with created_at)", async () => {
+      const old = new Date(Date.now() - 30 * 86_400_000);
+      const fresh = new Date();
+      // Unverified + old created_at → stale
+      await backend.memoryRepo.create({
+        ...makeMemory({ id: "stale-unv", created_at: old, updated_at: old }),
+        embedding: ZERO_EMB,
+      });
+      // Verified recently + old created_at → NOT stale
+      await backend.memoryRepo.create({
+        ...makeMemory({
+          id: "verified",
+          created_at: old,
+          updated_at: fresh,
+          verified_at: fresh,
+          verified_by: "someone",
+        }),
+        embedding: ZERO_EMB,
+      });
+      const { memories } = await backend.memoryRepo.findStale({
+        project_id: "p1",
+        workspace_id: "ws1",
+        threshold_days: 14,
+      });
+      expect(memories.map((m) => m.id)).toEqual(["stale-unv"]);
+    });
+
+    it("user-scope create stores at users/<author>/<ws>/<id>.md (vault)", async () => {
+      // This is a happy-path cross-backend test — pg doesn't care about
+      // paths, but it must still accept the write without throwing.
+      const m = makeMemory({
+        id: "u1",
+        scope: "user",
+        workspace_id: "ws1",
+        author: "chris",
+      });
+      await backend.memoryRepo.create({ ...m, embedding: ZERO_EMB });
+      const found = await backend.memoryRepo.findById("u1");
+      expect(found?.scope).toBe("user");
+      expect(found?.author).toBe("chris");
+    });
+
+    it("countTeamActivity includes the caller's own changes (D-30)", async () => {
+      const now = new Date();
+      await backend.memoryRepo.create({
+        ...makeMemory({
+          id: "mine-new",
+          author: "me",
+          created_at: now,
+          updated_at: now,
+        }),
+        embedding: ZERO_EMB,
+      });
+      const counts = await backend.memoryRepo.countTeamActivity(
+        "p1",
+        "ws1",
+        "me",
+        new Date(now.getTime() - 60_000),
+      );
+      expect(counts.new_memories).toBe(1);
+    });
+
+    it("findRecentActivity includes project-scope memories", async () => {
+      const now = new Date();
+      await backend.memoryRepo.create({
+        ...makeMemory({
+          id: "proj",
+          scope: "project",
+          workspace_id: null,
+          author: "them",
+          created_at: now,
+          updated_at: now,
+        }),
+        embedding: ZERO_EMB,
+      });
+      const rows = await backend.memoryRepo.findRecentActivity({
+        project_id: "p1",
+        workspace_id: "ws1",
+        user_id: "me",
+        since: new Date(now.getTime() - 60_000),
+        limit: 10,
+        exclude_self: true,
+      });
+      expect(rows.some((m) => m.id === "proj")).toBe(true);
+    });
   },
 );
