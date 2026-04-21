@@ -232,3 +232,74 @@ describe("VaultVectorIndex — findDuplicates", () => {
     expect(hits).toEqual([]);
   });
 });
+
+describe("VaultVectorIndex — findPairwiseSimilar", () => {
+  let root: string;
+  let idx: VaultVectorIndex;
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "lance-test-"));
+    idx = await VaultVectorIndex.create({ root, dims: 3 });
+    await idx.upsert([
+      {
+        id: "a",
+        project_id: "p1",
+        workspace_id: "ws1",
+        scope: "workspace",
+        author: "u",
+        title: "A",
+        archived: false,
+        content_hash: "h",
+        vector: [1, 0, 0],
+      },
+      {
+        id: "b",
+        project_id: "p1",
+        workspace_id: "ws1",
+        scope: "workspace",
+        author: "u",
+        title: "B",
+        archived: false,
+        content_hash: "h",
+        vector: [0.99, 0.01, 0],
+      },
+      {
+        id: "c",
+        project_id: "p1",
+        workspace_id: "ws1",
+        scope: "workspace",
+        author: "u",
+        title: "C",
+        archived: false,
+        content_hash: "h",
+        vector: [0, 1, 0],
+      },
+    ]);
+  });
+  afterEach(async () => {
+    await idx.close();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("returns one entry per near-duplicate pair with a < b", async () => {
+    const pairs = await idx.findPairwiseSimilar({
+      projectId: "p1",
+      workspaceId: "ws1",
+      scope: "workspace",
+      threshold: 0.9,
+    });
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0].memory_a_id).toBe("a");
+    expect(pairs[0].memory_b_id).toBe("b");
+    expect(pairs[0].similarity).toBeGreaterThan(0.9);
+  });
+
+  it("returns empty when nothing is above threshold", async () => {
+    const pairs = await idx.findPairwiseSimilar({
+      projectId: "p1",
+      workspaceId: "ws1",
+      scope: "workspace",
+      threshold: 0.99999,
+    });
+    expect(pairs).toEqual([]);
+  });
+});

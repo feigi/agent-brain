@@ -150,6 +150,65 @@ export class VaultVectorIndex {
       }))
       .filter((h) => h.relevance >= params.threshold);
   }
+
+  async findPairwiseSimilar(params: PairwiseParams): Promise<PairwiseHit[]> {
+    const clauses: string[] = [
+      `archived = false`,
+      `project_id = ${sqlStr(params.projectId)}`,
+    ];
+    if (params.scope === "project") {
+      clauses.push(`scope = 'project'`);
+    } else {
+      if (params.workspaceId === null) {
+        throw new Error("workspaceId is required for workspace-scoped pairwise");
+      }
+      clauses.push(
+        `scope = 'workspace'`,
+        `workspace_id = ${sqlStr(params.workspaceId)}`,
+      );
+    }
+    const where = clauses.join(" AND ");
+    const rows = (await this.table
+      .query()
+      .where(where)
+      .select(["id", "vector"])
+      .toArray()) as Array<{ id: string; vector: number[] | Float32Array }>;
+    const pairs: PairwiseHit[] = [];
+    for (const r of rows) {
+      const vec = Array.from(r.vector as ArrayLike<number>);
+      const hits = (await this.table
+        .search(vec)
+        .distanceType("cosine")
+        .where(`${where} AND id > ${sqlStr(r.id)}`)
+        .limit(32)
+        .toArray()) as Array<Record<string, unknown>>;
+      for (const h of hits) {
+        const sim = 1 - Number(h._distance);
+        if (sim >= params.threshold) {
+          pairs.push({
+            memory_a_id: r.id,
+            memory_b_id: h.id as string,
+            similarity: sim,
+          });
+        }
+      }
+    }
+    pairs.sort((a, b) => b.similarity - a.similarity);
+    return pairs;
+  }
+}
+
+export interface PairwiseParams {
+  projectId: string;
+  workspaceId: string | null;
+  scope: "workspace" | "project";
+  threshold: number;
+}
+
+export interface PairwiseHit {
+  memory_a_id: string;
+  memory_b_id: string;
+  similarity: number;
 }
 
 export interface DuplicateParams {
