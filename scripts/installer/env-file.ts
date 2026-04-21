@@ -104,3 +104,43 @@ export function mergeEnv(
   const changed = serialize(merged) !== serialize(existing);
   return { lines: merged, added, extras, changed };
 }
+
+// Async asker returns the raw user input for a prompt. Injected instead of
+// using readline directly so tests can drive prompts without a TTY.
+export type Asker = (question: string) => Promise<string>;
+
+export interface FreshAnswers {
+  PROJECT_ID: string;
+  EMBEDDING_PROVIDER: "titan" | "mock" | "ollama";
+}
+
+const VALID_PROVIDERS = ["titan", "mock", "ollama"] as const;
+
+export async function promptFresh(ask: Asker): Promise<FreshAnswers> {
+  const projectIdRaw = (await ask("PROJECT_ID (required): ")).trim();
+  if (projectIdRaw === "") {
+    throw new Error("PROJECT_ID is required and cannot be empty");
+  }
+  if (projectIdRaw === "my-project") {
+    throw new Error(
+      "PROJECT_ID 'my-project' is the .env.example placeholder, not a valid value",
+    );
+  }
+
+  const providerRaw = (
+    await ask("EMBEDDING_PROVIDER [titan|mock|ollama] (default ollama): ")
+  )
+    .trim()
+    .toLowerCase();
+  const provider = providerRaw === "" ? "ollama" : providerRaw;
+  if (!(VALID_PROVIDERS as readonly string[]).includes(provider)) {
+    throw new Error(
+      `EMBEDDING_PROVIDER must be one of titan|mock|ollama, got '${provider}'`,
+    );
+  }
+
+  return {
+    PROJECT_ID: projectIdRaw,
+    EMBEDDING_PROVIDER: provider as FreshAnswers["EMBEDDING_PROVIDER"],
+  };
+}
