@@ -1,5 +1,7 @@
 # Agent Integration Hook Templates
 
+> **Fast path:** from a cloned checkout, run `npm run install:agent` to install hooks, MCP config, and instructions for Claude Code or Copilot CLI in one step. Uninstall with `npm run uninstall:agent`. The manual steps below remain for reference and for users who prefer fine-grained control.
+
 Hook and configuration templates for automating memory workflows with Claude Code and GitHub
 Copilot CLI.
 

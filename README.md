@@ -146,6 +146,16 @@ Mock mode uses random vectors — search results won't be semantically meaningfu
 
 ### 4. Set up with Claude Code
 
+**Fast path:**
+
+```bash
+npm run install:agent -- --target=claude
+```
+
+This copies hook scripts to `~/.claude/hooks/`, merges the MCP server config into `~/.claude/settings.json` (with a `.bak` backup), and prepends the agent instructions to `~/.claude/CLAUDE.md` between `<!-- agent-brain:start -->` / `<!-- agent-brain:end -->` markers. Re-run is idempotent. Uninstall with `npm run uninstall:agent -- --target=claude`. The manual steps below remain available.
+
+---
+
 **Step 1: Add the MCP server**
 
 Make sure Agent Brain is running (see [Start](#3-start)), then add to `~/.claude/settings.json` (global) or project `.claude/settings.json`:
@@ -191,6 +201,16 @@ The hooks connect to Agent Brain at `http://localhost:19898` by default. Set the
 Create or edit `~/.claude/CLAUDE.md` (global) and paste the contents of [`hooks/claude/claude-md-snippet.md`](hooks/claude/claude-md-snippet.md). It tells Claude Code to use agent-brain instead of the built-in file-based memory.
 
 ### 5. Set up with GitHub Copilot CLI
+
+**Fast path:**
+
+```bash
+npm run install:agent -- --target=copilot
+```
+
+Copies hook scripts to `~/.copilot/hooks/`, merges MCP config into `~/.copilot/mcp-config.json` and hook config into `~/.copilot/hooks/hooks.json` (both with `.bak` backups), and prepends instructions to `~/.copilot/copilot-instructions.md` between `<!-- agent-brain:start -->` / `<!-- agent-brain:end -->` markers. Re-run is idempotent. Uninstall with `npm run uninstall:agent -- --target=copilot`.
+
+---
 
 **Step 1: Add the MCP server**
 

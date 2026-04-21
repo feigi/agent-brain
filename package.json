@@ -14,6 +14,8 @@
     "inspect": "npx @modelcontextprotocol/inspector --cli --transport http --server-url http://localhost:19898/mcp",
     "seed": "tsx scripts/seed.ts",
     "migrate:flag-relationships": "tsx scripts/migrate-flag-relationships.ts",
+    "install:agent": "tsx scripts/installer/index.ts",
+    "uninstall:agent": "tsx scripts/installer/index.ts --uninstall",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
