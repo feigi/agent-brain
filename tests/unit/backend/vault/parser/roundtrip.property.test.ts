@@ -25,28 +25,58 @@ import {
   serializeFlags,
 } from "../../../../../src/backend/vault/parser/flag-parser.js";
 
+// Strip derived fields before comparing memories — parser recomputes these
+// from the sub-arrays, so they're not part of the roundtrip contract.
+function stripDerived(
+  m: Memory,
+): Omit<
+  Memory,
+  "comment_count" | "flag_count" | "relationship_count" | "last_comment_at"
+> {
+  const {
+    comment_count,
+    flag_count,
+    relationship_count,
+    last_comment_at,
+    ...rest
+  } = m;
+  void comment_count;
+  void flag_count;
+  void relationship_count;
+  void last_comment_at;
+  return rest;
+}
+
 const safeChar = fc.constantFrom(
-  ..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -.,?!:;()".split(""),
+  ..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -.,?!:;()".split(
+    "",
+  ),
 );
 const safeString = fc.string({ unit: safeChar, minLength: 1, maxLength: 40 });
 
 // Strict variant of `safeString` for values that round-trip through the
 // H1 markdown heading (e.g. memory title). The heading line `# <title>`
 // is trimmed on parse, so leading/trailing whitespace is not preserved.
-const titleString = safeString.filter(
-  (s) => s === s.trim() && s.length > 0,
-);
+const titleString = safeString.filter((s) => s === s.trim() && s.length > 0);
 
 // Subset of safeChar without comma. Use for values that land in the
 // relationship meta key-value list (`created_by`), because parseMeta's
 // split(", ") would otherwise shred a value containing ", ".
 const metaSafeChar = fc.constantFrom(
-  ..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -.?!:;()".split(""),
+  ..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -.?!:;()".split(
+    "",
+  ),
 );
-const metaSafeString = fc.string({ unit: metaSafeChar, minLength: 1, maxLength: 40 });
+const metaSafeString = fc.string({
+  unit: metaSafeChar,
+  minLength: 1,
+  maxLength: 40,
+});
 
 const bodyChar = fc.constantFrom(
-  ..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -.,?!:;()\n".split(""),
+  ..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -.,?!:;()\n".split(
+    "",
+  ),
 );
 const bodyString = fc
   .string({ unit: bodyChar, minLength: 0, maxLength: 200 })
@@ -61,7 +91,9 @@ const bodyString = fc
 
 const nanoid = fc.string({
   unit: fc.constantFrom(
-    ..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-".split(""),
+    ..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-".split(
+      "",
+    ),
   ),
   minLength: 8,
   maxLength: 21,
@@ -118,7 +150,9 @@ function flagArb(projectId: string, memoryId: string): fc.Arbitrary<Flag> {
       related_memory_id: fc.option(nanoid, { nil: undefined }),
       relationship_id: fc.option(nanoid, { nil: undefined }),
       similarity: fc.option(
-        fc.double({ min: 0, max: 1, noNaN: true }).map((n) => Math.round(n * 10000) / 10000),
+        fc
+          .double({ min: 0, max: 1, noNaN: true })
+          .map((n) => Math.round(n * 10000) / 10000),
         { nil: undefined },
       ),
     }),
@@ -128,12 +162,17 @@ function flagArb(projectId: string, memoryId: string): fc.Arbitrary<Flag> {
   });
 }
 
-function relArb(projectId: string, sourceId: string): fc.Arbitrary<Relationship> {
+function relArb(
+  projectId: string,
+  sourceId: string,
+): fc.Arbitrary<Relationship> {
   // Description may contain commas (handled specially by parser) but must
   // not contain '"' (parser uses lastIndexOf('"') as end delimiter).
   const desc = fc.string({
     unit: fc.constantFrom(
-      ..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -.,?!:;()".split(""),
+      ..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -.,?!:;()".split(
+        "",
+      ),
     ),
     minLength: 1,
     maxLength: 40,
@@ -163,7 +202,9 @@ describe("parser roundtrip (property-based)", () => {
     fc.assert(
       fc.property(
         nanoid.chain((mid) =>
-          fc.array(commentArb(mid), { maxLength: 5 }).map((cs) => ({ mid, cs })),
+          fc
+            .array(commentArb(mid), { maxLength: 5 })
+            .map((cs) => ({ mid, cs })),
         ),
         ({ mid, cs }) => {
           const parsed = parseCommentSection(serializeCommentSection(cs), mid);
@@ -177,9 +218,13 @@ describe("parser roundtrip (property-based)", () => {
   it("relationships: parse(serialize(xs)) === xs", () => {
     fc.assert(
       fc.property(
-        fc.tuple(nanoid, nanoid).chain(([pid, sid]) =>
-          fc.array(relArb(pid, sid), { maxLength: 5 }).map((rs) => ({ pid, sid, rs })),
-        ),
+        fc
+          .tuple(nanoid, nanoid)
+          .chain(([pid, sid]) =>
+            fc
+              .array(relArb(pid, sid), { maxLength: 5 })
+              .map((rs) => ({ pid, sid, rs })),
+          ),
         ({ pid, sid, rs }) => {
           const parsed = parseRelationshipSection(
             serializeRelationshipSection(rs),
@@ -195,9 +240,13 @@ describe("parser roundtrip (property-based)", () => {
   it("flags: parseFlags(serializeFlags(xs)) === xs", () => {
     fc.assert(
       fc.property(
-        fc.tuple(nanoid, nanoid).chain(([pid, mid]) =>
-          fc.array(flagArb(pid, mid), { maxLength: 5 }).map((fs) => ({ pid, mid, fs })),
-        ),
+        fc
+          .tuple(nanoid, nanoid)
+          .chain(([pid, mid]) =>
+            fc
+              .array(flagArb(pid, mid), { maxLength: 5 })
+              .map((fs) => ({ pid, mid, fs })),
+          ),
         ({ pid, mid, fs }) => {
           const serialised = serializeFlags(fs);
           const parsed = parseFlags(serialised, {
@@ -212,64 +261,60 @@ describe("parser roundtrip (property-based)", () => {
   });
 
   it("whole memory file: parse(serialize(x)) preserves domain content", () => {
-    const memoryArb = fc
-      .tuple(nanoid, safeString)
-      .chain(([id, projectId]) =>
-        fc
-          .record({
-            id: fc.constant(id),
-            project_id: fc.constant(projectId),
-            workspace_id: fc.option(safeString, { nil: null }),
-            content: bodyString,
-            title: titleString,
-            type: memoryType,
-            scope: memoryScope,
-            // Must be an array (not null). Parser invariant: when flags
-            // are present they inject `flag/<type>` tags into frontmatter,
-            // so on roundtrip a `null` input with flags materialises as
-            // `[]` (all injected tags stripped by FLAG_TAG_RE). Restrict
-            // to arrays to side-step this asymmetric case. Tags must also
-            // not collide with the stripped `flag/*` namespace.
-            tags: fc.array(
-              fc.stringMatching(/^[A-Za-z_][A-Za-z0-9_-]{0,16}$/),
-              { maxLength: 4 },
+    const memoryArb = fc.tuple(nanoid, safeString).chain(([id, projectId]) =>
+      fc
+        .record({
+          id: fc.constant(id),
+          project_id: fc.constant(projectId),
+          workspace_id: fc.option(safeString, { nil: null }),
+          content: bodyString,
+          title: titleString,
+          type: memoryType,
+          scope: memoryScope,
+          // Must be an array (not null). Parser invariant: when flags
+          // are present they inject `flag/<type>` tags into frontmatter,
+          // so on roundtrip a `null` input with flags materialises as
+          // `[]` (all injected tags stripped by FLAG_TAG_RE). Restrict
+          // to arrays to side-step this asymmetric case. Tags must also
+          // not collide with the stripped `flag/*` namespace.
+          tags: fc.array(fc.stringMatching(/^[A-Za-z_][A-Za-z0-9_-]{0,16}$/), {
+            maxLength: 4,
+          }),
+          author: safeString,
+          source: fc.option(safeString, { nil: null }),
+          session_id: fc.option(safeString, { nil: null }),
+          // Cover all three parser branches: null, empty object, populated object.
+          // Keys/values use safeString so YAML stringify+parse round-trips cleanly.
+          metadata: fc.oneof(
+            fc.constant(null),
+            fc.constant({}),
+            fc.dictionary(
+              fc.stringMatching(/^[a-z_][a-z0-9_]{0,8}$/),
+              safeString,
+              { maxKeys: 3 },
             ),
-            author: safeString,
-            source: fc.option(safeString, { nil: null }),
-            session_id: fc.option(safeString, { nil: null }),
-            // Cover all three parser branches: null, empty object, populated object.
-            // Keys/values use safeString so YAML stringify+parse round-trips cleanly.
-            metadata: fc.oneof(
-              fc.constant(null),
-              fc.constant({}),
-              fc.dictionary(
-                fc.stringMatching(/^[a-z_][a-z0-9_]{0,8}$/),
-                safeString,
-                { maxKeys: 3 },
-              ),
-            ),
-            embedding_model: fc.option(safeString, { nil: null }),
-            embedding_dimensions: fc.option(
-              fc.integer({ min: 1, max: 4096 }),
-              { nil: null },
-            ),
-            version: fc.integer({ min: 1, max: 1_000_000 }),
-            created_at: isoDate,
-            updated_at: isoDate,
-            verified_at: fc.option(isoDate, { nil: null }),
-            archived_at: fc.option(isoDate, { nil: null }),
-            verified_by: fc.option(safeString, { nil: null }),
-          })
-          .map(
-            (fields): Memory => ({
-              ...fields,
-              comment_count: 0,
-              flag_count: 0,
-              relationship_count: 0,
-              last_comment_at: null,
-            }),
           ),
-      );
+          embedding_model: fc.option(safeString, { nil: null }),
+          embedding_dimensions: fc.option(fc.integer({ min: 1, max: 4096 }), {
+            nil: null,
+          }),
+          version: fc.integer({ min: 1, max: 1_000_000 }),
+          created_at: isoDate,
+          updated_at: isoDate,
+          verified_at: fc.option(isoDate, { nil: null }),
+          archived_at: fc.option(isoDate, { nil: null }),
+          verified_by: fc.option(safeString, { nil: null }),
+        })
+        .map(
+          (fields): Memory => ({
+            ...fields,
+            comment_count: 0,
+            flag_count: 0,
+            relationship_count: 0,
+            last_comment_at: null,
+          }),
+        ),
+    );
 
     fc.assert(
       fc.property(
@@ -297,21 +342,9 @@ describe("parser roundtrip (property-based)", () => {
             input.relationships.length,
           );
 
-          const {
-            comment_count: _a,
-            flag_count: _b,
-            relationship_count: _c,
-            last_comment_at: _d,
-            ...parsedCore
-          } = parsed.memory;
-          const {
-            comment_count: _e,
-            flag_count: _f,
-            relationship_count: _g,
-            last_comment_at: _h,
-            ...inputCore
-          } = input.memory;
-          expect(parsedCore).toEqual(inputCore);
+          expect(stripDerived(parsed.memory)).toEqual(
+            stripDerived(input.memory),
+          );
 
           expect(parsed.comments).toEqual(input.comments);
           expect(parsed.relationships).toEqual(input.relationships);
