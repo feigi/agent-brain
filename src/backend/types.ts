@@ -14,6 +14,19 @@ import type {
 export type BackendName = "postgres" | "vault";
 
 /**
+ * Envelope meta fields contributed by the backend at memory_session_start.
+ * All fields optional — absent means healthy. Merged into the MemoryService
+ * session-start envelope meta. The pg backend always returns {}; vault
+ * populates based on pull + push-queue state.
+ */
+export interface BackendSessionStartMeta {
+  offline?: true;
+  unpushed_commits?: number;
+  pull_conflict?: true;
+  parse_errors?: number;
+}
+
+/**
  * Storage backend abstraction. Bundles the eight repository interfaces
  * plus a lifecycle hook. `server.ts` constructs one of these via
  * `createBackend()` and passes the individual repos to services.
@@ -33,4 +46,10 @@ export interface StorageBackend {
   readonly relationshipRepo: RelationshipRepository;
   readonly schedulerStateRepo: SchedulerStateRepository;
   close(): Promise<void>;
+  /**
+   * Called by MemoryService.sessionStart before composing the response.
+   * Backend-specific sync/reconciliation. Returned fields merge into
+   * envelope meta.
+   */
+  sessionStart(): Promise<BackendSessionStartMeta>;
 }

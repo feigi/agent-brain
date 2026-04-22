@@ -12,7 +12,11 @@ import { VaultVectorIndex } from "./vector/lance-index.js";
 import { ensureVaultGit } from "./git/bootstrap.js";
 import { GitOpsImpl } from "./git/git-ops.js";
 import type { GitOps } from "./git/types.js";
-import type { BackendName, StorageBackend } from "../types.js";
+import type {
+  BackendName,
+  StorageBackend,
+  BackendSessionStartMeta,
+} from "../types.js";
 import type {
   AuditRepository,
   CommentRepository,
@@ -109,5 +113,9 @@ export class VaultBackend implements StorageBackend {
 
   async close(): Promise<void> {
     await this.vectorIndex.close();
+  }
+
+  async sessionStart(): Promise<BackendSessionStartMeta> {
+    return {};
   }
 }

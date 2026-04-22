@@ -199,4 +199,9 @@ describe.each(cases)("StorageBackend assembly — $name", (c) => {
     const second = await backend.sessionRepo.upsert("u1", "p1", "ws1");
     expect(second).toBeInstanceOf(Date);
   });
+
+  it("sessionStart returns empty meta", async () => {
+    const meta = await backend.sessionStart();
+    expect(meta).toEqual({});
+  });
 });
