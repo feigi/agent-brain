@@ -39,10 +39,21 @@ import { withFileLock } from "../io/lock.js";
 import { VaultVectorIndex } from "../vector/lance-index.js";
 import { contentHash } from "../vector/hash.js";
 import { logger } from "../../../utils/logger.js";
+import type { CommitTrailer, GitOps } from "../git/types.js";
+import { NOOP_GIT_OPS } from "../git/types.js";
+import { assertUsersIgnored } from "../git/users-gitignore-invariant.js";
+import { commitSubject } from "./util.js";
 
 export interface VaultMemoryConfig {
   root: string;
   index: VaultVectorIndex;
+  gitOps?: GitOps;
+  // When true, user-scope memories are committed alongside
+  // workspace/project ones. Default false: `users/` stays gitignored
+  // and its writes skip the commit step entirely (the path is ignored
+  // by .gitignore so `git add` would no-op and `stageAndCommit` would
+  // throw "nothing to commit").
+  trackUsersInGit?: boolean;
 }
 
 interface IndexEntry {
@@ -54,12 +65,16 @@ interface IndexEntry {
 
 export class VaultMemoryRepository implements MemoryRepository {
   private readonly index: Map<string, IndexEntry>;
+  private readonly gitOps: GitOps;
+  private readonly trackUsersInGit: boolean;
 
   private constructor(
     private readonly cfg: VaultMemoryConfig,
     initialIndex: Map<string, IndexEntry>,
   ) {
     this.index = initialIndex;
+    this.gitOps = cfg.gitOps ?? NOOP_GIT_OPS;
+    this.trackUsersInGit = cfg.trackUsersInGit ?? false;
   }
 
   static async create(cfg: VaultMemoryConfig): Promise<VaultMemoryRepository> {
@@ -93,6 +108,12 @@ export class VaultMemoryRepository implements MemoryRepository {
       throw new ValidationError(
         `vector dimension mismatch: expected ${this.cfg.index.dims}, got ${memory.embedding.length} for id ${memory.id}`,
       );
+    }
+    // Privacy guard: refuse user-scope writes if the .gitignore rule
+    // that keeps users/ out of the remote has been removed. Runs
+    // before any disk mutation. No-op when trackUsersInGit is enabled.
+    if (memory.scope === "user" && !this.trackUsersInGit) {
+      await assertUsersIgnored(this.cfg.root);
     }
     const loc = locationFor(memory);
     const rel = memoryPath(loc);
@@ -146,6 +167,16 @@ export class VaultMemoryRepository implements MemoryRepository {
         err,
       });
     }
+    await this.#commit(
+      rel,
+      memory.scope,
+      commitSubject("created", memory.title),
+      {
+        action: "created",
+        memoryId: memory.id,
+        actor: memory.author,
+      },
+    );
     const saved = await this.#read(memory.id);
     return saved.memory;
   }
@@ -196,6 +227,10 @@ export class VaultMemoryRepository implements MemoryRepository {
       throw new ValidationError(
         `vector dimension mismatch: expected ${this.cfg.index.dims}, got ${updates.embedding.length} for id ${id}`,
       );
+    }
+
+    if (entry.scope === "user" && !this.trackUsersInGit) {
+      await assertUsersIgnored(this.cfg.root);
     }
 
     const abs = join(this.cfg.root, entry.path);
@@ -271,6 +306,12 @@ export class VaultMemoryRepository implements MemoryRepository {
           err,
         });
       }
+      await this.#commit(
+        entry.path,
+        next.scope,
+        commitSubject("updated", next.title),
+        { action: "updated", memoryId: next.id, actor: next.author },
+      );
       const reread = await this.#read(id);
       return reread.memory;
     });
@@ -279,7 +320,13 @@ export class VaultMemoryRepository implements MemoryRepository {
   async archive(ids: string[]): Promise<number> {
     let count = 0;
     const now = new Date();
-    const archived: string[] = [];
+    const archived: Array<{
+      id: string;
+      path: string;
+      scope: MemoryScope;
+      title: string;
+      author: string;
+    }> = [];
     for (const id of ids) {
       const entry = this.index.get(id);
       if (!entry) continue;
@@ -296,29 +343,41 @@ export class VaultMemoryRepository implements MemoryRepository {
         });
         await writeMarkdownAtomic(this.cfg.root, entry.path, md);
         count += 1;
-        archived.push(id);
+        archived.push({
+          id,
+          path: entry.path,
+          scope: entry.scope,
+          title: parsed.memory.title,
+          author: parsed.memory.author,
+        });
       });
     }
     // One lance failure (or missing row) must not abort archive
     // propagation for the remaining ids. Markdown is already flipped
     // for each id in `archived`, so the caller's return count is
     // accurate regardless of lance outcome.
-    for (const id of archived) {
+    for (const rec of archived) {
       try {
-        const rowsUpdated = await this.cfg.index.markArchived(id);
+        const rowsUpdated = await this.cfg.index.markArchived(rec.id);
         if (rowsUpdated === 0) {
           logger.warn("lance markArchived matched no rows; index drift", {
-            id,
+            id: rec.id,
             op: "archive",
           });
         }
       } catch (err) {
         logger.warn("lance markArchived failed; index stale", {
-          id,
+          id: rec.id,
           op: "archive",
           err,
         });
       }
+      await this.#commit(
+        rec.path,
+        rec.scope,
+        commitSubject("archived", rec.title),
+        { action: "archived", memoryId: rec.id, actor: rec.author },
+      );
     }
     return count;
   }
@@ -326,6 +385,9 @@ export class VaultMemoryRepository implements MemoryRepository {
   async verify(id: string, verifiedBy: string): Promise<Memory | null> {
     const entry = this.index.get(id);
     if (!entry) return null;
+    if (entry.scope === "user" && !this.trackUsersInGit) {
+      await assertUsersIgnored(this.cfg.root);
+    }
     const abs = join(this.cfg.root, entry.path);
     return await withFileLock(abs, async () => {
       const raw = await readMarkdown(this.cfg.root, entry.path);
@@ -345,6 +407,12 @@ export class VaultMemoryRepository implements MemoryRepository {
         flags: parsed.flags,
       });
       await writeMarkdownAtomic(this.cfg.root, entry.path, md);
+      await this.#commit(
+        entry.path,
+        next.scope,
+        commitSubject("verified", next.title),
+        { action: "verified", memoryId: next.id, actor: verifiedBy },
+      );
       const reread = await this.#read(id);
       return reread.memory;
     });
@@ -589,6 +657,32 @@ export class VaultMemoryRepository implements MemoryRepository {
     if (!entry) throw new NotFoundError("memory", id);
     const raw = await readMarkdown(this.cfg.root, entry.path);
     return parseMemoryFile(raw);
+  }
+
+  // Returns true when the given scope is tracked in git under the
+  // current config. User-scope is only tracked when the caller opted
+  // in via trackUsersInGit — otherwise users/ is gitignored and
+  // stageAndCommit would throw "nothing to commit".
+  #shouldCommit(scope: MemoryScope): boolean {
+    return scope !== "user" || this.trackUsersInGit;
+  }
+
+  async #commit(
+    rel: string,
+    scope: MemoryScope,
+    subject: string,
+    trailer: CommitTrailer,
+  ): Promise<void> {
+    if (!this.#shouldCommit(scope)) return;
+    try {
+      await this.gitOps.stageAndCommit([rel], subject, trailer);
+    } catch (err) {
+      logger.warn("vault git commit failed; continuing", {
+        rel,
+        action: trailer.action,
+        err,
+      });
+    }
   }
 }
 
