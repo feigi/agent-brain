@@ -2,6 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { simpleGit } from "simple-git";
 import { mergeGitignore } from "./gitignore-merge.js";
+import { scrubGitEnv } from "./env.js";
 
 export interface EnsureVaultGitOptions {
   root: string;
@@ -21,7 +22,7 @@ const GITATTRIBUTES = "*.md merge=union\n";
 export async function ensureVaultGit(
   opts: EnsureVaultGitOptions,
 ): Promise<void> {
-  const git = simpleGit({ baseDir: opts.root });
+  const git = simpleGit({ baseDir: opts.root }).env(scrubGitEnv());
   if (!(await git.checkIsRepo())) {
     await git.init();
   }

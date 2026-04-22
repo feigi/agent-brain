@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { simpleGit } from "simple-git";
 import { ensureVaultGit } from "../../../../../src/backend/vault/git/bootstrap.js";
+import { scrubGitEnv } from "../../../../../src/backend/vault/git/env.js";
 
 describe("ensureVaultGit", () => {
   let root: string;
@@ -16,7 +17,7 @@ describe("ensureVaultGit", () => {
 
   it("creates a git repo, .gitignore, and .gitattributes on a fresh dir", async () => {
     await ensureVaultGit({ root, trackUsers: false });
-    const git = simpleGit(root);
+    const git = simpleGit(root).env(scrubGitEnv());
     expect(await git.checkIsRepo()).toBe(true);
     const ignore = await readFile(join(root, ".gitignore"), "utf8");
     expect(ignore).toContain(".agent-brain/");
@@ -54,7 +55,7 @@ describe("ensureVaultGit", () => {
   });
 
   it("leaves an existing git repo alone", async () => {
-    const git = simpleGit(root);
+    const git = simpleGit(root).env(scrubGitEnv());
     await git.init();
     await git.addConfig("user.email", "t@t");
     await git.addConfig("user.name", "t");

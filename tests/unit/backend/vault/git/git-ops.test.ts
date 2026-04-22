@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { simpleGit } from "simple-git";
 import { GitOpsImpl } from "../../../../../src/backend/vault/git/git-ops.js";
+import { scrubGitEnv } from "../../../../../src/backend/vault/git/env.js";
 
 describe("GitOpsImpl", () => {
   let root: string;
@@ -38,16 +39,12 @@ describe("GitOpsImpl", () => {
     await configUser(root);
     await mkdir(join(root, "sub"), { recursive: true });
     await writeFile(join(root, "sub/a.md"), "# a", "utf8");
-    await ops.stageAndCommit(
-      ["sub/a.md"],
-      "[agent-brain] created: A",
-      {
-        action: "created",
-        memoryId: "abc",
-        actor: "alice",
-      },
-    );
-    const git = simpleGit(root);
+    await ops.stageAndCommit(["sub/a.md"], "[agent-brain] created: A", {
+      action: "created",
+      memoryId: "abc",
+      actor: "alice",
+    });
+    const git = simpleGit(root).env(scrubGitEnv());
     const log = await git.log();
     expect(log.latest?.message).toMatch(/^\[agent-brain\] created: A/);
     expect(log.latest?.body).toContain("AB-Action: created");
@@ -82,7 +79,7 @@ describe("GitOpsImpl", () => {
 });
 
 async function configUser(root: string): Promise<void> {
-  const git = simpleGit(root);
+  const git = simpleGit(root).env(scrubGitEnv());
   await git.addConfig("user.email", "test@example.com");
   await git.addConfig("user.name", "Test");
 }

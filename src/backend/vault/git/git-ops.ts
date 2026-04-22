@@ -1,5 +1,6 @@
 import { simpleGit, type SimpleGit } from "simple-git";
 import { formatTrailers } from "./trailers.js";
+import { scrubGitEnv } from "./env.js";
 import type { CommitTrailer, GitOps } from "./types.js";
 
 export interface GitOpsConfig {
@@ -9,7 +10,11 @@ export interface GitOpsConfig {
 export class GitOpsImpl implements GitOps {
   private readonly git: SimpleGit;
   constructor(private readonly cfg: GitOpsConfig) {
-    this.git = simpleGit({ baseDir: cfg.root });
+    // Inherited GIT_DIR / GIT_WORK_TREE (set by husky hooks, rebase, or
+    // parent git commands) silently override baseDir and make every
+    // operation target the outer repository. Strip them so cfg.root
+    // always wins.
+    this.git = simpleGit({ baseDir: cfg.root }).env(scrubGitEnv());
   }
 
   async isRepo(): Promise<boolean> {
