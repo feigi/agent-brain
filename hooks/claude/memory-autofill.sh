@@ -5,7 +5,7 @@
 
 INPUT=$(cat)
 CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
-USER_ID=$(whoami)
+USER_ID=$(whoami | tr '[:upper:]' '[:lower:]')
 WORKSPACE_ID=$(basename "$CWD")
 
 TOOL_INPUT=$(echo "$INPUT" | jq -c '.tool_input // {}')

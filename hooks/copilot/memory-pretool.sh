@@ -12,7 +12,7 @@ CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
 SESSION_KEY="${COPILOT_SESSION_ID:-$(echo "$INPUT" | jq -r '.session_id // ""')}"
 [ -z "$SESSION_KEY" ] && SESSION_KEY=$(date +%Y%m%d%H%M%S)
 
-USER_ID=$(whoami)
+USER_ID=$(whoami | tr '[:upper:]' '[:lower:]')
 WORKSPACE_ID=$(basename "$CWD")
 
 OUTPUT_CONTEXT=""

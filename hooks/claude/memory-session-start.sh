@@ -9,7 +9,7 @@ AGENT_BRAIN_URL="${AGENT_BRAIN_URL:-http://localhost:19898}"
 CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
 CLIENT_SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // .sessionId // ""')
 
-USER_ID=$(whoami)
+USER_ID=$(whoami | tr '[:upper:]' '[:lower:]')
 WORKSPACE_ID=$(basename "$CWD")
 
 FALLBACK_MSG="Agent Brain session_start did not succeed — memories were not loaded this session. Call memory_search explicitly when team knowledge or prior context is relevant."
