@@ -1,17 +1,24 @@
 import type { CommentRepository } from "../../../repositories/types.js";
 import type { Comment } from "../../../types/memory.js";
+import type { GitOps } from "../git/types.js";
 import { VaultMemoryFiles } from "./memory-files.js";
-import { compareByCreatedAsc } from "./util.js";
+import { commitSubject, compareByCreatedAsc } from "./util.js";
 
 export interface VaultCommentConfig {
   root: string;
+  gitOps: GitOps;
+  trackUsersInGit?: boolean;
 }
 
 export class VaultCommentRepository implements CommentRepository {
   private readonly files: VaultMemoryFiles;
 
   constructor(cfg: VaultCommentConfig) {
-    this.files = new VaultMemoryFiles({ root: cfg.root });
+    this.files = new VaultMemoryFiles({
+      root: cfg.root,
+      gitOps: cfg.gitOps,
+      trackUsersInGit: cfg.trackUsersInGit ?? false,
+    });
   }
 
   async create(comment: {
@@ -39,6 +46,14 @@ export class VaultCommentRepository implements CommentRepository {
           comments: [...parsed.comments, record],
         },
         result: record,
+        commit: {
+          subject: commitSubject("commented", parsed.memory.title),
+          trailer: {
+            action: "commented",
+            memoryId: parsed.memory.id,
+            actor: comment.author,
+          },
+        },
       };
     });
   }

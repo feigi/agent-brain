@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { VaultMemoryRepository } from "../../../../../src/backend/vault/repositories/memory-repository.js";
 import { VaultVectorIndex } from "../../../../../src/backend/vault/vector/lance-index.js";
+import { NOOP_GIT_OPS } from "../../../../../src/backend/vault/git/types.js";
 import {
   ConflictError,
   ValidationError,
@@ -48,7 +49,11 @@ describe("VaultMemoryRepository — CRUD", () => {
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), "vault-memrepo-"));
     idx = await VaultVectorIndex.create({ root, dims: 1 });
-    repo = await VaultMemoryRepository.create({ root, index: idx });
+    repo = await VaultMemoryRepository.create({
+      root,
+      index: idx,
+      gitOps: NOOP_GIT_OPS,
+    });
   });
   afterEach(async () => {
     await idx.close();
@@ -135,13 +140,21 @@ describe("VaultMemoryRepository — CRUD", () => {
   it("VaultMemoryRepository.create rebuilds index from existing vault", async () => {
     // Pre-seed a memory via the same repo API on a separate instance,
     // then construct a fresh repo against the same root.
-    const pre = await VaultMemoryRepository.create({ root, index: idx });
+    const pre = await VaultMemoryRepository.create({
+      root,
+      index: idx,
+      gitOps: NOOP_GIT_OPS,
+    });
     await pre.create({
       ...makeMemory({ id: "preexist" }),
       embedding: [0],
     });
 
-    const repo2 = await VaultMemoryRepository.create({ root, index: idx });
+    const repo2 = await VaultMemoryRepository.create({
+      root,
+      index: idx,
+      gitOps: NOOP_GIT_OPS,
+    });
     expect(await repo2.findById("preexist")).not.toBeNull();
   });
 });
@@ -154,7 +167,11 @@ describe("VaultMemoryRepository — listings", () => {
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), "vault-memrepo-list-"));
     idx = await VaultVectorIndex.create({ root, dims: 1 });
-    repo = await VaultMemoryRepository.create({ root, index: idx });
+    repo = await VaultMemoryRepository.create({
+      root,
+      index: idx,
+      gitOps: NOOP_GIT_OPS,
+    });
   });
   afterEach(async () => {
     await idx.close();
@@ -419,7 +436,11 @@ describe("VaultMemoryRepository — list validation", () => {
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), "vault-memrepo-validate-"));
     idx = await VaultVectorIndex.create({ root, dims: 1 });
-    repo = await VaultMemoryRepository.create({ root, index: idx });
+    repo = await VaultMemoryRepository.create({
+      root,
+      index: idx,
+      gitOps: NOOP_GIT_OPS,
+    });
   });
   afterEach(async () => {
     await idx.close();

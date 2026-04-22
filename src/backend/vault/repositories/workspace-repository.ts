@@ -5,9 +5,13 @@ import type { WorkspaceRepository } from "../../../repositories/types.js";
 import { workspaceMetaPath } from "../io/paths.js";
 import { readMarkdown, writeMarkdownAtomic } from "../io/vault-fs.js";
 import { withFileLock } from "../io/lock.js";
+import { logger } from "../../../utils/logger.js";
+import { VaultGitNothingToCommitError, type GitOps } from "../git/types.js";
+import { commitSubject } from "./util.js";
 
 export interface VaultWorkspaceConfig {
   root: string;
+  gitOps: GitOps;
 }
 
 interface WorkspaceFm {
@@ -16,7 +20,11 @@ interface WorkspaceFm {
 }
 
 export class VaultWorkspaceRepository implements WorkspaceRepository {
-  constructor(private readonly cfg: VaultWorkspaceConfig) {}
+  private readonly gitOps: GitOps;
+
+  constructor(private readonly cfg: VaultWorkspaceConfig) {
+    this.gitOps = cfg.gitOps;
+  }
 
   async findOrCreate(slug: string): Promise<{ id: string; created_at: Date }> {
     const rel = workspaceMetaPath(slug);
@@ -33,12 +41,15 @@ export class VaultWorkspaceRepository implements WorkspaceRepository {
       if (!isNodeEexist(err)) throw err;
     }
 
-    return await withFileLock(abs, async () => {
+    const result = await withFileLock(abs, async () => {
       try {
         const raw = await readMarkdown(this.cfg.root, rel);
         const fm = matter(raw).data as Partial<WorkspaceFm>;
         if (typeof fm.id === "string" && typeof fm.created === "string") {
-          return { id: fm.id, created_at: new Date(fm.created) };
+          return {
+            value: { id: fm.id, created_at: new Date(fm.created) },
+            written: false,
+          };
         }
         // File exists but is empty (placeholder) or malformed — write it now.
       } catch (err: unknown) {
@@ -52,8 +63,38 @@ export class VaultWorkspaceRepository implements WorkspaceRepository {
         created: created.toISOString(),
       });
       await writeMarkdownAtomic(this.cfg.root, rel, body);
-      return { id: slug, created_at: created };
+      return {
+        value: { id: slug, created_at: created },
+        written: true,
+      };
     });
+
+    if (result.written) {
+      try {
+        await this.gitOps.stageAndCommit(
+          [rel],
+          commitSubject("workspace_upsert", slug),
+          {
+            action: "workspace_upsert",
+            workspaceId: slug,
+            actor: "system",
+          },
+        );
+      } catch (err) {
+        if (err instanceof VaultGitNothingToCommitError) {
+          logger.debug("vault git nothing to commit for workspace upsert", {
+            rel,
+          });
+        } else {
+          logger.error(
+            "vault git commit failed on workspace upsert; markdown/git drift",
+            { rel, err },
+          );
+        }
+      }
+    }
+
+    return result.value;
   }
 
   async findById(

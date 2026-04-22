@@ -1,24 +1,47 @@
 import type { FlagRepository } from "../../../repositories/types.js";
 import type { Flag, FlagResolution, FlagType } from "../../../types/flag.js";
+import type { GitOps } from "../git/types.js";
 import { NotFoundError } from "../../../utils/errors.js";
 import { VaultMemoryFiles } from "./memory-files.js";
-import { compareByCreatedAsc, compareByCreatedDesc } from "./util.js";
+import {
+  commitSubject,
+  compareByCreatedAsc,
+  compareByCreatedDesc,
+} from "./util.js";
 
 export interface VaultFlagConfig {
   root: string;
+  gitOps: GitOps;
+  trackUsersInGit?: boolean;
 }
+
+// Flags are raised by the consolidation engine, not by a named user,
+// so the AB-Actor trailer is "system" for every flag mutation.
+const FLAG_ACTOR = "system";
 
 export class VaultFlagRepository implements FlagRepository {
   private readonly files: VaultMemoryFiles;
 
   constructor(cfg: VaultFlagConfig) {
-    this.files = new VaultMemoryFiles({ root: cfg.root });
+    this.files = new VaultMemoryFiles({
+      root: cfg.root,
+      gitOps: cfg.gitOps,
+      trackUsersInGit: cfg.trackUsersInGit ?? false,
+    });
   }
 
   async create(flag: Flag): Promise<Flag> {
     return await this.files.edit(flag.memory_id, (parsed) => ({
       next: { ...parsed, flags: [...parsed.flags, flag] },
       result: flag,
+      commit: {
+        subject: commitSubject("flagged", parsed.memory.title),
+        trailer: {
+          action: "flagged",
+          memoryId: parsed.memory.id,
+          actor: FLAG_ACTOR,
+        },
+      },
     }));
   }
 
@@ -84,7 +107,18 @@ export class VaultFlagRepository implements FlagRepository {
             : { ...current, resolved_at: now, resolved_by: resolvedBy };
         const nextFlags = parsed.flags.slice();
         nextFlags[idx] = next;
-        return { next: { ...parsed, flags: nextFlags }, result: next };
+        return {
+          next: { ...parsed, flags: nextFlags },
+          result: next,
+          commit: {
+            subject: commitSubject("unflagged", parsed.memory.title),
+            trailer: {
+              action: "unflagged",
+              memoryId: parsed.memory.id,
+              actor: resolvedBy,
+            },
+          },
+        };
       });
     } catch (err) {
       // Owning memory archived between scan and lock → pg returns null here.
@@ -103,7 +137,19 @@ export class VaultFlagRepository implements FlagRepository {
           count += 1;
           return { ...f, resolved_at: now, resolved_by: "system" };
         });
-        return { next: { ...parsed, flags: nextFlags }, result: count };
+        if (count === 0) return { next: parsed, result: 0 };
+        return {
+          next: { ...parsed, flags: nextFlags },
+          result: count,
+          commit: {
+            subject: commitSubject("unflagged", parsed.memory.title),
+            trailer: {
+              action: "unflagged",
+              memoryId: parsed.memory.id,
+              actor: "system",
+            },
+          },
+        };
       });
     } catch (err) {
       if (err instanceof NotFoundError) return 0;

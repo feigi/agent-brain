@@ -39,6 +39,7 @@ async function main() {
       backend: config.backend,
       databaseUrl: config.databaseUrl,
       vaultRoot: config.vaultRoot,
+      vaultTrackUsersInGit: config.vaultTrackUsersInGit,
       embeddingDimensions: config.embeddingDimensions,
     });
   } catch (err: unknown) {

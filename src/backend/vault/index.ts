@@ -9,6 +9,9 @@ import { VaultSessionRepository } from "./repositories/session-repository.js";
 import { VaultSessionTrackingRepository } from "./repositories/session-tracking-repository.js";
 import { VaultWorkspaceRepository } from "./repositories/workspace-repository.js";
 import { VaultVectorIndex } from "./vector/lance-index.js";
+import { ensureVaultGit } from "./git/bootstrap.js";
+import { GitOpsImpl } from "./git/git-ops.js";
+import type { GitOps } from "./git/types.js";
 import type { BackendName, StorageBackend } from "../types.js";
 import type {
   AuditRepository,
@@ -25,6 +28,10 @@ import type {
 export interface VaultBackendConfig {
   root: string;
   embeddingDimensions: number;
+  // When true, user-scope memories are committed to git alongside
+  // workspace/project ones. Default false — `users/` stays gitignored
+  // and its writes skip the commit step (privacy-first).
+  trackUsersInGit?: boolean;
 }
 
 // Markdown-vault backend. Composes the nine Vault* repositories backed
@@ -47,20 +54,40 @@ export class VaultBackend implements StorageBackend {
     memoryRepo: MemoryRepository,
     private readonly vectorIndex: VaultVectorIndex,
     root: string,
+    gitOps: GitOps,
+    trackUsersInGit: boolean,
   ) {
     this.memoryRepo = memoryRepo;
-    this.workspaceRepo = new VaultWorkspaceRepository({ root });
-    this.commentRepo = new VaultCommentRepository({ root });
+    this.workspaceRepo = new VaultWorkspaceRepository({ root, gitOps });
+    this.commentRepo = new VaultCommentRepository({
+      root,
+      gitOps,
+      trackUsersInGit,
+    });
     this.sessionRepo = new VaultSessionTrackingRepository({ root });
     this.sessionLifecycleRepo = new VaultSessionRepository({ root });
     this.auditRepo = new VaultAuditRepository({ root });
-    this.flagRepo = new VaultFlagRepository({ root });
-    this.relationshipRepo = new VaultRelationshipRepository({ root });
+    this.flagRepo = new VaultFlagRepository({
+      root,
+      gitOps,
+      trackUsersInGit,
+    });
+    this.relationshipRepo = new VaultRelationshipRepository({
+      root,
+      gitOps,
+      trackUsersInGit,
+    });
     this.schedulerStateRepo = new VaultSchedulerStateRepository({ root });
   }
 
   static async create(cfg: VaultBackendConfig): Promise<VaultBackend> {
     await mkdir(cfg.root, { recursive: true });
+    const trackUsersInGit = cfg.trackUsersInGit ?? false;
+    await ensureVaultGit({
+      root: cfg.root,
+      trackUsers: trackUsersInGit,
+    });
+    const gitOps: GitOps = new GitOpsImpl({ root: cfg.root });
     const vectorIndex = await VaultVectorIndex.create({
       root: cfg.root,
       dims: cfg.embeddingDimensions,
@@ -68,8 +95,16 @@ export class VaultBackend implements StorageBackend {
     const memoryRepo = await VaultMemoryRepository.create({
       root: cfg.root,
       index: vectorIndex,
+      gitOps,
+      trackUsersInGit,
     });
-    return new VaultBackend(memoryRepo, vectorIndex, cfg.root);
+    return new VaultBackend(
+      memoryRepo,
+      vectorIndex,
+      cfg.root,
+      gitOps,
+      trackUsersInGit,
+    );
   }
 
   async close(): Promise<void> {
