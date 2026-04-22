@@ -33,6 +33,13 @@ export interface GitOps {
     trailer: CommitTrailer,
   ): Promise<void>;
   status(): Promise<{ clean: boolean }>;
+  /**
+   * Optional callback invoked after every successful stageAndCommit.
+   * Fires outside the #serialize mutex but within the same async flow —
+   * callers get a synchronous "commit landed" signal. Failures in the
+   * callback are not propagated (fire-and-forget).
+   */
+  afterCommit?: () => void;
 }
 
 // Thrown by stageAndCommit when `git add` staged nothing (file unchanged
@@ -50,6 +57,7 @@ export class VaultGitNothingToCommitError extends DomainError {
 
 export class NoopGitOps implements GitOps {
   readonly enabled = false;
+  afterCommit?: () => void;
   async isRepo(): Promise<boolean> {
     return false;
   }

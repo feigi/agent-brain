@@ -76,6 +76,62 @@ describe("GitOpsImpl", () => {
     await ops.init();
     expect((await ops.status()).clean).toBe(true);
   });
+
+  it("fires afterCommit after a successful commit", async () => {
+    const root = await mkdtemp(join(tmpdir(), "git-ops-hook-"));
+    try {
+      const git = simpleGit({ baseDir: root }).env(scrubGitEnv());
+      await git.init();
+      await git.addConfig("user.email", "t@x", false, "local");
+      await git.addConfig("user.name", "t", false, "local");
+
+      const calls: number[] = [];
+      const ops = new GitOpsImpl({ root });
+      ops.afterCommit = () => calls.push(Date.now());
+
+      const path = "note.md";
+      await writeFile(join(root, path), "hi\n");
+      await ops.stageAndCommit([path], "[t] first", {
+        action: "created",
+        memoryId: "m1",
+        actor: "a",
+      });
+
+      expect(calls).toHaveLength(1);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("does not fire afterCommit when stageAndCommit throws", async () => {
+    const root = await mkdtemp(join(tmpdir(), "git-ops-hook-fail-"));
+    try {
+      const git = simpleGit({ baseDir: root }).env(scrubGitEnv());
+      await git.init();
+      await git.addConfig("user.email", "t@x", false, "local");
+      await git.addConfig("user.name", "t", false, "local");
+
+      const calls: number[] = [];
+      const ops = new GitOpsImpl({ root });
+      ops.afterCommit = () => calls.push(Date.now());
+
+      // Nothing to commit → VaultGitNothingToCommitError.
+      await writeFile(join(root, "ignored.md"), "x\n");
+      await git.add("ignored.md");
+      await git.commit("initial", ["ignored.md"]);
+      await expect(
+        ops.stageAndCommit(["ignored.md"], "again", {
+          action: "created",
+          memoryId: "m1",
+          actor: "a",
+        }),
+      ).rejects.toThrow();
+
+      expect(calls).toHaveLength(0);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });
 
 async function configUser(root: string): Promise<void> {

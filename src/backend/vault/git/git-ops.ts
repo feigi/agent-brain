@@ -13,6 +13,7 @@ export interface GitOpsConfig {
 
 export class GitOpsImpl implements GitOps {
   readonly enabled = true;
+  afterCommit?: () => void;
   private readonly git: SimpleGit;
   // Process-wide serialization of git index operations. Two writers
   // on different markdown files share one .git/index; without a
@@ -47,7 +48,7 @@ export class GitOpsImpl implements GitOps {
     if (paths.length === 0) {
       throw new Error("stageAndCommit: paths must be non-empty");
     }
-    return this.#serialize(async () => {
+    await this.#serialize(async () => {
       await this.git.add(paths);
       const status = await this.git.status();
       if (status.staged.length === 0 && status.created.length === 0) {
@@ -59,6 +60,14 @@ export class GitOpsImpl implements GitOps {
       // land its file under our trailer.
       await this.git.commit(`${subject}\n\n${body}`, paths);
     });
+    // Fire hook after the serialized block resolves so a callback that
+    // itself calls into git cannot deadlock on the mutex. Swallow hook
+    // errors — this is fire-and-forget.
+    try {
+      this.afterCommit?.();
+    } catch {
+      // ignored
+    }
   }
 
   async status(): Promise<{ clean: boolean }> {
