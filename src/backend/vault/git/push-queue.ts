@@ -8,6 +8,13 @@ export interface PushQueueConfig {
    * scheduling is handled by the backoff logic (Task 5).
    */
   push: () => Promise<void>;
+  /**
+   * Returns the count of commits between @{u} (upstream) and HEAD.
+   * Injected for testability; in the real backend (Task 11), this
+   * shells to `git rev-list --count @{u}..HEAD`. If absent or throws,
+   * unpushedCommits() returns 0.
+   */
+  countUnpushed?: () => Promise<number>;
   debounceMs: number;
   backoffMs: readonly number[];
 }
@@ -63,6 +70,15 @@ export class PushQueue {
     }
     if (this.inFlightPromise) {
       await this.inFlightPromise;
+    }
+  }
+
+  async unpushedCommits(): Promise<number> {
+    if (!this.cfg.countUnpushed) return 0;
+    try {
+      return await this.cfg.countUnpushed();
+    } catch {
+      return 0;
     }
   }
 

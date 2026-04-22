@@ -191,3 +191,38 @@ describe("PushQueue backoff", () => {
     await q.close();
   });
 });
+
+describe("PushQueue.unpushedCommits", () => {
+  it("delegates to injected counter", async () => {
+    const { push } = fakePusher();
+    const q = new PushQueue({
+      push,
+      debounceMs: 100,
+      backoffMs: [],
+      countUnpushed: async () => 7,
+    });
+    expect(await q.unpushedCommits()).toBe(7);
+    await q.close();
+  });
+
+  it("returns 0 when counter throws (no upstream configured)", async () => {
+    const { push } = fakePusher();
+    const q = new PushQueue({
+      push,
+      debounceMs: 100,
+      backoffMs: [],
+      countUnpushed: async () => {
+        throw new Error("no upstream");
+      },
+    });
+    expect(await q.unpushedCommits()).toBe(0);
+    await q.close();
+  });
+
+  it("returns 0 when counter not provided", async () => {
+    const { push } = fakePusher();
+    const q = new PushQueue({ push, debounceMs: 100, backoffMs: [] });
+    expect(await q.unpushedCommits()).toBe(0);
+    await q.close();
+  });
+});
