@@ -15,6 +15,7 @@ function hookPathMatches(
   targetName: string,
   hookNames: readonly string[],
 ): boolean {
+  if (hookNames.length === 0) return false;
   const dirFragment =
     targetName === "claude" ? "/.claude/hooks/" : "/.copilot/hooks/";
   if (!path.includes(dirFragment)) return false;

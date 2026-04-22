@@ -1,9 +1,9 @@
 # Agent Integration Hook Templates
 
-> **Fast path:** from a cloned checkout, run `npm run install:agent` to install hooks, MCP config, and instructions for Claude Code or Copilot CLI in one step. Uninstall with `npm run uninstall:agent`. The manual steps below remain for reference and for users who prefer fine-grained control.
+> **Fast path:** from a cloned checkout, run `npm run install:agent` to install hooks, MCP config, and instructions for Claude Code, Copilot CLI, or VS Code in one step. Uninstall with `npm run uninstall:agent`. The manual steps below remain for reference and for users who prefer fine-grained control.
 
-Hook and configuration templates for automating memory workflows with Claude Code and GitHub
-Copilot CLI.
+Hook and configuration templates for automating memory workflows with Claude Code, GitHub
+Copilot CLI, and VS Code.
 
 These hooks are **optional enhancements**. If you use a different MCP client, rely on the
 `memory-guidance` prompt resource's natural-breakpoints pattern instead — it works without any
@@ -262,6 +262,55 @@ session ID stash and the nudge counter) created during the session.
 
 ---
 
+## VS Code (GitHub Copilot Chat)
+
+### Included Templates
+
+| File                              | Purpose                                                                |
+| --------------------------------- | ---------------------------------------------------------------------- |
+| `vscode-copilot/mcp-snippet.json` | MCP server configuration to merge into VS Code's user-level `mcp.json` |
+
+VS Code does not support shell hooks like Copilot CLI or Claude Code. Memory workflows rely on
+the `memory-guidance` prompt resource and manual `memory_session_start` calls.
+
+### Prerequisites
+
+- VS Code with the GitHub Copilot Chat extension
+- Agent Brain server running (default `http://localhost:19898`, override with `AGENT_BRAIN_URL` env var)
+
+### Installation
+
+#### Automated
+
+```bash
+npm run install:agent -- --target=vscode-copilot
+```
+
+#### Manual
+
+Merge the contents of `hooks/vscode-copilot/mcp-snippet.json` into your user-level `mcp.json`:
+
+- **macOS:** `~/Library/Application Support/Code/User/mcp.json`
+- **Linux:** `~/.config/Code/User/mcp.json`
+
+Or run **MCP: Open User Configuration** from the VS Code Command Palette to open the file directly.
+
+```json
+{
+  "servers": {
+    "agent-brain": {
+      "type": "http",
+      "url": "http://localhost:19898/mcp"
+    }
+  }
+}
+```
+
+For custom instructions, copy `hooks/copilot/instructions-snippet.md` into
+`.github/copilot-instructions.md` in each workspace.
+
+---
+
 ## Troubleshooting
 
 **Hook not firing:** Check that the script is executable (`ls -la .github/hooks/`) and that
@@ -279,6 +328,7 @@ If it happens, check that your `jq` version supports the `// "false"` default sy
 
 - Claude Code hooks are configured per-project in `.claude/settings.json`.
 - Copilot CLI hooks are loaded from `.github/hooks/` in the working directory or `~/.copilot/hooks/` for personal use.
+- VS Code MCP config is stored in `mcp.json` (user profile or `.vscode/mcp.json` per workspace).
 - The `memory-guidance` prompt resource works for all MCP clients regardless of hook support.
 - The Stop/session-end hooks have a 10-second timeout. Memory review calls to the MCP server
   should complete well within this window.

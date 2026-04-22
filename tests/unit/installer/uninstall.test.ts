@@ -166,4 +166,31 @@ describe("installer uninstall", () => {
     );
     expect(mcp.mcpServers?.["agent-brain"]).toBeUndefined();
   });
+
+  it("uninstall of vscode removes agent-brain from mcp.json", async () => {
+    await runInstaller(
+      {
+        targets: ["vscode-copilot"],
+        dryRun: false,
+        uninstall: false,
+        skipEnvBootstrap: true,
+      },
+      { repoRoot: REPO_ROOT, home },
+    );
+    await runInstaller(
+      {
+        targets: ["vscode-copilot"],
+        dryRun: false,
+        uninstall: true,
+        skipEnvBootstrap: true,
+      },
+      { repoRoot: REPO_ROOT, home },
+    );
+
+    const { vscodeUserDataDir } =
+      await import("../../../scripts/installer/targets/vscode-copilot.js");
+    const userDir = vscodeUserDataDir(home);
+    const mcp = JSON.parse(readFileSync(join(userDir, "mcp.json"), "utf8"));
+    expect(mcp.servers?.["agent-brain"]).toBeUndefined();
+  });
 });

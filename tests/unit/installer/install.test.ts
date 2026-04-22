@@ -82,6 +82,25 @@ describe("installer end-to-end", () => {
     expect(instr).toContain("<!-- agent-brain:start -->");
   });
 
+  it("installs VSCode target: merges mcp.json in user data dir", async () => {
+    await runInstaller(
+      {
+        targets: ["vscode-copilot"],
+        dryRun: false,
+        uninstall: false,
+        skipEnvBootstrap: true,
+      },
+      { repoRoot: REPO_ROOT, home },
+    );
+
+    const { vscodeUserDataDir } =
+      await import("../../../scripts/installer/targets/vscode-copilot.js");
+    const userDir = vscodeUserDataDir(home);
+    const mcpCfg = JSON.parse(readFileSync(join(userDir, "mcp.json"), "utf8"));
+    expect(mcpCfg.servers["agent-brain"]).toBeDefined();
+    expect(mcpCfg.servers["agent-brain"].type).toBe("http");
+  });
+
   it("is idempotent: running install twice produces no duplicates", async () => {
     const opts = {
       targets: ["claude" as const],
