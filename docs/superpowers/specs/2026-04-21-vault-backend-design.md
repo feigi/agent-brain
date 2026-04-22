@@ -364,23 +364,23 @@ chokidar event → watcher.ts
 
 ### Failure modes
 
-| Failure                                             | Detection                   | Response                                                                                                                                          |
-| --------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Atomic rename mid-write                             | `.tmp` left behind          | Sweep on startup; caller sees error and retries                                                                                                   |
-| LanceDB upsert fails after successful fs write      | `lance.upsert` throws       | Log + enqueue repair; background reindex picks it up. Caller sees success (vault = source of truth)                                               |
-| `git commit` fails after fs + lance succeed         | non-zero exit               | Repair queue retries on next write or session_start. Caller sees success                                                                          |
-| `git push` fails                                    | non-zero exit               | push-queue marks dirty and retries (5s → 30s → 5m → 30m backoff). Writes never block. `meta.unpushed_commits` exposed on `session_start` envelope |
-| Pull conflict (auto-resolvable)                     | merge=union on markdown     | Logged and merged                                                                                                                                 |
-| Pull conflict (unresolvable)                        | post-rebase `git status`    | `git rebase --abort`; serve stale; create `verify` flag on affected memories; `meta.pull_conflict = true`                                         |
-| Offline on pull                                     | network error               | Serve local; `meta.offline = true`; writes queue for push                                                                                         |
-| Parse error (invalid frontmatter after manual edit) | `parser.parse` throws       | Skip file; `meta.parse_errors` includes path; previous index entry still served                                                                   |
-| LanceDB corruption / schema mismatch                | startup check               | Full reindex from vault; blocks startup until complete; vault is source of truth so no data loss                                                  |
-| Vault missing or not a git repo                     | startup validation          | Hard fail with remediation text; no silent recovery                                                                                               |
-| Disk full                                           | fs write error              | Propagate as tool error; no partial index update                                                                                                  |
-| Concurrent writes to same memory                    | per-file lock               | Second write waits up to 5s then throws; tool retries or surfaces timeout                                                                         |
-| Race: external edit + tool write                    | lock + watcher queue        | Tool holds lock during its path; watcher reindex queues after lock release                                                                        |
-| Optimistic version mismatch                         | parsed `version` ≠ expected | Existing `OptimisticLockError` contract — unchanged                                                                                               |
-| Malformed commit trailers on migration              | audit-log parser            | Skip for audit purposes, treat as external commit                                                                                                 |
+| Failure                                             | Detection                   | Response                                                                                                                                                            |
+| --------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Atomic rename mid-write                             | `.tmp` left behind          | Sweep on startup; caller sees error and retries                                                                                                                     |
+| LanceDB upsert fails after successful fs write      | `lance.upsert` throws       | Log + enqueue repair; background reindex picks it up. Caller sees success (vault = source of truth)                                                                 |
+| `git commit` fails after fs + lance succeed         | non-zero exit               | Repair queue retries on next write or session_start. Caller sees success                                                                                            |
+| `git push` fails                                    | non-zero exit               | push-queue marks dirty and retries (5s → 30s → 5m → 30m backoff). Writes never block. `meta.unpushed_commits` exposed on `session_start` envelope                   |
+| Pull conflict (auto-resolvable)                     | merge=union on markdown     | YAML frontmatter silently union-merged; invalid YAML surfaces as `parse_errors` on next read. Other conflicts (content, only/delete) surface `pull_conflict: true`. |
+| Pull conflict (unresolvable)                        | post-rebase `git status`    | `git rebase --abort`; serve stale; create `verify` flag on affected memories; `meta.pull_conflict = true`                                                           |
+| Offline on pull                                     | network error               | Serve local; `meta.offline = true`; writes queue for push                                                                                                           |
+| Parse error (invalid frontmatter after manual edit) | `parser.parse` throws       | Skip file; `meta.parse_errors` includes path; previous index entry still served                                                                                     |
+| LanceDB corruption / schema mismatch                | startup check               | Full reindex from vault; blocks startup until complete; vault is source of truth so no data loss                                                                    |
+| Vault missing or not a git repo                     | startup validation          | Hard fail with remediation text; no silent recovery                                                                                                                 |
+| Disk full                                           | fs write error              | Propagate as tool error; no partial index update                                                                                                                    |
+| Concurrent writes to same memory                    | per-file lock               | Second write waits up to 5s then throws; tool retries or surfaces timeout                                                                                           |
+| Race: external edit + tool write                    | lock + watcher queue        | Tool holds lock during its path; watcher reindex queues after lock release                                                                                          |
+| Optimistic version mismatch                         | parsed `version` ≠ expected | Existing `OptimisticLockError` contract — unchanged                                                                                                                 |
+| Malformed commit trailers on migration              | audit-log parser            | Skip for audit purposes, treat as external commit                                                                                                                   |
 
 ### Invariants
 
@@ -445,16 +445,16 @@ Forces behavioral parity; divergence = test failure.
 
 ## Phased rollout
 
-| Phase | Deliverable                                                                                                                     |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------- |
-| 0     | `StorageBackend` interface extraction. Move existing drizzle repos behind factory. No behavior change. Green tests.             |
-| 1     | Vault parser + serializer (pure). Roundtrip property tests for all entity types.                                                |
-| 2     | Vault repositories against a local directory (no git, no vector). Parameterized repo contract tests pass against both backends. |
-| 3     | LanceDB index integration. Vector parity tests.                                                                                 |
-| 4     | Git sync layer. Commit-on-write, pull-on-session_start, conflict handling. Two-clone integration test.                          |
-| 5     | Chokidar watcher. External edit E2E.                                                                                            |
-| 6     | Migration CLI + reverse migration.                                                                                              |
-| 7     | Docs, recommended Obsidian vault template (Dataview, Tasks plugins), README updates.                                            |
+| Phase | Deliverable                                                                                                                               |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | `StorageBackend` interface extraction. Move existing drizzle repos behind factory. No behavior change. Green tests.                       |
+| 1     | Vault parser + serializer (pure). Roundtrip property tests for all entity types.                                                          |
+| 2     | Vault repositories against a local directory (no git, no vector). Parameterized repo contract tests pass against both backends.           |
+| 3     | LanceDB index integration. Vector parity tests.                                                                                           |
+| 4     | Git sync layer. Commit-on-write, pull-on-session_start, conflict handling. Two-clone integration test. **Done — 4a (#34), 4b (this PR).** |
+| 5     | Chokidar watcher. External edit E2E.                                                                                                      |
+| 6     | Migration CLI + reverse migration.                                                                                                        |
+| 7     | Docs, recommended Obsidian vault template (Dataview, Tasks plugins), README updates.                                                      |
 
 ## Open questions
 
