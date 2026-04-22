@@ -74,25 +74,28 @@ export class PushQueue {
 
   async #runPush(): Promise<void> {
     this.state = { kind: "in-flight", follow: false };
-    const promise = this.cfg.push().then(
-      () => {
-        // Success path: drain follow-up if queued.
-        const follow = this.state.kind === "in-flight" && this.state.follow;
-        this.state = { kind: "idle" };
+    const promise = this.cfg
+      .push()
+      .then(
+        () => {
+          // Success path: drain follow-up if queued.
+          const follow = this.state.kind === "in-flight" && this.state.follow;
+          this.state = { kind: "idle" };
+          if (follow && !this.closing) {
+            this.#schedule();
+          }
+        },
+        (err: unknown) => {
+          // Backoff path — implemented in Task 5. For now just log + idle.
+          logger.warn(
+            `vault push failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
+          this.state = { kind: "idle" };
+        },
+      )
+      .finally(() => {
         this.inFlightPromise = null;
-        if (follow && !this.closing) {
-          this.#schedule();
-        }
-      },
-      (err: unknown) => {
-        // Backoff path — implemented in Task 5. For now just log + idle.
-        logger.warn(
-          `vault push failed: ${err instanceof Error ? err.message : String(err)}`,
-        );
-        this.state = { kind: "idle" };
-        this.inFlightPromise = null;
-      },
-    );
+      });
     this.inFlightPromise = promise;
     await promise;
   }
