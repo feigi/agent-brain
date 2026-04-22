@@ -13,6 +13,7 @@ services:
       EMBEDDING_PROVIDER: ollama
       OLLAMA_BASE_URL: http://ollama:11434
       EMBEDDING_DIMENSIONS: 768
+      HOST: 0.0.0.0
       PORT: 19898
     depends_on:
       postgres:
