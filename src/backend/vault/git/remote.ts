@@ -3,7 +3,7 @@ import { logger } from "../../../utils/logger.js";
 
 export interface EnsureRemoteConfig {
   git: SimpleGit;
-  remoteUrl: string | undefined;
+  remoteUrl?: string;
 }
 
 /**
@@ -18,7 +18,7 @@ export async function ensureRemote(cfg: EnsureRemoteConfig): Promise<void> {
   if (origin) {
     if (cfg.remoteUrl && origin.refs.fetch !== cfg.remoteUrl) {
       logger.warn(
-        `vault: AGENT_BRAIN_VAULT_REMOTE_URL (${cfg.remoteUrl}) differs from existing origin (${origin.refs.fetch}); leaving existing`,
+        `vault: configured remoteUrl (${cfg.remoteUrl}) differs from existing origin (${origin.refs.fetch}); leaving existing`,
       );
     }
     return;

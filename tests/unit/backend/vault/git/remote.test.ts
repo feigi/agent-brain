@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { simpleGit } from "simple-git";
 import { scrubGitEnv } from "../../../../../src/backend/vault/git/env.js";
 import { ensureRemote } from "../../../../../src/backend/vault/git/remote.js";
+import { logger } from "../../../../../src/utils/logger.js";
 
 async function makeRepo(): Promise<{
   root: string;
@@ -46,13 +47,19 @@ describe("ensureRemote", () => {
 
   it("leaves mismatched origin in place + warns", async () => {
     const { root, cleanup } = await makeRepo();
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
     try {
       const git = simpleGit({ baseDir: root }).env(scrubGitEnv());
       await git.addRemote("origin", "git@existing:a/b.git");
       await ensureRemote({ git, remoteUrl: "git@new:c/d.git" });
       const remotes = await git.getRemotes(true);
       expect(remotes[0].refs.fetch).toBe("git@existing:a/b.git");
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/configured remoteUrl/),
+      );
     } finally {
+      warnSpy.mockRestore();
       await cleanup();
     }
   });
