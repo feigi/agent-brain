@@ -161,7 +161,7 @@ export async function main(argv: string[]): Promise<void> {
   let targets: TargetName[];
   if (values.target) {
     const t = String(values.target);
-    if (t === "all" || t === "both") {
+    if (t === "all") {
       targets = [...ALL_TARGET_NAMES];
     } else {
       targets = parseTargetList(t);
