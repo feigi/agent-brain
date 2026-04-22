@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { DomainError, NotFoundError } from "../../../utils/errors.js";
+import { logger } from "../../../utils/logger.js";
 import {
   parseMemoryFile,
   serializeMemoryFile,
@@ -12,9 +13,12 @@ import {
   writeMarkdownAtomic,
 } from "../io/vault-fs.js";
 import { withFileLock } from "../io/lock.js";
+import type { CommitTrailer, GitOps } from "../git/types.js";
+import { NOOP_GIT_OPS } from "../git/types.js";
 
 export interface VaultMemoryFilesConfig {
   root: string;
+  gitOps?: GitOps;
 }
 
 export class VaultParseError extends DomainError {
@@ -34,7 +38,10 @@ export class VaultParseError extends DomainError {
 // repository that persists inside a memory's markdown file. Scan-based
 // lookup; no cross-repo index.
 export class VaultMemoryFiles {
-  constructor(private readonly cfg: VaultMemoryFilesConfig) {}
+  private readonly gitOps: GitOps;
+  constructor(private readonly cfg: VaultMemoryFilesConfig) {
+    this.gitOps = cfg.gitOps ?? NOOP_GIT_OPS;
+  }
 
   async resolvePath(memoryId: string): Promise<string | null> {
     const files = await safeListMd(this.cfg.root);
@@ -58,6 +65,7 @@ export class VaultMemoryFiles {
     mutator: (parsed: ParsedMemoryFile) => {
       next: ParsedMemoryFile;
       result: T;
+      commit?: { subject: string; trailer: CommitTrailer };
     },
   ): Promise<T> {
     const rel = await this.resolvePath(memoryId);
@@ -66,13 +74,28 @@ export class VaultMemoryFiles {
     return await withFileLock(abs, async () => {
       const raw = await readMarkdownOrNotFound(this.cfg.root, rel, memoryId);
       const parsed = parseOrRaise(raw, rel);
-      const { next, result } = mutator(parsed);
+      const { next, result, commit } = mutator(parsed);
       if (next !== parsed) {
         await writeMarkdownAtomic(
           this.cfg.root,
           rel,
           serializeMemoryFile(next),
         );
+        if (commit) {
+          try {
+            await this.gitOps.stageAndCommit(
+              [rel],
+              commit.subject,
+              commit.trailer,
+            );
+          } catch (err) {
+            logger.warn("vault git commit failed; continuing", {
+              rel,
+              action: commit.trailer.action,
+              err,
+            });
+          }
+        }
       }
       return result;
     });
