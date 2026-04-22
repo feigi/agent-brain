@@ -108,6 +108,7 @@ async function main() {
     flagService,
     config.consolidationMaxFlagsPerSession,
     relationshipService,
+    backend,
   );
 
   // Always create ConsolidationService (used by both scheduler and MCP tool)

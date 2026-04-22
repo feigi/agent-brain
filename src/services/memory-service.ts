@@ -17,6 +17,7 @@ import type {
 import { toSummary, toDetail } from "../types/memory.js";
 import type { Envelope } from "../types/envelope.js";
 import type { EmbeddingProvider } from "../providers/embedding/types.js";
+import type { StorageBackend } from "../backend/types.js";
 import type {
   MemoryRepository,
   WorkspaceRepository,
@@ -63,6 +64,7 @@ export class MemoryService {
     private readonly flagService?: FlagService,
     private readonly maxFlagsPerSession: number = 5,
     private readonly relationshipService?: RelationshipService,
+    private readonly backend?: StorageBackend,
   ) {}
 
   // D-12: Descriptive error for mutations
@@ -856,6 +858,9 @@ export class MemoryService {
     // D-34: Auto-create workspace
     await this.workspaceRepo.findOrCreate(workspaceId);
 
+    // Phase 4b: Capture backend-specific sync state (vault: pull/push/parse status)
+    const backendMeta = this.backend ? await this.backend.sessionStart() : {};
+
     // Phase 4: Generate session_id and create session record for budget tracking (D-18)
     const sessionId = generateId();
     await this.sessionLifecycleRepo?.createSession(
@@ -1071,6 +1076,29 @@ export class MemoryService {
     }
 
     const timing = Date.now() - start;
+
+    // Phase 4b: Merge backend-specific sync state into envelope meta
+    const backendMetaFields: {
+      offline?: true;
+      unpushed_commits?: number;
+      pull_conflict?: true;
+      parse_errors?: number;
+    } = {};
+    if (backendMeta.offline) backendMetaFields.offline = true;
+    if (backendMeta.pull_conflict) backendMetaFields.pull_conflict = true;
+    if (
+      typeof backendMeta.unpushed_commits === "number" &&
+      backendMeta.unpushed_commits > 0
+    ) {
+      backendMetaFields.unpushed_commits = backendMeta.unpushed_commits;
+    }
+    if (
+      typeof backendMeta.parse_errors === "number" &&
+      backendMeta.parse_errors > 0
+    ) {
+      backendMetaFields.parse_errors = backendMeta.parse_errors;
+    }
+
     return {
       data: result.data,
       meta: {
@@ -1080,6 +1108,7 @@ export class MemoryService {
         session_id: sessionId,
         flags: flagsData,
         relationships: relationshipsData,
+        ...backendMetaFields,
       },
     };
   }

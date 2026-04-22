@@ -15,6 +15,10 @@ import { MockEmbeddingProvider } from "../src/providers/embedding/mock.js";
 import { config } from "../src/config.js";
 import { MemoryService } from "../src/services/memory-service.js";
 import type { Memory, CreateSkipResult } from "../src/types/memory.js";
+import type {
+  StorageBackend,
+  BackendSessionStartMeta,
+} from "../src/backend/types.js";
 import {
   memories,
   workspaces,
@@ -37,12 +41,29 @@ export function getTestDb(): Database {
   return db;
 }
 
+/**
+ * Minimal StorageBackend stub for unit/integration tests. Only implements
+ * sessionStart() — all repo fields are intentionally omitted because tests
+ * inject real repos directly. Override sessionStartMeta to control what
+ * backend.sessionStart() returns.
+ */
+export class StubBackend {
+  sessionStartMeta: BackendSessionStartMeta = {};
+
+  async sessionStart(): Promise<BackendSessionStartMeta> {
+    return this.sessionStartMeta;
+  }
+
+  async close(): Promise<void> {}
+}
+
 interface TestServiceOptions {
   auditService?: AuditService;
   flagService?: FlagService;
   withSessions?: boolean;
   maxFlagsPerSession?: number;
   relationshipService?: RelationshipService;
+  backend?: StorageBackend;
 }
 
 /** Configurable factory — accepts any combination of optional services */
@@ -71,6 +92,7 @@ export function createTestServiceWith(
     options.flagService,
     options.maxFlagsPerSession,
     options.relationshipService,
+    options.backend,
   );
 }
 

@@ -29,5 +29,13 @@ export interface Envelope<T> {
     omitted?: string[]; // IDs requested but not returned (inaccessible/not found)
     project_truncated?: boolean; // session_start only: true when project-scoped memories exceeded project_limit
     project_scope_status?: "ok" | "failed"; // session_start only: "failed" when listProjectScoped threw and ranked results were returned without project-scoped memories
+    /** session_start only: backend is offline (vault: no network / git pull skipped) */
+    offline?: true;
+    /** session_start only: number of local commits not yet pushed to remote */
+    unpushed_commits?: number;
+    /** session_start only: a git rebase conflict was detected during pull */
+    pull_conflict?: true;
+    /** session_start only: number of vault YAML files that failed to parse */
+    parse_errors?: number;
   };
 }
