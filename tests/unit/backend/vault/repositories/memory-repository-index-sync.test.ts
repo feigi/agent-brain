@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { VaultMemoryRepository } from "../../../../../src/backend/vault/repositories/memory-repository.js";
 import { VaultWorkspaceRepository } from "../../../../../src/backend/vault/repositories/workspace-repository.js";
 import { VaultVectorIndex } from "../../../../../src/backend/vault/vector/lance-index.js";
+import { NOOP_GIT_OPS } from "../../../../../src/backend/vault/git/types.js";
 import { ValidationError } from "../../../../../src/utils/errors.js";
 import type { Memory } from "../../../../../src/types/memory.js";
 
@@ -49,8 +50,15 @@ describe("VaultMemoryRepository — lance index sync", () => {
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), "repo-sync-"));
     idx = await VaultVectorIndex.create({ root, dims: DIMS });
-    repo = await VaultMemoryRepository.create({ root, index: idx });
-    await new VaultWorkspaceRepository({ root }).findOrCreate("ws1");
+    repo = await VaultMemoryRepository.create({
+      root,
+      index: idx,
+      gitOps: NOOP_GIT_OPS,
+    });
+    await new VaultWorkspaceRepository({
+      root,
+      gitOps: NOOP_GIT_OPS,
+    }).findOrCreate("ws1");
   });
 
   afterEach(async () => {

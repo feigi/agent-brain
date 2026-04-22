@@ -13,12 +13,20 @@ import {
   writeMarkdownAtomic,
 } from "../io/vault-fs.js";
 import { withFileLock } from "../io/lock.js";
-import type { CommitTrailer, GitOps } from "../git/types.js";
-import { NOOP_GIT_OPS } from "../git/types.js";
+import {
+  VaultGitNothingToCommitError,
+  type CommitTrailer,
+  type GitOps,
+} from "../git/types.js";
+import { assertUsersIgnored } from "../git/users-gitignore-invariant.js";
 
 export interface VaultMemoryFilesConfig {
   root: string;
-  gitOps?: GitOps;
+  gitOps: GitOps;
+  // When false, user-scope mutations skip the commit (privacy) and
+  // additionally assert .gitignore still lists `users/` so the rule
+  // hasn't been removed while the assumption is still load-bearing.
+  trackUsersInGit: boolean;
 }
 
 export class VaultParseError extends DomainError {
@@ -38,10 +46,7 @@ export class VaultParseError extends DomainError {
 // repository that persists inside a memory's markdown file. Scan-based
 // lookup; no cross-repo index.
 export class VaultMemoryFiles {
-  private readonly gitOps: GitOps;
-  constructor(private readonly cfg: VaultMemoryFilesConfig) {
-    this.gitOps = cfg.gitOps ?? NOOP_GIT_OPS;
-  }
+  constructor(private readonly cfg: VaultMemoryFilesConfig) {}
 
   async resolvePath(memoryId: string): Promise<string | null> {
     const files = await safeListMd(this.cfg.root);
@@ -74,6 +79,18 @@ export class VaultMemoryFiles {
     return await withFileLock(abs, async () => {
       const raw = await readMarkdownOrNotFound(this.cfg.root, rel, memoryId);
       const parsed = parseOrRaise(raw, rel);
+      // Privacy guard: if this is a user-scope memory and the caller
+      // hasn't opted into tracking, assert the `users/` rule still
+      // keeps the path out of the remote. Runs even for non-committing
+      // edits so a broken .gitignore is caught before downstream
+      // writers that do commit can leak.
+      if (
+        parsed.memory.scope === "user" &&
+        !this.cfg.trackUsersInGit &&
+        this.cfg.gitOps.enabled
+      ) {
+        await assertUsersIgnored(this.cfg.root);
+      }
       const { next, result, commit } = mutator(parsed);
       if (next !== parsed) {
         await writeMarkdownAtomic(
@@ -81,19 +98,33 @@ export class VaultMemoryFiles {
           rel,
           serializeMemoryFile(next),
         );
-        if (commit) {
+        if (
+          commit &&
+          shouldCommit(parsed.memory.scope, this.cfg.trackUsersInGit)
+        ) {
           try {
-            await this.gitOps.stageAndCommit(
+            await this.cfg.gitOps.stageAndCommit(
               [rel],
               commit.subject,
               commit.trailer,
             );
           } catch (err) {
-            logger.warn("vault git commit failed; continuing", {
-              rel,
-              action: commit.trailer.action,
-              err,
-            });
+            if (err instanceof VaultGitNothingToCommitError) {
+              // Identical-content write; no history to record.
+              logger.debug("vault git nothing to commit", {
+                rel,
+                action: commit.trailer.action,
+              });
+            } else {
+              // Markdown is already durable; git is the audit trail.
+              // Surface real failures so operators see the drift,
+              // then continue — the user-facing op already succeeded.
+              logger.error("vault git commit failed; markdown/git drift", {
+                rel,
+                action: commit.trailer.action,
+                err,
+              });
+            }
           }
         }
       }
@@ -113,6 +144,12 @@ export class VaultMemoryFiles {
     }
     return out;
   }
+}
+
+// User-scope writes only commit when the caller opted in; otherwise
+// the path is gitignored and staging would no-op.
+function shouldCommit(scope: string, trackUsersInGit: boolean): boolean {
+  return scope !== "user" || trackUsersInGit;
 }
 
 async function parseAt(root: string, rel: string): Promise<ParsedMemoryFile> {

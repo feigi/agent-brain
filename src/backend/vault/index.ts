@@ -55,23 +55,37 @@ export class VaultBackend implements StorageBackend {
     private readonly vectorIndex: VaultVectorIndex,
     root: string,
     gitOps: GitOps,
+    trackUsersInGit: boolean,
   ) {
     this.memoryRepo = memoryRepo;
     this.workspaceRepo = new VaultWorkspaceRepository({ root, gitOps });
-    this.commentRepo = new VaultCommentRepository({ root, gitOps });
+    this.commentRepo = new VaultCommentRepository({
+      root,
+      gitOps,
+      trackUsersInGit,
+    });
     this.sessionRepo = new VaultSessionTrackingRepository({ root });
     this.sessionLifecycleRepo = new VaultSessionRepository({ root });
     this.auditRepo = new VaultAuditRepository({ root });
-    this.flagRepo = new VaultFlagRepository({ root, gitOps });
-    this.relationshipRepo = new VaultRelationshipRepository({ root, gitOps });
+    this.flagRepo = new VaultFlagRepository({
+      root,
+      gitOps,
+      trackUsersInGit,
+    });
+    this.relationshipRepo = new VaultRelationshipRepository({
+      root,
+      gitOps,
+      trackUsersInGit,
+    });
     this.schedulerStateRepo = new VaultSchedulerStateRepository({ root });
   }
 
   static async create(cfg: VaultBackendConfig): Promise<VaultBackend> {
     await mkdir(cfg.root, { recursive: true });
+    const trackUsersInGit = cfg.trackUsersInGit ?? false;
     await ensureVaultGit({
       root: cfg.root,
-      trackUsers: cfg.trackUsersInGit ?? false,
+      trackUsers: trackUsersInGit,
     });
     const gitOps: GitOps = new GitOpsImpl({ root: cfg.root });
     const vectorIndex = await VaultVectorIndex.create({
@@ -82,9 +96,15 @@ export class VaultBackend implements StorageBackend {
       root: cfg.root,
       index: vectorIndex,
       gitOps,
-      trackUsersInGit: cfg.trackUsersInGit ?? false,
+      trackUsersInGit,
     });
-    return new VaultBackend(memoryRepo, vectorIndex, cfg.root, gitOps);
+    return new VaultBackend(
+      memoryRepo,
+      vectorIndex,
+      cfg.root,
+      gitOps,
+      trackUsersInGit,
+    );
   }
 
   async close(): Promise<void> {

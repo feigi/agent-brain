@@ -37,22 +37,83 @@ function makeUserScoped(id: string): Memory & { embedding: number[] } {
   };
 }
 
+async function removeUsersRule(root: string): Promise<void> {
+  const path = join(root, ".gitignore");
+  const body = await readFile(path, "utf8");
+  await writeFile(
+    path,
+    body
+      .split("\n")
+      .filter((l) => l.trim() !== "users/")
+      .join("\n"),
+    "utf8",
+  );
+}
+
 describe("users-gitignore invariant — vault", () => {
   it("refuses user-scope create when users/ rule is removed", async () => {
     const backend: TestBackend = await vaultGitFactory.create();
     try {
-      const path = join(backend.gitRoot!, ".gitignore");
-      const body = await readFile(path, "utf8");
-      await writeFile(
-        path,
-        body
-          .split("\n")
-          .filter((l) => l.trim() !== "users/")
-          .join("\n"),
-        "utf8",
-      );
+      await removeUsersRule(backend.gitRoot!);
       await expect(
         backend.memoryRepo.create(makeUserScoped("m-u1")),
+      ).rejects.toThrow(DomainError);
+    } finally {
+      await backend.close();
+    }
+  });
+
+  it("refuses user-scope update when users/ rule is removed", async () => {
+    const backend: TestBackend = await vaultGitFactory.create();
+    try {
+      const m = await backend.memoryRepo.create(makeUserScoped("m-u-upd"));
+      await removeUsersRule(backend.gitRoot!);
+      await expect(
+        backend.memoryRepo.update(m.id, m.version, { content: "x" }),
+      ).rejects.toThrow(DomainError);
+    } finally {
+      await backend.close();
+    }
+  });
+
+  it("refuses user-scope verify when users/ rule is removed", async () => {
+    const backend: TestBackend = await vaultGitFactory.create();
+    try {
+      await backend.memoryRepo.create(makeUserScoped("m-u-ver"));
+      await removeUsersRule(backend.gitRoot!);
+      await expect(backend.memoryRepo.verify("m-u-ver", "bob")).rejects.toThrow(
+        DomainError,
+      );
+    } finally {
+      await backend.close();
+    }
+  });
+
+  it("refuses user-scope archive when users/ rule is removed", async () => {
+    const backend: TestBackend = await vaultGitFactory.create();
+    try {
+      await backend.memoryRepo.create(makeUserScoped("m-u-arc"));
+      await removeUsersRule(backend.gitRoot!);
+      await expect(backend.memoryRepo.archive(["m-u-arc"])).rejects.toThrow(
+        DomainError,
+      );
+    } finally {
+      await backend.close();
+    }
+  });
+
+  it("refuses comment on user-scope memory when users/ rule is removed", async () => {
+    const backend: TestBackend = await vaultGitFactory.create();
+    try {
+      await backend.memoryRepo.create(makeUserScoped("m-u-cmt"));
+      await removeUsersRule(backend.gitRoot!);
+      await expect(
+        backend.commentRepo.create({
+          id: "c1",
+          memory_id: "m-u-cmt",
+          author: "alice",
+          content: "leak",
+        }),
       ).rejects.toThrow(DomainError);
     } finally {
       await backend.close();

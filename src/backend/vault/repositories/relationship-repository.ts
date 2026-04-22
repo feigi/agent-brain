@@ -7,7 +7,8 @@ import { commitSubject, compareByCreatedAsc } from "./util.js";
 
 export interface VaultRelationshipConfig {
   root: string;
-  gitOps?: GitOps;
+  gitOps: GitOps;
+  trackUsersInGit?: boolean;
 }
 
 // Relationships live in the source memory's file under `## Relationships`.
@@ -17,7 +18,11 @@ export class VaultRelationshipRepository implements RelationshipRepository {
   private readonly files: VaultMemoryFiles;
 
   constructor(cfg: VaultRelationshipConfig) {
-    this.files = new VaultMemoryFiles({ root: cfg.root, gitOps: cfg.gitOps });
+    this.files = new VaultMemoryFiles({
+      root: cfg.root,
+      gitOps: cfg.gitOps,
+      trackUsersInGit: cfg.trackUsersInGit ?? false,
+    });
   }
 
   async create(relationship: Relationship): Promise<Relationship> {

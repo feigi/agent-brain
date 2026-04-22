@@ -39,20 +39,23 @@ import { withFileLock } from "../io/lock.js";
 import { VaultVectorIndex } from "../vector/lance-index.js";
 import { contentHash } from "../vector/hash.js";
 import { logger } from "../../../utils/logger.js";
-import type { CommitTrailer, GitOps } from "../git/types.js";
-import { NOOP_GIT_OPS } from "../git/types.js";
+import {
+  VaultGitNothingToCommitError,
+  type CommitTrailer,
+  type GitOps,
+} from "../git/types.js";
 import { assertUsersIgnored } from "../git/users-gitignore-invariant.js";
 import { commitSubject } from "./util.js";
 
 export interface VaultMemoryConfig {
   root: string;
   index: VaultVectorIndex;
-  gitOps?: GitOps;
+  gitOps: GitOps;
   // When true, user-scope memories are committed alongside
-  // workspace/project ones. Default false: `users/` stays gitignored
+  // workspace/project ones. Default false: users/ stays gitignored
   // and its writes skip the commit step entirely (the path is ignored
-  // by .gitignore so `git add` would no-op and `stageAndCommit` would
-  // throw "nothing to commit").
+  // by .gitignore so `git add` would no-op and stageAndCommit would
+  // throw VaultGitNothingToCommitError).
   trackUsersInGit?: boolean;
 }
 
@@ -73,7 +76,7 @@ export class VaultMemoryRepository implements MemoryRepository {
     initialIndex: Map<string, IndexEntry>,
   ) {
     this.index = initialIndex;
-    this.gitOps = cfg.gitOps ?? NOOP_GIT_OPS;
+    this.gitOps = cfg.gitOps;
     this.trackUsersInGit = cfg.trackUsersInGit ?? false;
   }
 
@@ -115,7 +118,7 @@ export class VaultMemoryRepository implements MemoryRepository {
     if (
       memory.scope === "user" &&
       !this.trackUsersInGit &&
-      this.gitOps !== NOOP_GIT_OPS
+      this.gitOps.enabled
     ) {
       await assertUsersIgnored(this.cfg.root);
     }
@@ -236,7 +239,7 @@ export class VaultMemoryRepository implements MemoryRepository {
     if (
       entry.scope === "user" &&
       !this.trackUsersInGit &&
-      this.gitOps !== NOOP_GIT_OPS
+      this.gitOps.enabled
     ) {
       await assertUsersIgnored(this.cfg.root);
     }
@@ -338,6 +341,13 @@ export class VaultMemoryRepository implements MemoryRepository {
     for (const id of ids) {
       const entry = this.index.get(id);
       if (!entry) continue;
+      if (
+        entry.scope === "user" &&
+        !this.trackUsersInGit &&
+        this.gitOps.enabled
+      ) {
+        await assertUsersIgnored(this.cfg.root);
+      }
       const abs = join(this.cfg.root, entry.path);
       await withFileLock(abs, async () => {
         const raw = await readMarkdown(this.cfg.root, entry.path);
@@ -396,7 +406,7 @@ export class VaultMemoryRepository implements MemoryRepository {
     if (
       entry.scope === "user" &&
       !this.trackUsersInGit &&
-      this.gitOps !== NOOP_GIT_OPS
+      this.gitOps.enabled
     ) {
       await assertUsersIgnored(this.cfg.root);
     }
@@ -689,11 +699,18 @@ export class VaultMemoryRepository implements MemoryRepository {
     try {
       await this.gitOps.stageAndCommit([rel], subject, trailer);
     } catch (err) {
-      logger.warn("vault git commit failed; continuing", {
-        rel,
-        action: trailer.action,
-        err,
-      });
+      if (err instanceof VaultGitNothingToCommitError) {
+        logger.debug("vault git nothing to commit", {
+          rel,
+          action: trailer.action,
+        });
+      } else {
+        logger.error("vault git commit failed; markdown/git drift", {
+          rel,
+          action: trailer.action,
+          err,
+        });
+      }
     }
   }
 }

@@ -68,7 +68,10 @@ describe("vault/git: env isolation under GIT_DIR / GIT_WORK_TREE", () => {
 
   it("ensureVaultGit initializes cfg.root, not the outer repo", async () => {
     await ensureVaultGit({ root, trackUsers: false });
-    expect(await commitCount(root)).toBe(0);
     expect(await simpleGit(root).env(scrubGitEnv()).checkIsRepo()).toBe(true);
+    // Bootstrap commits .gitignore + .gitattributes to the inner repo;
+    // the outer repo must stay untouched despite GIT_DIR pointing at it.
+    expect(await commitCount(root)).toBe(1);
+    expect(await commitCount(outer)).toBe(0);
   });
 });

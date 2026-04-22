@@ -8,6 +8,7 @@ import { DrizzleWorkspaceRepository } from "../../src/repositories/workspace-rep
 import { VaultMemoryRepository } from "../../src/backend/vault/repositories/memory-repository.js";
 import { VaultWorkspaceRepository } from "../../src/backend/vault/repositories/workspace-repository.js";
 import { VaultVectorIndex } from "../../src/backend/vault/vector/lance-index.js";
+import { NOOP_GIT_OPS } from "../../src/backend/vault/git/types.js";
 import { getTestDb, truncateAll } from "../helpers.js";
 import type { Memory } from "../../src/types/memory.js";
 
@@ -38,10 +39,17 @@ describe("vector parity — pg vs vault", () => {
     await truncateAll();
     root = await mkdtemp(join(tmpdir(), "parity-"));
     idx = await VaultVectorIndex.create({ root, dims: DIMS });
-    vault = await VaultMemoryRepository.create({ root, index: idx });
+    vault = await VaultMemoryRepository.create({
+      root,
+      index: idx,
+      gitOps: NOOP_GIT_OPS,
+    });
     pg = new DrizzleMemoryRepository(db);
     await new DrizzleWorkspaceRepository(db).findOrCreate("ws1");
-    await new VaultWorkspaceRepository({ root }).findOrCreate("ws1");
+    await new VaultWorkspaceRepository({
+      root,
+      gitOps: NOOP_GIT_OPS,
+    }).findOrCreate("ws1");
 
     const rng = seedrandom("parity-seed");
     const now = new Date();

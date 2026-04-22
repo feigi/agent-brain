@@ -11,7 +11,8 @@ import {
 
 export interface VaultFlagConfig {
   root: string;
-  gitOps?: GitOps;
+  gitOps: GitOps;
+  trackUsersInGit?: boolean;
 }
 
 // Flags are raised by the consolidation engine, not by a named user,
@@ -22,7 +23,11 @@ export class VaultFlagRepository implements FlagRepository {
   private readonly files: VaultMemoryFiles;
 
   constructor(cfg: VaultFlagConfig) {
-    this.files = new VaultMemoryFiles({ root: cfg.root, gitOps: cfg.gitOps });
+    this.files = new VaultMemoryFiles({
+      root: cfg.root,
+      gitOps: cfg.gitOps,
+      trackUsersInGit: cfg.trackUsersInGit ?? false,
+    });
   }
 
   async create(flag: Flag): Promise<Flag> {

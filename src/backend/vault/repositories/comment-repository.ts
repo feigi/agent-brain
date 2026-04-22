@@ -6,14 +6,19 @@ import { commitSubject, compareByCreatedAsc } from "./util.js";
 
 export interface VaultCommentConfig {
   root: string;
-  gitOps?: GitOps;
+  gitOps: GitOps;
+  trackUsersInGit?: boolean;
 }
 
 export class VaultCommentRepository implements CommentRepository {
   private readonly files: VaultMemoryFiles;
 
   constructor(cfg: VaultCommentConfig) {
-    this.files = new VaultMemoryFiles({ root: cfg.root, gitOps: cfg.gitOps });
+    this.files = new VaultMemoryFiles({
+      root: cfg.root,
+      gitOps: cfg.gitOps,
+      trackUsersInGit: cfg.trackUsersInGit ?? false,
+    });
   }
 
   async create(comment: {

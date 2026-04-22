@@ -3,13 +3,14 @@ import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { VaultWorkspaceRepository } from "../../../../../src/backend/vault/repositories/workspace-repository.js";
+import { NOOP_GIT_OPS } from "../../../../../src/backend/vault/git/types.js";
 
 describe("VaultWorkspaceRepository", () => {
   let root: string;
   let repo: VaultWorkspaceRepository;
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), "vault-ws-"));
-    repo = new VaultWorkspaceRepository({ root });
+    repo = new VaultWorkspaceRepository({ root, gitOps: NOOP_GIT_OPS });
   });
   afterEach(async () => {
     await rm(root, { recursive: true, force: true });

@@ -6,13 +6,12 @@ import { workspaceMetaPath } from "../io/paths.js";
 import { readMarkdown, writeMarkdownAtomic } from "../io/vault-fs.js";
 import { withFileLock } from "../io/lock.js";
 import { logger } from "../../../utils/logger.js";
-import type { GitOps } from "../git/types.js";
-import { NOOP_GIT_OPS } from "../git/types.js";
+import { VaultGitNothingToCommitError, type GitOps } from "../git/types.js";
 import { commitSubject } from "./util.js";
 
 export interface VaultWorkspaceConfig {
   root: string;
-  gitOps?: GitOps;
+  gitOps: GitOps;
 }
 
 interface WorkspaceFm {
@@ -24,7 +23,7 @@ export class VaultWorkspaceRepository implements WorkspaceRepository {
   private readonly gitOps: GitOps;
 
   constructor(private readonly cfg: VaultWorkspaceConfig) {
-    this.gitOps = cfg.gitOps ?? NOOP_GIT_OPS;
+    this.gitOps = cfg.gitOps;
   }
 
   async findOrCreate(slug: string): Promise<{ id: string; created_at: Date }> {
@@ -82,10 +81,16 @@ export class VaultWorkspaceRepository implements WorkspaceRepository {
           },
         );
       } catch (err) {
-        logger.warn("vault git commit failed on workspace upsert; continuing", {
-          rel,
-          err,
-        });
+        if (err instanceof VaultGitNothingToCommitError) {
+          logger.debug("vault git nothing to commit for workspace upsert", {
+            rel,
+          });
+        } else {
+          logger.error(
+            "vault git commit failed on workspace upsert; markdown/git drift",
+            { rel, err },
+          );
+        }
       }
     }
 
