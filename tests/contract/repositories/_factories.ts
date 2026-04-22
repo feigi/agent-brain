@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { simpleGit } from "simple-git";
 import { VaultMemoryRepository } from "../../../src/backend/vault/repositories/memory-repository.js";
 import { VaultWorkspaceRepository } from "../../../src/backend/vault/repositories/workspace-repository.js";
 import { VaultAuditRepository } from "../../../src/backend/vault/repositories/audit-repository.js";
@@ -10,6 +11,9 @@ import { VaultSessionRepository } from "../../../src/backend/vault/repositories/
 import { VaultCommentRepository } from "../../../src/backend/vault/repositories/comment-repository.js";
 import { VaultFlagRepository } from "../../../src/backend/vault/repositories/flag-repository.js";
 import { VaultRelationshipRepository } from "../../../src/backend/vault/repositories/relationship-repository.js";
+import { ensureVaultGit } from "../../../src/backend/vault/git/bootstrap.js";
+import { GitOpsImpl } from "../../../src/backend/vault/git/git-ops.js";
+import { scrubGitEnv } from "../../../src/backend/vault/git/env.js";
 import type {
   AuditRepository,
   CommentRepository,
@@ -34,6 +38,8 @@ export interface TestBackend {
   commentRepo: CommentRepository;
   flagRepo: FlagRepository;
   relationshipRepo: RelationshipRepository;
+  // Populated by the vault-git factory; pg + vault (no-git) leave it undefined.
+  gitRoot?: string;
   close(): Promise<void>;
 }
 
@@ -118,3 +124,52 @@ export const vaultFactory: Factory = {
 };
 
 export const factories: Factory[] = [pgFactory, vaultFactory];
+
+// Parallel to vaultFactory but initializes a real git repo inside the
+// vault root and injects GitOpsImpl. Used only by the *-git.test.ts
+// suites that assert commit behavior. Keeping this separate avoids
+// paying the git-init cost on every contract test.
+export const vaultGitFactory: Factory = {
+  name: "vault",
+  async create() {
+    const root = await mkdtemp(join(tmpdir(), "contract-vault-git-"));
+    await ensureVaultGit({ root, trackUsers: false });
+    const cfgGit = simpleGit({ baseDir: root }).env(scrubGitEnv());
+    await cfgGit.addConfig("user.email", "contract@example.com");
+    await cfgGit.addConfig("user.name", "Contract Test");
+    const gitOps = new GitOpsImpl({ root });
+    const { VaultVectorIndex } =
+      await import("../../../src/backend/vault/vector/lance-index.js");
+    const index = await VaultVectorIndex.create({ root, dims: 768 });
+    const memoryRepo = await VaultMemoryRepository.create({
+      root,
+      index,
+      gitOps,
+    });
+    const workspaceRepo = new VaultWorkspaceRepository({ root, gitOps });
+    const auditRepo = new VaultAuditRepository({ root });
+    const schedulerStateRepo = new VaultSchedulerStateRepository({ root });
+    const sessionTrackingRepo = new VaultSessionTrackingRepository({ root });
+    const sessionRepo = new VaultSessionRepository({ root });
+    const commentRepo = new VaultCommentRepository({ root, gitOps });
+    const flagRepo = new VaultFlagRepository({ root, gitOps });
+    const relationshipRepo = new VaultRelationshipRepository({ root, gitOps });
+    return {
+      name: "vault",
+      memoryRepo,
+      workspaceRepo,
+      auditRepo,
+      schedulerStateRepo,
+      sessionTrackingRepo,
+      sessionRepo,
+      commentRepo,
+      flagRepo,
+      relationshipRepo,
+      gitRoot: root,
+      close: async () => {
+        await index.close();
+        await rm(root, { recursive: true, force: true });
+      },
+    };
+  },
+};
