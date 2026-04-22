@@ -188,6 +188,28 @@ export class VaultMemoryRepository implements MemoryRepository {
     return saved.memory;
   }
 
+  /**
+   * Ingests a list of git-relative paths that arrived on disk via an
+   * external mutation (e.g. `git pull`). Entries matching the three
+   * memory directory layouts are added or updated in the in-memory
+   * index so subsequent `findById` calls resolve correctly without a
+   * full process restart.
+   *
+   * Non-memory paths are silently skipped.
+   */
+  syncPaths(paths: string[]): void {
+    for (const rel of paths) {
+      const loc = inferScopeFromPath(rel);
+      if (loc === null) continue;
+      this.index.set(loc.id, {
+        path: rel,
+        scope: loc.scope,
+        workspaceId: loc.workspaceId,
+        userId: loc.userId,
+      });
+    }
+  }
+
   async findById(id: string): Promise<Memory | null> {
     const entry = this.index.get(id);
     if (!entry) return null;

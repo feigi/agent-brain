@@ -1,3 +1,6 @@
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { simpleGit } from "simple-git";
 import { scrubGitEnv } from "../../../src/backend/vault/git/env.js";
 import type { Memory, MemoryScope } from "../../../src/types/memory.js";
@@ -48,4 +51,26 @@ export async function commitCount(root: string): Promise<number> {
 export async function lastCommitMessage(root: string): Promise<string> {
   const log = await simpleGit({ baseDir: root }).env(scrubGitEnv()).log();
   return `${log.latest?.message ?? ""}\n\n${log.latest?.body ?? ""}`;
+}
+
+export async function setupBareAndTwoVaults(): Promise<{
+  dir: string;
+  bare: string;
+  vaultA: string;
+  vaultB: string;
+  cleanup: () => Promise<void>;
+}> {
+  const dir = await mkdtemp(join(tmpdir(), "two-clone-"));
+  const bare = join(dir, "origin.git");
+  await mkdir(bare, { recursive: true });
+  await simpleGit().env(scrubGitEnv()).cwd(bare).init(true);
+  const vaultA = join(dir, "a");
+  const vaultB = join(dir, "b");
+  return {
+    dir,
+    bare,
+    vaultA,
+    vaultB,
+    cleanup: () => rm(dir, { recursive: true, force: true }),
+  };
 }

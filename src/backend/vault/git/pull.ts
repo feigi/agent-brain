@@ -31,7 +31,7 @@ export async function syncFromRemote(
   const preHead = await resolveHead(cfg.git);
 
   try {
-    await cfg.git.pull("origin", undefined, {
+    await cfg.git.pull("origin", "main", {
       "--rebase": null,
       "--autostash": null,
     });

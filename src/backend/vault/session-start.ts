@@ -110,6 +110,13 @@ export interface RunSessionStartConfig {
   embed: Embedder;
   syncFromRemote: () => Promise<SyncResult>;
   pushQueue: PushQueueHandle;
+  /**
+   * Called with the list of git-relative paths that changed during a
+   * pull. Allows callers (e.g. VaultBackend) to refresh derived in-
+   * memory indexes (e.g. VaultMemoryRepository path map) so lookups
+   * that run after sessionStart see the newly-pulled files.
+   */
+  onChangedPaths?: (paths: string[]) => void;
 }
 
 export async function runSessionStart(
@@ -122,6 +129,9 @@ export async function runSessionStart(
 
   let parseErrors = 0;
   if (pull.changedPaths.length > 0) {
+    // Refresh the caller's in-memory path map before reindexing so
+    // that findById calls issued after sessionStart resolve correctly.
+    cfg.onChangedPaths?.(pull.changedPaths);
     const result = await diffReindex({
       paths: pull.changedPaths,
       root: cfg.root,

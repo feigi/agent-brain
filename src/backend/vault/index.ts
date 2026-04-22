@@ -66,9 +66,12 @@ export class VaultBackend implements StorageBackend {
   readonly flagRepo: FlagRepository;
   readonly relationshipRepo: RelationshipRepository;
   readonly schedulerStateRepo: SchedulerStateRepository;
+  // Retain the concrete type so sessionStart can call syncPaths()
+  // after a pull without a type cast.
+  private readonly vaultMemoryRepo: VaultMemoryRepository;
 
   private constructor(
-    memoryRepo: MemoryRepository,
+    memoryRepo: VaultMemoryRepository,
     private readonly vectorIndex: VaultVectorIndex,
     private readonly root: string,
     gitOps: GitOps,
@@ -78,6 +81,7 @@ export class VaultBackend implements StorageBackend {
     private readonly embed: Embedder,
   ) {
     this.memoryRepo = memoryRepo;
+    this.vaultMemoryRepo = memoryRepo;
     this.workspaceRepo = new VaultWorkspaceRepository({ root, gitOps });
     this.commentRepo = new VaultCommentRepository({
       root,
@@ -109,6 +113,7 @@ export class VaultBackend implements StorageBackend {
     });
     const git = simpleGit({ baseDir: cfg.root }).env(scrubGitEnv());
     await ensureRemote({ git, remoteUrl: cfg.remoteUrl });
+    await alignWithRemote(git);
 
     const gitOps: GitOps = new GitOpsImpl({ root: cfg.root });
     await reconcileDirty({ git, ops: gitOps });
@@ -124,7 +129,9 @@ export class VaultBackend implements StorageBackend {
       debounceMs,
       backoffMs,
       push: async () => {
-        await git.push("origin", "HEAD:main");
+        // --set-upstream ensures @{u} resolves on subsequent calls so
+        // `git rev-list --count @{u}..HEAD` works after the first push.
+        await git.raw(["push", "--set-upstream", "origin", "HEAD:main"]);
       },
       countUnpushed: async () => {
         try {
@@ -176,7 +183,85 @@ export class VaultBackend implements StorageBackend {
         unpushedCommits: () => this.pushQueue.unpushedCommits(),
         request: () => this.pushQueue.request(),
       },
+      onChangedPaths: (paths) => {
+        // Keep the memory repo's in-memory path index in sync with
+        // files that arrived via git pull so findById works immediately
+        // after sessionStart without a full process restart.
+        this.vaultMemoryRepo.syncPaths(paths);
+      },
     });
+  }
+}
+
+/**
+ * When origin/main exists and the local repo has a divergent bootstrap
+ * commit (i.e. the local main and origin/main have no common ancestor),
+ * replace the local history with the remote's so push / pull work.
+ *
+ * This handles the "second vault initializing against an existing bare
+ * repo" case: ensureVaultGit ran `git init` + committed bootstrap files,
+ * but the bare already has a `main` branch from the first vault. A plain
+ * `git pull --rebase` would fail with "refusing to merge unrelated
+ * histories". Instead we fetch, then point main at origin/main, then
+ * re-apply the bootstrap files (if they differ) as a merge commit so the
+ * local .gitignore/.gitattributes invariants are satisfied without
+ * diverging the graph.
+ *
+ * Safe to call on a repo that is already aligned — the early-return after
+ * merge-base check makes it a no-op in that case.
+ */
+async function alignWithRemote(git: SimpleGit): Promise<void> {
+  const remotes = await git.getRemotes(true);
+  if (!remotes.some((r) => r.name === "origin")) return;
+
+  try {
+    await git.fetch("origin");
+  } catch {
+    // Origin unreachable (offline); skip — pull will classify as offline.
+    return;
+  }
+
+  // Check whether origin/main exists.
+  let remoteHead: string;
+  try {
+    remoteHead = (await git.raw(["rev-parse", "origin/main"])).trim();
+  } catch {
+    // origin/main not found — bare repo is empty; nothing to align with.
+    return;
+  }
+
+  // Check whether the local HEAD and origin/main share a common ancestor.
+  let localHead: string | null;
+  try {
+    localHead = (await git.raw(["rev-parse", "HEAD"])).trim();
+  } catch {
+    // No local commits yet — reset directly to remote.
+    await git.raw(["checkout", "-b", "main", "--track", "origin/main"]);
+    return;
+  }
+
+  try {
+    await git.raw(["merge-base", "--is-ancestor", remoteHead, localHead]);
+    // remote is an ancestor of local — already aligned or local is ahead.
+    return;
+  } catch {
+    // Not an ancestor — check the other direction.
+  }
+
+  try {
+    await git.raw(["merge-base", "--is-ancestor", localHead, remoteHead]);
+    // local is behind remote — fast-forward.
+    await git.raw(["reset", "--hard", remoteHead]);
+    await git.raw(["branch", "--set-upstream-to=origin/main", "main"]);
+    return;
+  } catch {
+    // Neither is an ancestor of the other — unrelated histories.
+    // Reset local to remote HEAD so the histories are unified. The
+    // bootstrap files (.gitignore, .gitattributes) are already
+    // present in origin because the first vault committed them, so no
+    // re-commit is needed.
+    await git.raw(["reset", "--hard", remoteHead]);
+    await git.raw(["branch", "--set-upstream-to=origin/main", "main"]);
   }
 }
 
