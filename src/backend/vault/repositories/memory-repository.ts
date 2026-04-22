@@ -112,7 +112,11 @@ export class VaultMemoryRepository implements MemoryRepository {
     // Privacy guard: refuse user-scope writes if the .gitignore rule
     // that keeps users/ out of the remote has been removed. Runs
     // before any disk mutation. No-op when trackUsersInGit is enabled.
-    if (memory.scope === "user" && !this.trackUsersInGit) {
+    if (
+      memory.scope === "user" &&
+      !this.trackUsersInGit &&
+      this.gitOps !== NOOP_GIT_OPS
+    ) {
       await assertUsersIgnored(this.cfg.root);
     }
     const loc = locationFor(memory);
@@ -229,7 +233,11 @@ export class VaultMemoryRepository implements MemoryRepository {
       );
     }
 
-    if (entry.scope === "user" && !this.trackUsersInGit) {
+    if (
+      entry.scope === "user" &&
+      !this.trackUsersInGit &&
+      this.gitOps !== NOOP_GIT_OPS
+    ) {
       await assertUsersIgnored(this.cfg.root);
     }
 
@@ -385,7 +393,11 @@ export class VaultMemoryRepository implements MemoryRepository {
   async verify(id: string, verifiedBy: string): Promise<Memory | null> {
     const entry = this.index.get(id);
     if (!entry) return null;
-    if (entry.scope === "user" && !this.trackUsersInGit) {
+    if (
+      entry.scope === "user" &&
+      !this.trackUsersInGit &&
+      this.gitOps !== NOOP_GIT_OPS
+    ) {
       await assertUsersIgnored(this.cfg.root);
     }
     const abs = join(this.cfg.root, entry.path);
