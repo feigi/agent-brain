@@ -1080,9 +1080,12 @@ export class MemoryService {
 
     const timing = Date.now() - start;
 
-    // Backend contract already strips zero/false before returning, so
-    // spreading preserves the "absent = healthy" invariant.
-    const backendMetaFields: BackendSessionStartMeta = { ...backendMeta };
+    // Defense in depth for the "absent = healthy" invariant: backend contract
+    // strips zero/false, but re-filter here so a buggy backend can't surface
+    // a false-positive signal (e.g. unpushed_commits=0) to clients.
+    const backendMetaFields = Object.fromEntries(
+      Object.entries(backendMeta).filter(([, v]) => Boolean(v)),
+    ) as BackendSessionStartMeta;
 
     return {
       data: result.data,
