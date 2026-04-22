@@ -21,6 +21,7 @@ import type { GitOps } from "./git/types.js";
 import { runSessionStart } from "./session-start.js";
 import type { Embedder } from "./session-start.js";
 import { createEmbeddingProvider } from "../../providers/embedding/index.js";
+import { logger } from "../../utils/logger.js";
 import type {
   BackendName,
   StorageBackend,
@@ -273,6 +274,9 @@ async function alignWithRemote(git: SimpleGit): Promise<void> {
     // bootstrap files (.gitignore, .gitattributes) are already
     // present in origin because the first vault committed them, so no
     // re-commit is needed.
+    logger.error(
+      `vault: unrelated-history reset — local HEAD ${localHead} has no common ancestor with origin/main ${remoteHead}; discarding local history. This is safe only for fresh-clone bootstrap; if you have local work, abort and investigate AGENT_BRAIN_VAULT_REMOTE_URL.`,
+    );
     await git.raw(["reset", "--hard", remoteHead]);
     await git.raw(["branch", "--set-upstream-to=origin/main", "main"]);
   }
