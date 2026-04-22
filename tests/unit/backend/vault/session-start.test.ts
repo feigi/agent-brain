@@ -195,13 +195,18 @@ describe("diffReindex", () => {
 function fakeSync(result: {
   offline?: boolean;
   conflict?: boolean;
+  rebaseWedged?: true;
   changedPaths?: string[];
 }) {
-  return async () => ({
-    offline: result.offline ?? false,
-    conflict: result.conflict ?? false,
-    changedPaths: result.changedPaths ?? [],
-  });
+  return async () => {
+    if (result.offline) return { kind: "offline" as const };
+    if (result.conflict) {
+      return result.rebaseWedged
+        ? { kind: "conflict" as const, rebaseWedged: true as const }
+        : { kind: "conflict" as const };
+    }
+    return { kind: "ok" as const, changedPaths: result.changedPaths ?? [] };
+  };
 }
 
 function fakePushQueue(unpushed: number | (() => Promise<number>)) {

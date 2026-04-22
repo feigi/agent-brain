@@ -861,7 +861,7 @@ export class MemoryService {
     // D-34: Auto-create workspace
     await this.workspaceRepo.findOrCreate(workspaceId);
 
-    // Capture backend-specific sync state (vault: pull/push/parse status).
+    // Fields merge into envelope meta — see BackendSessionStartMeta.
     const backendMeta = this.backend ? await this.backend.sessionStart() : {};
 
     // Phase 4: Generate session_id and create session record for budget tracking (D-18)
@@ -1080,23 +1080,9 @@ export class MemoryService {
 
     const timing = Date.now() - start;
 
-    // Merge backend-specific sync state into envelope meta. Zero/false
-    // values are stripped so clients treat absence as healthy.
-    const backendMetaFields: BackendSessionStartMeta = {};
-    if (backendMeta.offline) backendMetaFields.offline = true;
-    if (backendMeta.pull_conflict) backendMetaFields.pull_conflict = true;
-    if (
-      typeof backendMeta.unpushed_commits === "number" &&
-      backendMeta.unpushed_commits > 0
-    ) {
-      backendMetaFields.unpushed_commits = backendMeta.unpushed_commits;
-    }
-    if (
-      typeof backendMeta.parse_errors === "number" &&
-      backendMeta.parse_errors > 0
-    ) {
-      backendMetaFields.parse_errors = backendMeta.parse_errors;
-    }
+    // Backend contract already strips zero/false before returning, so
+    // spreading preserves the "absent = healthy" invariant.
+    const backendMetaFields: BackendSessionStartMeta = { ...backendMeta };
 
     return {
       data: result.data,

@@ -151,6 +151,58 @@ describe("vault two-clone sync", () => {
     }
   }, 30_000);
 
+  it("diverged clone with shared ancestor refuses destructive reset at bootstrap", async () => {
+    const { bare, vaultA, vaultB, cleanup } = await setupBareAndTwoVaults();
+    try {
+      // A seeds the remote.
+      const a = await createBackend(vaultA, bare);
+      await a.memoryRepo.create(makeMemory("from-a"));
+      await waitForPushSettled(vaultA);
+      await a.close();
+
+      // Clone origin into vaultB so both share the bootstrap history,
+      // then diverge: add a local-only commit on B AND a new commit on A
+      // that doesn't exist in B.
+      await simpleGit().env(scrubGitEnv()).clone(bare, vaultB);
+      const gitB = simpleGit({ baseDir: vaultB }).env(scrubGitEnv());
+      await gitB.addConfig("user.email", "b@x", false, "local");
+      await gitB.addConfig("user.name", "b", false, "local");
+
+      // B commits an unpushed local memory.
+      const bLocalOnly = await VaultBackend.create({
+        root: vaultB,
+        embeddingDimensions: DIMS,
+        pushDebounceMs: 10,
+        pushBackoffMs: [50, 200],
+        embed: fakeEmbed(),
+      });
+      await bLocalOnly.memoryRepo.create(makeMemory("from-b-local"));
+      await bLocalOnly.close();
+
+      // A (a third clone) pushes a new commit so origin moves forward
+      // without B's commit.
+      const vaultC = vaultA + "-c";
+      await simpleGit().env(scrubGitEnv()).clone(bare, vaultC);
+      const c = await createBackend(vaultC, bare);
+      await c.memoryRepo.create(makeMemory("from-a-2"));
+      await waitForPushSettled(vaultC);
+      await c.close();
+
+      const headBefore = (await gitB.revparse(["HEAD"])).trim();
+
+      // B now diverges from origin (ahead=1, behind=1) with shared
+      // ancestor — align must throw rather than reset --hard.
+      await expect(createBackend(vaultB, bare)).rejects.toThrow(
+        /shared ancestor/i,
+      );
+
+      const headAfter = (await gitB.revparse(["HEAD"])).trim();
+      expect(headAfter).toBe(headBefore);
+    } finally {
+      await cleanup();
+    }
+  }, 30_000);
+
   it("offline mode: origin unreachable → meta.offline=true, writes still commit", async () => {
     const { bare, vaultA, cleanup } = await setupBareAndTwoVaults();
     try {

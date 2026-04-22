@@ -1,6 +1,7 @@
 import { simpleGit, type SimpleGit } from "simple-git";
 import { formatTrailers } from "./trailers.js";
 import { scrubGitEnv } from "./env.js";
+import { logger } from "../../../utils/logger.js";
 import {
   VaultGitNothingToCommitError,
   type CommitTrailer,
@@ -60,13 +61,13 @@ export class GitOpsImpl implements GitOps {
       // land its file under our trailer.
       await this.git.commit(`${subject}\n\n${body}`, paths);
     });
-    // Fire hook after the serialized block resolves so a callback that
-    // itself calls into git cannot deadlock on the mutex. Swallow hook
-    // errors — this is fire-and-forget.
+    // Fire outside serialize so a hook that calls into git can't deadlock on the mutex.
     try {
       this.afterCommit?.();
-    } catch {
-      // ignored
+    } catch (err) {
+      logger.error(
+        `vault: afterCommit hook threw; push may not be scheduled: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 

@@ -1,63 +1,44 @@
 import type { SimpleGit } from "simple-git";
 import { logger } from "../../../utils/logger.js";
+import { OFFLINE_RE } from "./pull.js";
 
-/**
- * Aligns the local repo with origin/main when local is behind remote or
- * the two histories are unrelated. Called once during VaultBackend
- * creation, before any push/pull logic runs.
- *
- * Ancestry is computed via `rev-list --count` (numeric) rather than
- * `merge-base --is-ancestor`, so transient git errors do not silently
- * classify as "not an ancestor" and trigger a destructive reset.
- *
- * Behaviour by case:
- *
- * 1. No `origin` remote configured → no-op (local-only vault).
- * 2. Origin unreachable (fetch throws) → no-op; offline handling
- *    deferred to the PushQueue / syncFromRemote path.
- * 3. origin/main does not yet exist (empty bare repo) → no-op; the
- *    first push from this vault will create it.
- * 4. No local commits yet → checks out a new `main` branch tracking
- *    `origin/main` directly.
- * 5. Local is up-to-date with or ahead of origin/main → no-op.
- * 6. Local is strictly behind remote → fast-forward:
- *    `reset --hard <remoteHead>` then
- *    `branch --set-upstream-to=origin/main main`.
- * 7. Histories have diverged AND share a common ancestor → throw. This
- *    is not a bootstrap scenario; destroying local work is unsafe.
- * 8. Histories have diverged AND share NO common ancestor (unrelated)
- *    → `reset --hard <remoteHead>` then set upstream. This is the
- *    fresh second-vault bootstrap case where both clones produced their
- *    own initial commits. Safe only at init time.
- *
- * Note: this function does NOT produce a merge commit. In case 6 and 8
- * it performs a hard reset to `origin/main` and sets the upstream
- * tracking branch.
- */
+const UNBORN_HEAD_RE =
+  /unknown revision|bad revision|does not have any commits yet/i;
+const UNKNOWN_REV_RE =
+  /unknown revision|bad revision|ambiguous argument|Not a valid object name/i;
+
+// Uses numeric `rev-list --count` rather than `merge-base --is-ancestor`
+// so a transient git error cannot silently classify as "not ancestor"
+// and trigger a destructive reset.
 export async function alignWithRemote(git: SimpleGit): Promise<void> {
   const remotes = await git.getRemotes(true);
   if (!remotes.some((r) => r.name === "origin")) return;
 
   try {
     await git.fetch("origin");
-  } catch {
-    // Origin unreachable (offline); skip — pull will classify as offline.
-    return;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (OFFLINE_RE.test(msg)) return;
+    logger.error(`vault align: fetch failed with unexpected error: ${msg}`);
+    throw err;
   }
 
   let remoteHead: string;
   try {
     remoteHead = (await git.raw(["rev-parse", "origin/main"])).trim();
-  } catch {
-    // origin/main not found — bare repo is empty; nothing to align with.
-    return;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (UNKNOWN_REV_RE.test(msg)) return; // bare repo empty
+    throw err;
   }
 
   let localHead: string | null;
   try {
     localHead = (await git.raw(["rev-parse", "HEAD"])).trim();
-  } catch {
-    // No local commits yet — track origin/main directly.
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!UNBORN_HEAD_RE.test(msg)) throw err;
+    logger.info(`vault align: checkout main tracking origin/main`);
     await git.raw(["checkout", "-b", "main", "--track", "origin/main"]);
     return;
   }
@@ -72,8 +53,6 @@ export async function alignWithRemote(git: SimpleGit): Promise<void> {
     return;
   }
 
-  // Diverged — distinguish true unrelated histories (no common ancestor,
-  // bootstrap case) from a shared-ancestor divergence (real local work).
   const mergeBase = await tryMergeBase(git, localHead, remoteHead);
   if (mergeBase !== null) {
     throw new Error(
@@ -97,7 +76,10 @@ async function revListCount(git: SimpleGit, range: string): Promise<number> {
   return n;
 }
 
-/** Returns the merge-base SHA, or null when no common ancestor exists. */
+// Returns the merge-base SHA, or null when no common ancestor exists.
+// Narrows the catch to exit-code 1 / empty stdout — corrupt-repo errors
+// would otherwise silently route to the destructive unrelated-history
+// branch.
 async function tryMergeBase(
   git: SimpleGit,
   a: string,
@@ -106,8 +88,11 @@ async function tryMergeBase(
   try {
     const out = (await git.raw(["merge-base", a, b])).trim();
     return out === "" ? null : out;
-  } catch {
-    // `git merge-base` exits non-zero when there is no common ancestor.
-    return null;
+  } catch (err) {
+    const exit = (err as { exitCode?: number } | undefined)?.exitCode;
+    if (exit === 1) return null;
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.error(`vault align: merge-base failed unexpectedly: ${msg}`);
+    throw err;
   }
 }

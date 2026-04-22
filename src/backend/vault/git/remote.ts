@@ -6,13 +6,16 @@ export interface EnsureRemoteConfig {
   remoteUrl?: string;
 }
 
-/**
- * Adds `origin` to the vault repo when absent and `remoteUrl` is provided.
- * Leaves any existing `origin` alone — users may have configured the
- * remote manually and that intent wins. Mismatches are warn-logged.
- * Idempotent.
- */
-export async function ensureRemote(cfg: EnsureRemoteConfig): Promise<void> {
+export interface EnsureRemoteResult {
+  mismatch?: { configured: string; actual: string };
+}
+
+// Leave existing origin in place — operator intent wins; mismatch is
+// surfaced via boot meta so the operator sees it without digging through
+// logs.
+export async function ensureRemote(
+  cfg: EnsureRemoteConfig,
+): Promise<EnsureRemoteResult> {
   const remotes = await cfg.git.getRemotes(true);
   const origin = remotes.find((r) => r.name === "origin");
   if (origin) {
@@ -20,9 +23,13 @@ export async function ensureRemote(cfg: EnsureRemoteConfig): Promise<void> {
       logger.warn(
         `vault: configured remoteUrl (${cfg.remoteUrl}) differs from existing origin (${origin.refs.fetch}); leaving existing`,
       );
+      return {
+        mismatch: { configured: cfg.remoteUrl, actual: origin.refs.fetch },
+      };
     }
-    return;
+    return {};
   }
-  if (!cfg.remoteUrl) return;
+  if (!cfg.remoteUrl) return {};
   await cfg.git.addRemote("origin", cfg.remoteUrl);
+  return {};
 }

@@ -67,8 +67,7 @@ export class VaultBackend implements StorageBackend {
   readonly flagRepo: FlagRepository;
   readonly relationshipRepo: RelationshipRepository;
   readonly schedulerStateRepo: SchedulerStateRepository;
-  // Retain the concrete type so sessionStart can call syncPaths()
-  // after a pull without a type cast.
+  // Concrete type needed — syncPaths isn't on MemoryRepository.
   private readonly vaultMemoryRepo: VaultMemoryRepository;
 
   private constructor(
@@ -80,6 +79,7 @@ export class VaultBackend implements StorageBackend {
     private readonly git: SimpleGit,
     private readonly pushQueue: PushQueue,
     private readonly embed: Embedder,
+    private readonly bootMeta: Partial<BackendSessionStartMeta>,
   ) {
     this.memoryRepo = memoryRepo;
     this.vaultMemoryRepo = memoryRepo;
@@ -113,11 +113,17 @@ export class VaultBackend implements StorageBackend {
       trackUsers: trackUsersInGit,
     });
     const git = simpleGit({ baseDir: cfg.root }).env(scrubGitEnv());
-    await ensureRemote({ git, remoteUrl: cfg.remoteUrl });
-    await alignWithRemote(git);
+    const bootMeta: Partial<BackendSessionStartMeta> = {};
+    const remoteResult = await ensureRemote({ git, remoteUrl: cfg.remoteUrl });
+    if (remoteResult.mismatch) bootMeta.remote_mismatch = remoteResult.mismatch;
 
     const gitOps: GitOps = new GitOpsImpl({ root: cfg.root });
-    await reconcileDirty({ git, ops: gitOps });
+    // Reconcile BEFORE align: a post-crash dirty tree must land as a
+    // commit first, otherwise align's `reset --hard` on the
+    // unrelated-history bootstrap path silently discards it.
+    const reconcile = await reconcileDirty({ git, ops: gitOps });
+    if (reconcile.failed) bootMeta.reconcile_failed = true;
+    await alignWithRemote(git);
 
     const vectorIndex = await VaultVectorIndex.create({
       root: cfg.root,
@@ -125,21 +131,25 @@ export class VaultBackend implements StorageBackend {
     });
 
     const debounceMs = cfg.pushDebounceMs ?? 5000;
+    // Backoff: fast first retry for transient blips, then exponential to
+    // a 30-min cap so we don't tight-loop against a broken remote.
     const backoffMs = cfg.pushBackoffMs ?? [5000, 30000, 300000, 1800000];
     const pushQueue = new PushQueue({
       debounceMs,
       backoffMs,
       push: async () => {
-        // --set-upstream ensures @{u} resolves on subsequent calls so
-        // `git rev-list --count @{u}..HEAD` works after the first push.
+        // --set-upstream so @{u} resolves on subsequent calls and the
+        // unpushed-count query works post-first-push.
         await git.raw(["push", "--set-upstream", "origin", "HEAD:main"]);
       },
       countUnpushed: async () => {
-        // Throws when @{u} is not yet configured (pre-first-push). The
-        // PushQueue.unpushedCommits() wrapper logs and returns 0 for that
-        // and any other failure.
+        // Throws pre-first-push when @{u} is unset — caller classifies.
         const out = await git.raw(["rev-list", "--count", "@{u}..HEAD"]);
-        return Number(out.trim()) || 0;
+        const n = Number.parseInt(out.trim(), 10);
+        if (!Number.isFinite(n)) {
+          throw new Error(`rev-list --count returned ${out.trim()}`);
+        }
+        return n;
       },
     });
 
@@ -165,6 +175,7 @@ export class VaultBackend implements StorageBackend {
       git,
       pushQueue,
       embed,
+      bootMeta,
     );
   }
 
@@ -174,22 +185,28 @@ export class VaultBackend implements StorageBackend {
   }
 
   async sessionStart(): Promise<BackendSessionStartMeta> {
-    return runSessionStart({
+    const meta = await runSessionStart({
       root: this.root,
       vectorIndex: this.vectorIndex,
       embed: this.embed,
       syncFromRemote: () => syncFromRemote({ git: this.git }),
       pushQueue: {
         unpushedCommits: () => this.pushQueue.unpushedCommits(),
+        lastPushError: () => this.pushQueue.lastPushError(),
         request: () => this.pushQueue.request(),
       },
       onChangedPaths: (paths) => {
-        // Keep the memory repo's in-memory path index in sync with
-        // files that arrived via git pull so findById works immediately
-        // after sessionStart without a full process restart.
+        // Pulled files need path-index refresh or findById misses until restart.
         this.vaultMemoryRepo.syncPaths(paths);
       },
     });
+    // Boot-time meta (remote_mismatch, reconcile_failed) is sticky for
+    // the life of the backend — clients should see it on every session
+    // start until the process is restarted with a fixed config.
+    if (this.bootMeta.remote_mismatch)
+      meta.remote_mismatch = this.bootMeta.remote_mismatch;
+    if (this.bootMeta.reconcile_failed) meta.reconcile_failed = true;
+    return meta;
   }
 }
 

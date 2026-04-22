@@ -2,13 +2,11 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { parseMemoryFile } from "./parser/memory-parser.js";
+import { inferScopeFromPath } from "./io/paths.js";
 import type { VaultVectorIndex, IndexRow } from "./vector/lance-index.js";
 import type { BackendSessionStartMeta } from "../types.js";
 import type { SyncResult } from "./git/pull.js";
 import { logger } from "../../utils/logger.js";
-
-const MEMORY_PATH_RE =
-  /^(workspaces\/[^/]+\/memories\/|project\/memories\/|users\/[^/]+\/memories\/).+\.md$/;
 
 export type Embedder = (text: string) => Promise<number[]>;
 
@@ -28,21 +26,28 @@ export async function diffReindex(
 ): Promise<DiffReindexResult> {
   let parseErrors = 0;
   for (const rel of cfg.paths) {
-    if (!MEMORY_PATH_RE.test(rel)) continue;
+    if (inferScopeFromPath(rel) === null) continue;
     const abs = join(cfg.root, rel);
     let raw: string;
     try {
       raw = await readFile(abs, "utf8");
     } catch (err) {
-      logger.debug(
-        `diffReindex: skip unreadable ${rel}: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      const msg = err instanceof Error ? err.message : String(err);
+      const code = (err as NodeJS.ErrnoException | undefined)?.code;
+      if (code === "ENOENT") {
+        logger.debug(`diffReindex: skip missing ${rel}: ${msg}`);
+      } else {
+        logger.warn(`diffReindex: unreadable ${rel}: ${msg}`);
+      }
       continue;
     }
     let parsed: ReturnType<typeof parseMemoryFile>;
     try {
       parsed = parseMemoryFile(raw);
-    } catch {
+    } catch (err) {
+      logger.warn(
+        `diffReindex: parse failed for ${rel}: ${err instanceof Error ? err.message : String(err)}`,
+      );
       parseErrors += 1;
       continue;
     }
@@ -101,6 +106,7 @@ function buildRow(
 
 export interface PushQueueHandle {
   unpushedCommits(): Promise<number>;
+  lastPushError?(): string | null;
   request(): void;
 }
 
@@ -110,12 +116,7 @@ export interface RunSessionStartConfig {
   embed: Embedder;
   syncFromRemote: () => Promise<SyncResult>;
   pushQueue: PushQueueHandle;
-  /**
-   * Called with the list of git-relative paths that changed during a
-   * pull. Allows callers (e.g. VaultBackend) to refresh derived in-
-   * memory indexes (e.g. VaultMemoryRepository path map) so lookups
-   * that run after sessionStart see the newly-pulled files.
-   */
+  // Ordering matters: callback runs before reindex so findById resolves.
   onChangedPaths?: (paths: string[]) => void;
 }
 
@@ -124,26 +125,37 @@ export async function runSessionStart(
 ): Promise<BackendSessionStartMeta> {
   const meta: BackendSessionStartMeta = {};
   const pull = await cfg.syncFromRemote();
-  if (pull.offline) meta.offline = true;
-  if (pull.conflict) meta.pull_conflict = true;
 
   let parseErrors = 0;
-  if (pull.changedPaths.length > 0) {
-    // Refresh the caller's in-memory path map before reindexing so
-    // that findById calls issued after sessionStart resolve correctly.
-    cfg.onChangedPaths?.(pull.changedPaths);
-    const result = await diffReindex({
-      paths: pull.changedPaths,
-      root: cfg.root,
-      vectorIndex: cfg.vectorIndex,
-      embed: cfg.embed,
-    });
-    parseErrors = result.parseErrors;
+  switch (pull.kind) {
+    case "offline":
+      meta.offline = true;
+      break;
+    case "conflict":
+      meta.pull_conflict = true;
+      if (pull.rebaseWedged) meta.rebase_wedged = true;
+      break;
+    case "ok":
+      if (pull.changedPaths.length > 0) {
+        cfg.onChangedPaths?.(pull.changedPaths);
+        const result = await diffReindex({
+          paths: pull.changedPaths,
+          root: cfg.root,
+          vectorIndex: cfg.vectorIndex,
+          embed: cfg.embed,
+        });
+        parseErrors = result.parseErrors;
+      }
+      break;
   }
   if (parseErrors > 0) meta.parse_errors = parseErrors;
 
   const unpushed = await cfg.pushQueue.unpushedCommits();
   if (unpushed > 0) meta.unpushed_commits = unpushed;
+  if (unpushed > 0) {
+    const lastErr = cfg.pushQueue.lastPushError?.();
+    if (lastErr) meta.last_push_error = lastErr;
+  }
   cfg.pushQueue.request(); // kick drain
 
   return meta;

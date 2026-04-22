@@ -1,5 +1,6 @@
 import type { SimpleGit } from "simple-git";
 import { logger } from "../../../utils/logger.js";
+import { inferScopeFromPath } from "../io/paths.js";
 import type { GitOps } from "./types.js";
 
 export interface ReconcileConfig {
@@ -7,28 +8,25 @@ export interface ReconcileConfig {
   ops: GitOps;
 }
 
-const MEMORY_PATH_RE =
-  /^(workspaces\/[^/]+\/memories\/|project\/memories\/|users\/[^/]+\/memories\/).+\.md$/;
+export interface ReconcileResult {
+  failed: boolean;
+}
 
 /**
  * Recovers from a crash between "markdown write succeeded" and "git commit
- * landed". Collects dirty tracked memory markdown files and folds them
- * into a single commit with trailer `AB-Action: reconcile`.
- *
- * Only modified and deleted tracked files are included. Untracked files
- * are skipped — auto-committing unreviewed markdown on startup is unsafe.
- * Non-memory dirty files are also ignored so operator edits to README
- * etc. are never swept up by agent-brain.
+ * landed". Folds dirty tracked memory markdown into one `AB-Action: reconcile`
+ * commit. Skips untracked files — auto-committing unreviewed markdown is
+ * unsafe.
  */
-export async function reconcileDirty(cfg: ReconcileConfig): Promise<void> {
-  if (!cfg.ops.enabled) return;
+export async function reconcileDirty(
+  cfg: ReconcileConfig,
+): Promise<ReconcileResult> {
+  if (!cfg.ops.enabled) return { failed: false };
   const status = await cfg.git.status();
-  // Use only modified and deleted — not_added is untracked and must be
-  // skipped (untracked markdown requires validation before auto-commit).
-  const candidates = [...status.modified, ...status.deleted].filter((p) =>
-    MEMORY_PATH_RE.test(p),
+  const candidates = [...status.modified, ...status.deleted].filter(
+    (p) => inferScopeFromPath(p) !== null,
   );
-  if (candidates.length === 0) return;
+  if (candidates.length === 0) return { failed: false };
 
   try {
     await cfg.ops.stageAndCommit(
@@ -40,9 +38,11 @@ export async function reconcileDirty(cfg: ReconcileConfig): Promise<void> {
         reason: "post-crash-recovery",
       },
     );
+    return { failed: false };
   } catch (err) {
     logger.error(
       `vault reconcile commit failed: ${err instanceof Error ? err.message : String(err)}`,
     );
+    return { failed: true };
   }
 }

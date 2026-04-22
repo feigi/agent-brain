@@ -3,10 +3,6 @@ import type { FlagResponse } from "./flag.js";
 import type { BackendSessionStartMeta } from "../backend/types.js";
 
 // D-02: Envelope response structure
-//
-// Backend-contributed sync fields (offline, unpushed_commits, pull_conflict,
-// parse_errors) are defined once on BackendSessionStartMeta and intersected
-// in here so the envelope never drifts from the backend contract.
 export interface Envelope<T> {
   data: T;
   meta: EnvelopeMeta;

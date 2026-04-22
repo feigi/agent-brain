@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, mkdir, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { simpleGit } from "simple-git";
@@ -78,6 +78,81 @@ describe("reconcileDirty", () => {
       await reconcileDirty({ git, ops });
       const after = (await git.log()).total;
       expect(after).toBe(before);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("includes tracked deletions in reconcile commit", async () => {
+    const { root, cleanup } = await makeRepo();
+    try {
+      const git = simpleGit({ baseDir: root }).env(scrubGitEnv());
+      const ops = new GitOpsImpl({ root });
+
+      await mkdir(join(root, "workspaces/ws1/memories"), { recursive: true });
+      await writeFile(join(root, "workspaces/ws1/memories/gone.md"), "v1\n");
+      await git.add("workspaces/ws1/memories/gone.md");
+      await git.commit("seed");
+
+      await unlink(join(root, "workspaces/ws1/memories/gone.md"));
+
+      const result = await reconcileDirty({ git, ops });
+      expect(result.failed).toBe(false);
+
+      const log = await git.log();
+      expect(log.latest?.message).toMatch(/reconcile/i);
+      // File should no longer be in the tree at HEAD.
+      const lsTree = await git.raw(["ls-tree", "-r", "--name-only", "HEAD"]);
+      expect(lsTree).not.toMatch(/gone\.md/);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("collapses dirty memory markdown across workspace, project, and user scopes", async () => {
+    const { root, cleanup } = await makeRepo();
+    try {
+      const git = simpleGit({ baseDir: root }).env(scrubGitEnv());
+      const ops = new GitOpsImpl({ root });
+
+      // Seed one memory of each scope.
+      await mkdir(join(root, "workspaces/ws1/memories"), { recursive: true });
+      await mkdir(join(root, "project/memories"), { recursive: true });
+      await mkdir(join(root, "users/alice/ws1"), { recursive: true });
+      await writeFile(join(root, "workspaces/ws1/memories/w.md"), "v1\n");
+      await writeFile(join(root, "project/memories/p.md"), "v1\n");
+      await writeFile(join(root, "users/alice/ws1/u.md"), "v1\n");
+      await git.add([
+        "workspaces/ws1/memories/w.md",
+        "project/memories/p.md",
+        "users/alice/ws1/u.md",
+      ]);
+      await git.commit("seed");
+
+      // Dirty all three.
+      await writeFile(join(root, "workspaces/ws1/memories/w.md"), "v2\n");
+      await writeFile(join(root, "project/memories/p.md"), "v2\n");
+      await writeFile(join(root, "users/alice/ws1/u.md"), "v2\n");
+
+      await reconcileDirty({ git, ops });
+
+      const showFiles = await git.raw([
+        "show",
+        "--name-only",
+        "--pretty=format:",
+        "HEAD",
+      ]);
+      const files = showFiles
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean);
+      expect(files).toEqual(
+        expect.arrayContaining([
+          "workspaces/ws1/memories/w.md",
+          "project/memories/p.md",
+          "users/alice/ws1/u.md",
+        ]),
+      );
     } finally {
       await cleanup();
     }

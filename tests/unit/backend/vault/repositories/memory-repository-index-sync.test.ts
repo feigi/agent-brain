@@ -313,13 +313,31 @@ describe("VaultMemoryRepository — syncPaths", () => {
     expect(await repo.findById("m1")).toBeNull();
   });
 
-  it("unreadable file: syncPaths registers path, but findById throws on read (file missing)", async () => {
+  it("missing file: syncPaths skips registration so findById returns null (post-delete)", async () => {
     const relPath = "workspaces/ws1/memories/missing.md";
-    // syncPaths itself should not throw even if the file doesn't exist yet.
     expect(() => repo.syncPaths([relPath])).not.toThrow();
-    // The path IS in the index now; findById will attempt to read and reject.
-    await expect(repo.findById("missing")).rejects.toMatchObject({
-      code: "ENOENT",
-    });
+    expect(await repo.findById("missing")).toBeNull();
+  });
+
+  it("remote delete: syncPaths on a path whose file was removed evicts the stale entry", async () => {
+    const relPath = "workspaces/ws1/memories/gone.md";
+    const absPath = join(root, relPath);
+    await mkdir(join(root, "workspaces/ws1/memories"), { recursive: true });
+    await writeFile(
+      absPath,
+      serializeMemoryFile({
+        memory: makeMemory({ id: "gone", workspace_id: "ws1" }),
+        flags: [],
+        comments: [],
+        relationships: [],
+      }),
+    );
+    repo.syncPaths([relPath]);
+    expect((await repo.findById("gone"))?.id).toBe("gone");
+
+    // Simulate a pulled remote delete: file gone, syncPaths called with the path.
+    await rm(absPath);
+    repo.syncPaths([relPath]);
+    expect(await repo.findById("gone")).toBeNull();
   });
 });

@@ -44,20 +44,9 @@ describe("formatTrailers", () => {
     expect(out).not.toContain("AB-Reason");
   });
 
-  it("throws on action requiring memoryId with no id", () => {
-    expect(() =>
-      formatTrailers({ action: "created", actor: "alice" } as CommitTrailer),
-    ).toThrow(/memoryId/);
-  });
-
-  it("throws on workspace_upsert without workspaceId", () => {
-    expect(() =>
-      formatTrailers({
-        action: "workspace_upsert",
-        actor: "alice",
-      } as CommitTrailer),
-    ).toThrow(/workspaceId/);
-  });
+  // Note: CommitTrailer is a discriminated union — `action: "created"` with
+  // no `memoryId` and `action: "workspace_upsert"` with no `workspaceId`
+  // now fail at compile time, so no runtime-throw tests are needed.
 
   it("roundtrips through a conservative trailer parser (property)", () => {
     const actionArb = fc.constantFrom(
@@ -73,10 +62,11 @@ describe("formatTrailers", () => {
     );
     const idArb = fc.stringMatching(/^[a-zA-Z0-9_-]{1,32}$/);
     const actorArb = fc.stringMatching(/^[a-zA-Z0-9_-]{1,32}$/);
+    type MemoryAction = Extract<CommitTrailer, { memoryId: string }>["action"];
     fc.assert(
       fc.property(actionArb, idArb, actorArb, (action, memoryId, actor) => {
         const out = formatTrailers({
-          action: action as CommitTrailer["action"],
+          action: action as MemoryAction,
           memoryId,
           actor,
         });

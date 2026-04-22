@@ -13,13 +13,29 @@ export type CommitAction =
   | "workspace_upsert"
   | "reconcile";
 
-export interface CommitTrailer {
-  action: CommitAction;
-  memoryId?: string;
-  workspaceId?: string;
-  actor: string;
-  reason?: string | null;
-}
+type MemoryAction = Exclude<CommitAction, "workspace_upsert" | "reconcile">;
+
+// Discriminated union — makes illegal (action, required-id) combinations
+// unrepresentable at compile time, so trailers.ts doesn't need runtime
+// guards.
+export type CommitTrailer =
+  | {
+      action: MemoryAction;
+      memoryId: string;
+      actor: string;
+      reason?: string | null;
+    }
+  | {
+      action: "workspace_upsert";
+      workspaceId: string;
+      actor: string;
+      reason?: string | null;
+    }
+  | {
+      action: "reconcile";
+      actor: string;
+      reason?: string | null;
+    };
 
 export interface GitOps {
   // False for the no-op implementation used by test backends that

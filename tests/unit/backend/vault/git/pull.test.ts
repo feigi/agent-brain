@@ -55,9 +55,10 @@ describe("syncFromRemote", () => {
 
       const git = simpleGit({ baseDir: clone }).env(scrubGitEnv());
       const result = await syncFromRemote({ git });
-      expect(result.offline).toBe(false);
-      expect(result.conflict).toBe(false);
-      expect(result.changedPaths).toContain("added.md");
+      expect(result.kind).toBe("ok");
+      if (result.kind === "ok") {
+        expect(result.changedPaths).toContain("added.md");
+      }
     } finally {
       await cleanup();
     }
@@ -68,9 +69,10 @@ describe("syncFromRemote", () => {
     try {
       const git = simpleGit({ baseDir: clone }).env(scrubGitEnv());
       const result = await syncFromRemote({ git });
-      expect(result.offline).toBe(false);
-      expect(result.conflict).toBe(false);
-      expect(result.changedPaths).toEqual([]);
+      expect(result.kind).toBe("ok");
+      if (result.kind === "ok") {
+        expect(result.changedPaths).toEqual([]);
+      }
     } finally {
       await cleanup();
     }
@@ -97,8 +99,7 @@ describe("syncFromRemote", () => {
       await git.commit("local");
 
       const result = await syncFromRemote({ git });
-      expect(result.conflict).toBe(true);
-      expect(result.offline).toBe(false);
+      expect(result.kind).toBe("conflict");
       const status = await git.status();
       expect(status.files).toHaveLength(0); // clean working tree
     } finally {
@@ -106,16 +107,14 @@ describe("syncFromRemote", () => {
     }
   });
 
-  it("network failure → offline=true, no throw", async () => {
+  it("network failure → kind=offline, no throw", async () => {
     const { clone, cleanup } = await setupOriginAndClone();
     try {
       const git = simpleGit({ baseDir: clone }).env(scrubGitEnv());
       // Point origin at a bogus URL.
       await git.remote(["set-url", "origin", "/tmp/does-not-exist-xyz"]);
       const result = await syncFromRemote({ git });
-      expect(result.offline).toBe(true);
-      expect(result.conflict).toBe(false);
-      expect(result.changedPaths).toEqual([]);
+      expect(result.kind).toBe("offline");
     } finally {
       await cleanup();
     }

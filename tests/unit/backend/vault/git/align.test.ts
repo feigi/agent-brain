@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { simpleGit, type SimpleGit } from "simple-git";
 import { scrubGitEnv } from "../../../../../src/backend/vault/git/env.js";
 import { alignWithRemote } from "../../../../../src/backend/vault/git/align.js";
+import { logger } from "../../../../../src/utils/logger.js";
 
 interface OriginAndClone {
   origin: string;
@@ -174,8 +175,9 @@ describe("alignWithRemote", () => {
     }
   });
 
-  it("hard-resets to remote when histories are unrelated (no common ancestor)", async () => {
+  it("hard-resets to remote when histories are unrelated (no common ancestor) and logs error", async () => {
     const dir = await mkdtemp(join(tmpdir(), "align-test-"));
+    const errorSpy = vi.spyOn(logger, "error").mockImplementation(() => {});
     try {
       const origin = join(dir, "origin.git");
       const seed = join(dir, "seed");
@@ -183,7 +185,6 @@ describe("alignWithRemote", () => {
       await mkdir(origin);
       await initBareMain(origin);
 
-      // Populate origin via seed clone.
       await simpleGit().env(scrubGitEnv()).clone(origin, seed);
       await configureIdentity(seed);
       const seedGit = simpleGit({ baseDir: seed }).env(scrubGitEnv());
@@ -191,9 +192,6 @@ describe("alignWithRemote", () => {
       await seedGit.push("origin", "HEAD:main");
       const remoteHeadSha = (await seedGit.revparse(["HEAD"])).trim();
 
-      // Fresh repo with its OWN initial commit and origin pointing at the
-      // pre-populated bare — simulates a second-vault bootstrap where
-      // ensureVaultGit ran locally before the first fetch.
       await mkdir(fresh);
       const freshGit = simpleGit({ baseDir: fresh }).env(scrubGitEnv());
       await freshGit.init();
@@ -206,7 +204,11 @@ describe("alignWithRemote", () => {
 
       const after = (await freshGit.revparse(["HEAD"])).trim();
       expect(after).toBe(remoteHeadSha);
+      // Destructive branch must log at error severity so the operator notices.
+      const calls = errorSpy.mock.calls.map((c) => String(c[0]));
+      expect(calls.some((m) => /unrelated-history reset/i.test(m))).toBe(true);
     } finally {
+      errorSpy.mockRestore();
       await rm(dir, { recursive: true, force: true });
     }
   });

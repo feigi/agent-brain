@@ -5,19 +5,22 @@ export interface SyncFromRemoteConfig {
   git: SimpleGit;
 }
 
-export interface SyncResult {
-  offline: boolean;
-  conflict: boolean;
-  /** Paths changed by the pull (git-relative, forward-slash). */
-  changedPaths: string[];
-}
+// Discriminated union: callers switch on `kind` rather than checking
+// independent booleans whose combinations are logically impossible.
+export type SyncResult =
+  | { kind: "offline" }
+  | { kind: "conflict"; rebaseWedged?: true }
+  | { kind: "ok"; changedPaths: string[] };
 
 const CONFLICT_RE = /CONFLICT|could not apply|Merge conflict|rebase.*conflict/i;
 
 // Patterns that classify as `offline: true` — we keep serving local data.
+// Auth failures bucket with offline (both mean "can't reach remote; keep
+// serving local"); distinguishing them would complicate client UX without
+// an actionable difference.
 // Anything not matched here (corrupt refs, disk-full, gpg failures,
 // unrelated histories, programmer errors) is rethrown so operators notice.
-const OFFLINE_RE =
+export const OFFLINE_RE =
   /Could not resolve host|Could not read from remote repository|Connection (?:refused|timed out|reset)|Operation timed out|Network is unreachable|authentication failed|Permission denied \(publickey|unable to access|no tracking information|couldn't find remote ref|repository .* not found|does not appear to be a git repository/i;
 
 /**
@@ -35,12 +38,14 @@ export async function syncFromRemote(
   // "no tracking information".
   const remotes = await cfg.git.getRemotes(true);
   if (!remotes.some((r) => r.name === "origin")) {
-    return { offline: false, conflict: false, changedPaths: [] };
+    return { kind: "ok", changedPaths: [] };
   }
 
   const preHead = await resolveHead(cfg.git);
 
   try {
+    // --autostash handles a dirty tree from a crashed write between
+    // markdown-emit and commit; without it the rebase aborts.
     await cfg.git.pull("origin", "main", {
       "--rebase": null,
       "--autostash": null,
@@ -48,26 +53,33 @@ export async function syncFromRemote(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (CONFLICT_RE.test(msg)) {
+      let wedged = false;
       try {
         await cfg.git.raw(["rebase", "--abort"]);
       } catch (abortErr) {
+        wedged = true;
         logger.error(
           `vault: rebase --abort failed after conflict: ${abortErr instanceof Error ? abortErr.message : String(abortErr)}`,
         );
       }
-      return { offline: false, conflict: true, changedPaths: [] };
+      // Drop any autostash entry restored by abort — we don't want it
+      // accumulating on subsequent pulls, and we never pop it back.
+      await cfg.git.raw(["stash", "drop"]).catch(() => undefined);
+      return wedged
+        ? { kind: "conflict", rebaseWedged: true }
+        : { kind: "conflict" };
     }
     if (OFFLINE_RE.test(msg)) {
       logger.warn(`vault: pull failed, serving local: ${msg}`);
-      return { offline: true, conflict: false, changedPaths: [] };
+      return { kind: "offline" };
     }
     logger.error(`vault: pull failed with unexpected error: ${msg}`);
     throw err;
   }
 
   const postHead = await resolveHead(cfg.git);
-  if (!preHead || !postHead || preHead === postHead) {
-    return { offline: false, conflict: false, changedPaths: [] };
+  if (preHead === null || postHead === null || preHead === postHead) {
+    return { kind: "ok", changedPaths: [] };
   }
   const diff = await cfg.git.raw([
     "diff",
@@ -78,14 +90,24 @@ export async function syncFromRemote(
     .split("\n")
     .map((p) => p.trim())
     .filter((p) => p.length > 0);
-  return { offline: false, conflict: false, changedPaths };
+  return { kind: "ok", changedPaths };
 }
 
+// Returns null for the unborn-HEAD case (fresh init, no commits yet).
+// Other failures (corrupt refs, permission denied) surface — silently
+// returning null would hide pull-produced changes.
 async function resolveHead(git: SimpleGit): Promise<string | null> {
   try {
     const sha = await git.raw(["rev-parse", "HEAD"]);
     return sha.trim();
-  } catch {
-    return null;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (
+      /unknown revision|bad revision|does not have any commits yet/i.test(msg)
+    ) {
+      return null;
+    }
+    logger.error(`vault: rev-parse HEAD failed: ${msg}`);
+    throw err;
   }
 }

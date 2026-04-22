@@ -1,17 +1,12 @@
 import { logger } from "../../../utils/logger.js";
 
 export interface PushQueueConfig {
-  /**
-   * Performs the actual push. Throwing keeps the queue pending; the
-   * queue handles backoff scheduling.
-   */
+  // Throws → queue retains pending state and schedules backoff.
   push: () => Promise<void>;
-  /**
-   * Returns the count of commits between @{u} (upstream) and HEAD.
-   * If absent or throws, unpushedCommits() returns 0.
-   */
   countUnpushed?: () => Promise<number>;
   debounceMs: number;
+  // Backoff: fast first retry for transient blips, then exponential to a
+  // long cap so we don't tight-loop against a broken remote.
   backoffMs: readonly number[];
 }
 
@@ -21,16 +16,12 @@ type State =
   | { kind: "in-flight"; follow: boolean }
   | { kind: "backoff"; timer: NodeJS.Timeout; attempt: number };
 
-/**
- * Debounced, single-flight push queue. `request()` bumps a debounce
- * timer; when it fires, one push runs. Concurrent requests during an
- * in-flight push queue exactly one follow-up on completion.
- */
 export class PushQueue {
   private state: State = { kind: "idle" };
   private closing = false;
   private inFlightPromise: Promise<void> | null = null;
   private attempt = 0;
+  private lastError: string | null = null;
 
   constructor(private readonly cfg: PushQueueConfig) {}
 
@@ -74,11 +65,23 @@ export class PushQueue {
     try {
       return await this.cfg.countUnpushed();
     } catch (err) {
-      logger.warn(
-        `vault: unpushedCommits failed, reporting 0: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      const msg = err instanceof Error ? err.message : String(err);
+      // No upstream yet (pre-first-push) is expected — debug only.
+      if (
+        /no upstream|unknown revision @\{u\}|ambiguous argument '@\{u\}'/i.test(
+          msg,
+        )
+      ) {
+        logger.debug(`vault: unpushedCommits — no upstream yet: ${msg}`);
+        return 0;
+      }
+      logger.warn(`vault: unpushedCommits failed, reporting 0: ${msg}`);
       return 0;
     }
+  }
+
+  lastPushError(): string | null {
+    return this.lastError;
   }
 
   #schedule(): void {
@@ -94,25 +97,35 @@ export class PushQueue {
       .push()
       .then(
         () => {
-          // Success path: drain follow-up if queued.
           const follow = this.state.kind === "in-flight" && this.state.follow;
           this.state = { kind: "idle" };
           this.attempt = 0;
+          this.lastError = null;
           if (follow && !this.closing) {
             this.#schedule();
           }
         },
         (err: unknown) => {
-          // Backoff path: schedule a retry after the appropriate delay.
-          logger.warn(
-            `vault push failed (attempt ${this.attempt + 1}): ${err instanceof Error ? err.message : String(err)}`,
-          );
+          const msg = err instanceof Error ? err.message : String(err);
+          this.lastError = msg;
+          const attemptNum = this.attempt + 1;
+          // Escalate to error once we've exhausted the backoff curve —
+          // operators need a louder signal when retries keep failing.
+          const exhausted = attemptNum >= this.cfg.backoffMs.length;
+          if (exhausted) {
+            logger.error(
+              `vault push failed (attempt ${attemptNum}, exhausted backoff): ${msg}`,
+            );
+          } else {
+            logger.warn(`vault push failed (attempt ${attemptNum}): ${msg}`);
+          }
           if (this.closing) {
+            this.attempt = 0;
             this.state = { kind: "idle" };
             return;
           }
           const ms = this.#backoffMs();
-          this.attempt += 1;
+          this.attempt = attemptNum;
           const timer = setTimeout(() => {
             void this.#runPush();
           }, ms);

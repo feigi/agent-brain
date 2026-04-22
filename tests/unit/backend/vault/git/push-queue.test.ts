@@ -91,6 +91,24 @@ describe("PushQueue debounce + single-flight", () => {
     await closed;
     expect(state.calls).toBe(1);
   });
+
+  it("close() during in-flight reject: no leaked timer, no backoff schedules", async () => {
+    const { push, state } = fakePusher();
+    const q = new PushQueue({ push, debounceMs: 100, backoffMs: [500, 2000] });
+    q.request();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(state.calls).toBe(1);
+
+    // Close arrives before the in-flight push settles.
+    const closed = q.close();
+    state.reject(new Error("boom during close"));
+    await closed;
+
+    // Advance past the full backoff window — no retry should schedule.
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(state.calls).toBe(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });
 
 describe("PushQueue backoff", () => {
