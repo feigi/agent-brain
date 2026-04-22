@@ -15,7 +15,7 @@ export const HOOK_SCRIPTS = [
 ] as const;
 
 export const copilotTarget: Target = {
-  name: "copilot",
+  name: "copilot-cli",
 
   async preflight(home: string) {
     await checkJq();
@@ -43,7 +43,7 @@ export const copilotTarget: Target = {
     );
 
     return {
-      target: "copilot",
+      target: "copilot-cli",
       copies,
       jsonMerges: [
         {

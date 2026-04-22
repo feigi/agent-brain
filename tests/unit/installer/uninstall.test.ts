@@ -131,7 +131,7 @@ describe("installer uninstall", () => {
     await expect(
       runInstaller(
         {
-          targets: ["copilot"],
+          targets: ["copilot-cli"],
           dryRun: false,
           uninstall: true,
           skipEnvBootstrap: true,
@@ -141,10 +141,10 @@ describe("installer uninstall", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("uninstall of copilot removes both JSON files' agent-brain keys", async () => {
+  it("uninstall of copilot-cli removes both JSON files' agent-brain keys", async () => {
     await runInstaller(
       {
-        targets: ["copilot"],
+        targets: ["copilot-cli"],
         dryRun: false,
         uninstall: false,
         skipEnvBootstrap: true,
@@ -153,7 +153,7 @@ describe("installer uninstall", () => {
     );
     await runInstaller(
       {
-        targets: ["copilot"],
+        targets: ["copilot-cli"],
         dryRun: false,
         uninstall: true,
         skipEnvBootstrap: true,

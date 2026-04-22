@@ -1,6 +1,6 @@
 export const ALL_TARGET_NAMES = [
   "claude",
-  "copilot",
+  "copilot-cli",
   "vscode-copilot",
 ] as const;
 export type TargetName = (typeof ALL_TARGET_NAMES)[number];

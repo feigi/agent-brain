@@ -6,7 +6,7 @@ import { atomicWrite, fileExists, writeBackup } from "./fs-util.js";
 
 function hookNamesFor(targetName: string): readonly string[] {
   if (targetName === "claude") return CLAUDE_HOOKS;
-  if (targetName === "copilot") return COPILOT_HOOKS;
+  if (targetName === "copilot-cli") return COPILOT_HOOKS;
   return [];
 }
 

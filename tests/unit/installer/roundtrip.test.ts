@@ -130,7 +130,7 @@ describe("installer round-trip", () => {
       await expect(
         runInstaller(
           {
-            targets: ["claude", "copilot"],
+            targets: ["claude", "copilot-cli"],
             dryRun: false,
             uninstall: false,
             skipEnvBootstrap: true,
