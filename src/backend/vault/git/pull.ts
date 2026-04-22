@@ -12,11 +12,21 @@ export interface SyncResult {
   changedPaths: string[];
 }
 
+const CONFLICT_RE = /CONFLICT|could not apply|Merge conflict|rebase.*conflict/i;
+
+// Patterns that classify as `offline: true` — we keep serving local data.
+// Anything not matched here (corrupt refs, disk-full, gpg failures,
+// unrelated histories, programmer errors) is rethrown so operators notice.
+const OFFLINE_RE =
+  /Could not resolve host|Could not read from remote repository|Connection (?:refused|timed out|reset)|Operation timed out|Network is unreachable|authentication failed|Permission denied \(publickey|unable to access|no tracking information|couldn't find remote ref|repository .* not found|does not appear to be a git repository/i;
+
 /**
  * Runs `git pull --rebase --autostash`. Classifies failures rather than
- * throwing. Rebase conflicts abort via `git rebase --abort` so the working
- * tree returns to the pre-pull HEAD. Network / auth failures surface as
- * `offline: true`. Caller decides whether to serve local stale data.
+ * throwing on the expected network/auth path. Rebase conflicts abort via
+ * `git rebase --abort` so the working tree returns to the pre-pull HEAD.
+ * Known network / auth / missing-upstream errors surface as
+ * `offline: true`. All other errors are rethrown — treating them as offline
+ * masks real failures (corrupt refs, disk-full, gpg, unrelated histories).
  */
 export async function syncFromRemote(
   cfg: SyncFromRemoteConfig,
@@ -37,7 +47,7 @@ export async function syncFromRemote(
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (/CONFLICT|could not apply|Merge conflict|rebase.*conflict/i.test(msg)) {
+    if (CONFLICT_RE.test(msg)) {
       try {
         await cfg.git.raw(["rebase", "--abort"]);
       } catch (abortErr) {
@@ -47,10 +57,12 @@ export async function syncFromRemote(
       }
       return { offline: false, conflict: true, changedPaths: [] };
     }
-    // Treat everything else as offline/transient — network, auth, no
-    // upstream, host unreachable, etc.
-    logger.warn(`vault: pull failed, serving local: ${msg}`);
-    return { offline: true, conflict: false, changedPaths: [] };
+    if (OFFLINE_RE.test(msg)) {
+      logger.warn(`vault: pull failed, serving local: ${msg}`);
+      return { offline: true, conflict: false, changedPaths: [] };
+    }
+    logger.error(`vault: pull failed with unexpected error: ${msg}`);
+    throw err;
   }
 
   const postHead = await resolveHead(cfg.git);

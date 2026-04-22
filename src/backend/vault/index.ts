@@ -17,11 +17,11 @@ import { ensureRemote } from "./git/remote.js";
 import { reconcileDirty } from "./git/reconcile.js";
 import { syncFromRemote } from "./git/pull.js";
 import { PushQueue } from "./git/push-queue.js";
+import { alignWithRemote } from "./git/align.js";
 import type { GitOps } from "./git/types.js";
 import { runSessionStart } from "./session-start.js";
 import type { Embedder } from "./session-start.js";
 import { createEmbeddingProvider } from "../../providers/embedding/index.js";
-import { logger } from "../../utils/logger.js";
 import type {
   BackendName,
   StorageBackend,
@@ -135,12 +135,11 @@ export class VaultBackend implements StorageBackend {
         await git.raw(["push", "--set-upstream", "origin", "HEAD:main"]);
       },
       countUnpushed: async () => {
-        try {
-          const out = await git.raw(["rev-list", "--count", "@{u}..HEAD"]);
-          return Number(out.trim()) || 0;
-        } catch {
-          return 0;
-        }
+        // Throws when @{u} is not yet configured (pre-first-push). The
+        // PushQueue.unpushedCommits() wrapper logs and returns 0 for that
+        // and any other failure.
+        const out = await git.raw(["rev-list", "--count", "@{u}..HEAD"]);
+        return Number(out.trim()) || 0;
       },
     });
 
@@ -191,94 +190,6 @@ export class VaultBackend implements StorageBackend {
         this.vaultMemoryRepo.syncPaths(paths);
       },
     });
-  }
-}
-
-/**
- * Aligns the local repo with origin/main when they have diverged or
- * when local is simply behind remote. Called once during VaultBackend
- * creation, before any push/pull logic runs.
- *
- * Behaviour by case:
- *
- * 1. No `origin` remote configured → no-op (local-only vault).
- * 2. Origin unreachable (fetch throws) → no-op; offline handling
- *    deferred to the PushQueue / syncFromRemote path.
- * 3. origin/main does not yet exist (empty bare repo) → no-op; the
- *    first push from this vault will create it.
- * 4. No local commits yet → checks out a new `main` branch tracking
- *    `origin/main` directly.
- * 5. origin/main is an ancestor of local HEAD (local is ahead or equal)
- *    → already aligned; no-op.
- * 6. local HEAD is an ancestor of origin/main (local is behind) →
- *    fast-forward: `reset --hard <remoteHead>` then
- *    `branch --set-upstream-to=origin/main main`.
- * 7. Unrelated histories (fresh second-vault bootstrap produced a
- *    divergent root commit) → same as case 6: `reset --hard <remoteHead>`
- *    then set upstream. The bootstrap files (.gitignore, .gitattributes)
- *    are already present in origin because the first vault committed them,
- *    so no re-commit is needed. This is safe only at init time (before
- *    any user data has been written to the local repo).
- *
- * Note: this function does NOT produce a merge commit. In all write cases
- * it performs a hard reset to `origin/main` and sets the upstream
- * tracking branch.
- */
-async function alignWithRemote(git: SimpleGit): Promise<void> {
-  const remotes = await git.getRemotes(true);
-  if (!remotes.some((r) => r.name === "origin")) return;
-
-  try {
-    await git.fetch("origin");
-  } catch {
-    // Origin unreachable (offline); skip — pull will classify as offline.
-    return;
-  }
-
-  // Check whether origin/main exists.
-  let remoteHead: string;
-  try {
-    remoteHead = (await git.raw(["rev-parse", "origin/main"])).trim();
-  } catch {
-    // origin/main not found — bare repo is empty; nothing to align with.
-    return;
-  }
-
-  // Check whether the local HEAD and origin/main share a common ancestor.
-  let localHead: string | null;
-  try {
-    localHead = (await git.raw(["rev-parse", "HEAD"])).trim();
-  } catch {
-    // No local commits yet — reset directly to remote.
-    await git.raw(["checkout", "-b", "main", "--track", "origin/main"]);
-    return;
-  }
-
-  try {
-    await git.raw(["merge-base", "--is-ancestor", remoteHead, localHead]);
-    // remote is an ancestor of local — already aligned or local is ahead.
-    return;
-  } catch {
-    // Not an ancestor — check the other direction.
-  }
-
-  try {
-    await git.raw(["merge-base", "--is-ancestor", localHead, remoteHead]);
-    // local is behind remote — fast-forward.
-    await git.raw(["reset", "--hard", remoteHead]);
-    await git.raw(["branch", "--set-upstream-to=origin/main", "main"]);
-    return;
-  } catch {
-    // Neither is an ancestor of the other — unrelated histories.
-    // Reset local to remote HEAD so the histories are unified. The
-    // bootstrap files (.gitignore, .gitattributes) are already
-    // present in origin because the first vault committed them, so no
-    // re-commit is needed.
-    logger.error(
-      `vault: unrelated-history reset — local HEAD ${localHead} has no common ancestor with origin/main ${remoteHead}; discarding local history. This is safe only for fresh-clone bootstrap; if you have local work, abort and investigate AGENT_BRAIN_VAULT_REMOTE_URL.`,
-    );
-    await git.raw(["reset", "--hard", remoteHead]);
-    await git.raw(["branch", "--set-upstream-to=origin/main", "main"]);
   }
 }
 

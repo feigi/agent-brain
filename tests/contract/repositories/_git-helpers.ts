@@ -64,6 +64,11 @@ export async function setupBareAndTwoVaults(): Promise<{
   const bare = join(dir, "origin.git");
   await mkdir(bare, { recursive: true });
   await simpleGit().env(scrubGitEnv()).cwd(bare).init(true);
+  // Pin bare HEAD to `main` so CI (no init.defaultBranch) matches local.
+  await simpleGit()
+    .env(scrubGitEnv())
+    .cwd(bare)
+    .raw(["symbolic-ref", "HEAD", "refs/heads/main"]);
   const vaultA = join(dir, "a");
   const vaultB = join(dir, "b");
   return {

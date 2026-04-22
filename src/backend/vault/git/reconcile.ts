@@ -12,13 +12,13 @@ const MEMORY_PATH_RE =
 
 /**
  * Recovers from a crash between "markdown write succeeded" and "git commit
- * landed" in Phase 4a. Collects dirty tracked memory markdown files and
- * folds them into a single commit with trailer `AB-Action: reconcile`.
+ * landed". Collects dirty tracked memory markdown files and folds them
+ * into a single commit with trailer `AB-Action: reconcile`.
  *
- * Only modified and deleted tracked files are included. Untracked files are
- * ignored (requires validation; defer to Phase 5 watcher). Non-memory dirty
- * files are also ignored — operator edits to README etc. should not be
- * auto-committed by agent-brain on startup.
+ * Only modified and deleted tracked files are included. Untracked files
+ * are skipped — auto-committing unreviewed markdown on startup is unsafe.
+ * Non-memory dirty files are also ignored so operator edits to README
+ * etc. are never swept up by agent-brain.
  */
 export async function reconcileDirty(cfg: ReconcileConfig): Promise<void> {
   if (!cfg.ops.enabled) return;

@@ -16,6 +16,13 @@ async function setupOriginAndClone(): Promise<{
   const clone = join(dir, "clone");
   await mkdir(origin);
   await simpleGit().env(scrubGitEnv()).cwd(origin).init(true);
+  // Force bare HEAD to `main` so environments without init.defaultBranch=main
+  // (e.g. CI) don't leave HEAD pointing at a nonexistent `master` ref, which
+  // breaks subsequent clones and non-ff pushes.
+  await simpleGit()
+    .env(scrubGitEnv())
+    .cwd(origin)
+    .raw(["symbolic-ref", "HEAD", "refs/heads/main"]);
   await simpleGit().env(scrubGitEnv()).clone(origin, clone);
   const git = simpleGit({ baseDir: clone }).env(scrubGitEnv());
   await git.addConfig("user.email", "t@x", false, "local");
@@ -109,6 +116,27 @@ describe("syncFromRemote", () => {
       expect(result.offline).toBe(true);
       expect(result.conflict).toBe(false);
       expect(result.changedPaths).toEqual([]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("unexpected error rethrows instead of masquerading as offline", async () => {
+    const { clone, cleanup } = await setupOriginAndClone();
+    try {
+      const git = simpleGit({ baseDir: clone }).env(scrubGitEnv());
+      const stub = {
+        getRemotes: git.getRemotes.bind(git),
+        raw: git.raw.bind(git),
+        pull: async () => {
+          throw new Error(
+            "fatal: unable to read tree (abc123): corrupt object",
+          );
+        },
+      } as unknown as typeof git;
+      await expect(syncFromRemote({ git: stub })).rejects.toThrow(
+        /corrupt object/,
+      );
     } finally {
       await cleanup();
     }

@@ -2,8 +2,8 @@ import type { CommitTrailer } from "./types.js";
 
 // Maps a CommitTrailer into git-interpret-trailers-compatible lines.
 // Newlines inside free-form fields (reason) are escaped as `\\n` so
-// the trailer block stays a single logical paragraph — git log parsers
-// in Phase 4c split on LF and rely on that.
+// the trailer block stays a single logical paragraph — downstream
+// parsers split on LF and rely on one-line-per-trailer.
 export function formatTrailers(trailer: CommitTrailer): string {
   const lines: string[] = [`AB-Action: ${trailer.action}`];
   if (trailer.action === "workspace_upsert") {

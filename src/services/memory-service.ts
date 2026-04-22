@@ -17,7 +17,10 @@ import type {
 import { toSummary, toDetail } from "../types/memory.js";
 import type { Envelope } from "../types/envelope.js";
 import type { EmbeddingProvider } from "../providers/embedding/types.js";
-import type { StorageBackend } from "../backend/types.js";
+import type {
+  StorageBackend,
+  BackendSessionStartMeta,
+} from "../backend/types.js";
 import type {
   MemoryRepository,
   WorkspaceRepository,
@@ -858,7 +861,7 @@ export class MemoryService {
     // D-34: Auto-create workspace
     await this.workspaceRepo.findOrCreate(workspaceId);
 
-    // Phase 4b: Capture backend-specific sync state (vault: pull/push/parse status)
+    // Capture backend-specific sync state (vault: pull/push/parse status).
     const backendMeta = this.backend ? await this.backend.sessionStart() : {};
 
     // Phase 4: Generate session_id and create session record for budget tracking (D-18)
@@ -1077,13 +1080,9 @@ export class MemoryService {
 
     const timing = Date.now() - start;
 
-    // Phase 4b: Merge backend-specific sync state into envelope meta
-    const backendMetaFields: {
-      offline?: true;
-      unpushed_commits?: number;
-      pull_conflict?: true;
-      parse_errors?: number;
-    } = {};
+    // Merge backend-specific sync state into envelope meta. Zero/false
+    // values are stripped so clients treat absence as healthy.
+    const backendMetaFields: BackendSessionStartMeta = {};
     if (backendMeta.offline) backendMetaFields.offline = true;
     if (backendMeta.pull_conflict) backendMetaFields.pull_conflict = true;
     if (

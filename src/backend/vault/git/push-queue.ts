@@ -2,17 +2,13 @@ import { logger } from "../../../utils/logger.js";
 
 export interface PushQueueConfig {
   /**
-   * Performs the actual push. Injected so unit tests can use a fake
-   * and the real backend wires a simple-git wrapper in Task 11.
-   * Throwing any error keeps the queue in pending state; retry
-   * scheduling is handled by the backoff logic (Task 5).
+   * Performs the actual push. Throwing keeps the queue pending; the
+   * queue handles backoff scheduling.
    */
   push: () => Promise<void>;
   /**
    * Returns the count of commits between @{u} (upstream) and HEAD.
-   * Injected for testability; in the real backend (Task 11), this
-   * shells to `git rev-list --count @{u}..HEAD`. If absent or throws,
-   * unpushedCommits() returns 0.
+   * If absent or throws, unpushedCommits() returns 0.
    */
   countUnpushed?: () => Promise<number>;
   debounceMs: number;
@@ -77,7 +73,10 @@ export class PushQueue {
     if (!this.cfg.countUnpushed) return 0;
     try {
       return await this.cfg.countUnpushed();
-    } catch {
+    } catch (err) {
+      logger.warn(
+        `vault: unpushedCommits failed, reporting 0: ${err instanceof Error ? err.message : String(err)}`,
+      );
       return 0;
     }
   }
