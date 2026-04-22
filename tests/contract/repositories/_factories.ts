@@ -86,7 +86,10 @@ export const vaultFactory: Factory = {
   name: "vault",
   async create() {
     const root = await mkdtemp(join(tmpdir(), "contract-vault-"));
-    const memoryRepo = await VaultMemoryRepository.create({ root });
+    const { VaultVectorIndex } =
+      await import("../../../src/backend/vault/vector/lance-index.js");
+    const index = await VaultVectorIndex.create({ root, dims: 768 });
+    const memoryRepo = await VaultMemoryRepository.create({ root, index });
     const workspaceRepo = new VaultWorkspaceRepository({ root });
     const auditRepo = new VaultAuditRepository({ root });
     const schedulerStateRepo = new VaultSchedulerStateRepository({ root });
@@ -107,6 +110,7 @@ export const vaultFactory: Factory = {
       flagRepo,
       relationshipRepo,
       close: async () => {
+        await index.close();
         await rm(root, { recursive: true, force: true });
       },
     };

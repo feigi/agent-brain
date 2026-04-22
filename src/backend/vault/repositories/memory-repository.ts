@@ -20,7 +20,6 @@ import {
   NotFoundError,
   ValidationError,
 } from "../../../utils/errors.js";
-import { NotImplementedError } from "../errors.js";
 import {
   parseMemoryFile,
   serializeMemoryFile,
@@ -37,9 +36,13 @@ import {
   writeMarkdownAtomic,
 } from "../io/vault-fs.js";
 import { withFileLock } from "../io/lock.js";
+import { VaultVectorIndex } from "../vector/lance-index.js";
+import { contentHash } from "../vector/hash.js";
+import { logger } from "../../../utils/logger.js";
 
 export interface VaultMemoryConfig {
   root: string;
+  index: VaultVectorIndex;
 }
 
 interface IndexEntry {
@@ -81,6 +84,16 @@ export class VaultMemoryRepository implements MemoryRepository {
     if (this.index.has(memory.id)) {
       throw new ConflictError(`memory already exists: ${memory.id}`);
     }
+    // Dimension check before touching the filesystem: after markdown
+    // is durably written, lance failures are swallowed (markdown is
+    // source of truth), so a programmer-error wrong-dim embedding
+    // here would leave the vault permanently out of sync with the
+    // index. Fail fast before any write lands on disk.
+    if (memory.embedding.length !== this.cfg.index.dims) {
+      throw new ValidationError(
+        `vector dimension mismatch: expected ${this.cfg.index.dims}, got ${memory.embedding.length} for id ${memory.id}`,
+      );
+    }
     const loc = locationFor(memory);
     const rel = memoryPath(loc);
     const md = serializeMemoryFile({
@@ -109,6 +122,30 @@ export class VaultMemoryRepository implements MemoryRepository {
       workspaceId: loc.workspaceId,
       userId: loc.userId,
     });
+    // Markdown is source of truth; lance is a derived cache. A lance
+    // failure here leaves the new memory un-indexed until Phase 5's
+    // watcher-driven reindex picks it up. Log and return success.
+    try {
+      await this.cfg.index.upsert([
+        {
+          id: memory.id,
+          project_id: memory.project_id,
+          workspace_id: memory.workspace_id,
+          scope: memory.scope,
+          author: memory.author,
+          title: memory.title,
+          archived: false,
+          content_hash: contentHash(memory.content),
+          vector: memory.embedding,
+        },
+      ]);
+    } catch (err) {
+      logger.warn("lance upsert failed on create; index stale", {
+        id: memory.id,
+        op: "create",
+        err,
+      });
+    }
     const saved = await this.#read(memory.id);
     return saved.memory;
   }
@@ -147,6 +184,20 @@ export class VaultMemoryRepository implements MemoryRepository {
         `Memory ${id} update failed: not found or archived`,
       );
 
+    // Pre-check embedding dim before acquiring the lock; same reason
+    // as create() — markdown write succeeds then the lance call is
+    // swallowed on failure, so dim-mismatch must fail before any on-
+    // disk mutation.
+    if (
+      updates.embedding !== undefined &&
+      updates.embedding !== null &&
+      updates.embedding.length !== this.cfg.index.dims
+    ) {
+      throw new ValidationError(
+        `vector dimension mismatch: expected ${this.cfg.index.dims}, got ${updates.embedding.length} for id ${id}`,
+      );
+    }
+
     const abs = join(this.cfg.root, entry.path);
     return await withFileLock(abs, async () => {
       const raw = await readMarkdown(this.cfg.root, entry.path);
@@ -160,10 +211,9 @@ export class VaultMemoryRepository implements MemoryRepository {
           `Memory ${id} update failed: version mismatch (expected ${expectedVersion}, found ${parsed.memory.version})`,
         );
 
-      // Embedding is stored outside the markdown file; callers may
-      // pass one through but the vault persists only scalar fields.
-      const { embedding: _emb, ...rest } = updates;
-      void _emb;
+      // The markdown file persists only scalar fields; the embedding
+      // (if provided) is written to the vector index below instead.
+      const { embedding, ...rest } = updates;
 
       const next: Memory = {
         ...parsed.memory,
@@ -178,6 +228,49 @@ export class VaultMemoryRepository implements MemoryRepository {
         flags: parsed.flags,
       });
       await writeMarkdownAtomic(this.cfg.root, entry.path, md);
+      try {
+        if (embedding !== undefined && embedding !== null) {
+          await this.cfg.index.upsert([
+            {
+              id: next.id,
+              project_id: next.project_id,
+              workspace_id: next.workspace_id,
+              scope: next.scope,
+              author: next.author,
+              title: next.title,
+              archived: false,
+              content_hash: contentHash(next.content),
+              vector: embedding,
+            },
+          ]);
+        } else {
+          const rowsUpdated = await this.cfg.index.upsertMetaOnly({
+            id: next.id,
+            project_id: next.project_id,
+            workspace_id: next.workspace_id,
+            scope: next.scope,
+            author: next.author,
+            title: next.title,
+            archived: false,
+          });
+          // lancedb's update() is a no-op on zero matches. A missing
+          // row means the lance index and markdown vault have drifted
+          // — e.g. a previous create() swallowed an upsert failure.
+          // Markdown still wins; surface the drift for Phase 5 repair.
+          if (rowsUpdated === 0) {
+            logger.warn("lance meta-only update matched no rows; index drift", {
+              id: next.id,
+              op: "update",
+            });
+          }
+        }
+      } catch (err) {
+        logger.warn("lance upsert failed on update; index stale", {
+          id: next.id,
+          op: "update",
+          err,
+        });
+      }
       const reread = await this.#read(id);
       return reread.memory;
     });
@@ -186,6 +279,7 @@ export class VaultMemoryRepository implements MemoryRepository {
   async archive(ids: string[]): Promise<number> {
     let count = 0;
     const now = new Date();
+    const archived: string[] = [];
     for (const id of ids) {
       const entry = this.index.get(id);
       if (!entry) continue;
@@ -202,7 +296,29 @@ export class VaultMemoryRepository implements MemoryRepository {
         });
         await writeMarkdownAtomic(this.cfg.root, entry.path, md);
         count += 1;
+        archived.push(id);
       });
+    }
+    // One lance failure (or missing row) must not abort archive
+    // propagation for the remaining ids. Markdown is already flipped
+    // for each id in `archived`, so the caller's return count is
+    // accurate regardless of lance outcome.
+    for (const id of archived) {
+      try {
+        const rowsUpdated = await this.cfg.index.markArchived(id);
+        if (rowsUpdated === 0) {
+          logger.warn("lance markArchived matched no rows; index drift", {
+            id,
+            op: "archive",
+          });
+        }
+      } catch (err) {
+        logger.warn("lance markArchived failed; index stale", {
+          id,
+          op: "archive",
+          err,
+        });
+      }
     }
     return count;
   }
@@ -381,26 +497,83 @@ export class VaultMemoryRepository implements MemoryRepository {
     return Array.from(set);
   }
 
-  /* eslint-disable @typescript-eslint/no-unused-vars */
-  async search(_options: SearchOptions): Promise<MemoryWithRelevance[]> {
-    throw new NotImplementedError("search");
+  async search(options: SearchOptions): Promise<MemoryWithRelevance[]> {
+    if (options.scope.length === 0) {
+      throw new ValidationError("scope must contain at least one value");
+    }
+    for (const s of options.scope) {
+      if (s === "user" && !options.user_id) {
+        throw new ValidationError("user_id is required for user-scoped search");
+      }
+    }
+    const hits = await this.cfg.index.search({
+      embedding: options.embedding,
+      projectId: options.project_id,
+      workspaceId: options.workspace_id,
+      scope: options.scope,
+      userId: options.user_id ?? null,
+      limit: options.limit ?? 10,
+      minSimilarity: options.min_similarity ?? 0.3,
+    });
+    const out: MemoryWithRelevance[] = [];
+    for (const h of hits) {
+      const m = await this.findById(h.id);
+      if (m !== null) out.push({ ...m, relevance: h.relevance });
+    }
+    return out;
   }
+
   async findDuplicates(
-    _options: Parameters<MemoryRepository["findDuplicates"]>[0],
+    options: Parameters<MemoryRepository["findDuplicates"]>[0],
   ): ReturnType<MemoryRepository["findDuplicates"]> {
-    throw new NotImplementedError("findDuplicates");
+    if (options.scope === "workspace" && !options.workspaceId) {
+      throw new ValidationError(
+        "workspaceId is required for workspace-scoped dedup",
+      );
+    }
+    if (options.scope === "user" && !options.workspaceId) {
+      throw new ValidationError(
+        "workspaceId is required for user-scoped dedup",
+      );
+    }
+    return await this.cfg.index.findDuplicates({
+      embedding: options.embedding,
+      projectId: options.projectId,
+      workspaceId: options.workspaceId,
+      scope: options.scope,
+      userId: options.userId,
+      threshold: options.threshold,
+    });
   }
+
   async findPairwiseSimilar(
-    _options: Parameters<MemoryRepository["findPairwiseSimilar"]>[0],
+    options: Parameters<MemoryRepository["findPairwiseSimilar"]>[0],
   ): ReturnType<MemoryRepository["findPairwiseSimilar"]> {
-    throw new NotImplementedError("findPairwiseSimilar");
+    return await this.cfg.index.findPairwiseSimilar({
+      projectId: options.projectId,
+      workspaceId: options.workspaceId,
+      scope: options.scope,
+      threshold: options.threshold,
+    });
   }
+
   async listWithEmbeddings(
-    _options: Parameters<MemoryRepository["listWithEmbeddings"]>[0],
+    options: Parameters<MemoryRepository["listWithEmbeddings"]>[0],
   ): ReturnType<MemoryRepository["listWithEmbeddings"]> {
-    throw new NotImplementedError("listWithEmbeddings");
+    const rows = await this.cfg.index.listEmbeddings({
+      projectId: options.projectId,
+      workspaceId: options.workspaceId,
+      scope: options.scope,
+      userId: options.userId ?? null,
+      limit: options.limit,
+    });
+    const out: Array<Memory & { embedding: number[] }> = [];
+    for (const r of rows) {
+      const m = await this.findById(r.id);
+      if (m !== null) out.push({ ...m, embedding: r.vector });
+    }
+    return out;
   }
-  /* eslint-enable @typescript-eslint/no-unused-vars */
 
   async #loadAll(): Promise<Memory[]> {
     const out: Memory[] = [];

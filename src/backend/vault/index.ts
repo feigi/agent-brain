@@ -8,6 +8,7 @@ import { VaultSchedulerStateRepository } from "./repositories/scheduler-state-re
 import { VaultSessionRepository } from "./repositories/session-repository.js";
 import { VaultSessionTrackingRepository } from "./repositories/session-tracking-repository.js";
 import { VaultWorkspaceRepository } from "./repositories/workspace-repository.js";
+import { VaultVectorIndex } from "./vector/lance-index.js";
 import type { BackendName, StorageBackend } from "../types.js";
 import type {
   AuditRepository,
@@ -23,11 +24,13 @@ import type {
 
 export interface VaultBackendConfig {
   root: string;
+  embeddingDimensions: number;
 }
 
 // Markdown-vault backend. Composes the nine Vault* repositories backed
-// by files under a single root directory. All IO is per-op, so close()
-// is a no-op — there's no connection pool to drain.
+// by files under a single root directory, plus a LanceDB-backed vector
+// index under <root>/.agent-brain/index.lance. close() disposes the
+// vector index; markdown IO is per-op and needs no teardown.
 export class VaultBackend implements StorageBackend {
   readonly name: BackendName = "vault";
   readonly memoryRepo: MemoryRepository;
@@ -40,7 +43,11 @@ export class VaultBackend implements StorageBackend {
   readonly relationshipRepo: RelationshipRepository;
   readonly schedulerStateRepo: SchedulerStateRepository;
 
-  private constructor(memoryRepo: MemoryRepository, root: string) {
+  private constructor(
+    memoryRepo: MemoryRepository,
+    private readonly vectorIndex: VaultVectorIndex,
+    root: string,
+  ) {
     this.memoryRepo = memoryRepo;
     this.workspaceRepo = new VaultWorkspaceRepository({ root });
     this.commentRepo = new VaultCommentRepository({ root });
@@ -54,9 +61,18 @@ export class VaultBackend implements StorageBackend {
 
   static async create(cfg: VaultBackendConfig): Promise<VaultBackend> {
     await mkdir(cfg.root, { recursive: true });
-    const memoryRepo = await VaultMemoryRepository.create({ root: cfg.root });
-    return new VaultBackend(memoryRepo, cfg.root);
+    const vectorIndex = await VaultVectorIndex.create({
+      root: cfg.root,
+      dims: cfg.embeddingDimensions,
+    });
+    const memoryRepo = await VaultMemoryRepository.create({
+      root: cfg.root,
+      index: vectorIndex,
+    });
+    return new VaultBackend(memoryRepo, vectorIndex, cfg.root);
   }
 
-  async close(): Promise<void> {}
+  async close(): Promise<void> {
+    await this.vectorIndex.close();
+  }
 }

@@ -91,6 +91,7 @@ const cases: BackendCase[] = [
         backend: "postgres",
         databaseUrl: TEST_DB_URL,
         vaultRoot: "",
+        embeddingDimensions: 768,
       });
       return {
         backend,
@@ -108,6 +109,7 @@ const cases: BackendCase[] = [
         backend: "vault",
         databaseUrl: "",
         vaultRoot: root,
+        embeddingDimensions: 768,
       });
       return {
         backend,

@@ -3,7 +3,7 @@ import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { VaultMemoryRepository } from "../../../../../src/backend/vault/repositories/memory-repository.js";
-import { NotImplementedError } from "../../../../../src/backend/vault/errors.js";
+import { VaultVectorIndex } from "../../../../../src/backend/vault/vector/lance-index.js";
 import {
   ConflictError,
   ValidationError,
@@ -43,12 +43,15 @@ function makeMemory(overrides: Partial<Memory> = {}): Memory {
 
 describe("VaultMemoryRepository — CRUD", () => {
   let root: string;
+  let idx: VaultVectorIndex;
   let repo: VaultMemoryRepository;
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), "vault-memrepo-"));
-    repo = await VaultMemoryRepository.create({ root });
+    idx = await VaultVectorIndex.create({ root, dims: 1 });
+    repo = await VaultMemoryRepository.create({ root, index: idx });
   });
   afterEach(async () => {
+    await idx.close();
     await rm(root, { recursive: true, force: true });
   });
 
@@ -132,26 +135,29 @@ describe("VaultMemoryRepository — CRUD", () => {
   it("VaultMemoryRepository.create rebuilds index from existing vault", async () => {
     // Pre-seed a memory via the same repo API on a separate instance,
     // then construct a fresh repo against the same root.
-    const pre = await VaultMemoryRepository.create({ root });
+    const pre = await VaultMemoryRepository.create({ root, index: idx });
     await pre.create({
       ...makeMemory({ id: "preexist" }),
       embedding: [0],
     });
 
-    const repo2 = await VaultMemoryRepository.create({ root });
+    const repo2 = await VaultMemoryRepository.create({ root, index: idx });
     expect(await repo2.findById("preexist")).not.toBeNull();
   });
 });
 
 describe("VaultMemoryRepository — listings", () => {
   let root: string;
+  let idx: VaultVectorIndex;
   let repo: VaultMemoryRepository;
 
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), "vault-memrepo-list-"));
-    repo = await VaultMemoryRepository.create({ root });
+    idx = await VaultVectorIndex.create({ root, dims: 1 });
+    repo = await VaultMemoryRepository.create({ root, index: idx });
   });
   afterEach(async () => {
+    await idx.close();
     await rm(root, { recursive: true, force: true });
   });
 
@@ -406,78 +412,17 @@ describe("VaultMemoryRepository — listings", () => {
   });
 });
 
-describe("VaultMemoryRepository — vector stubs throw NotImplementedError", () => {
-  let root: string;
-  let repo: VaultMemoryRepository;
-  beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), "vault-memrepo-stubs-"));
-    repo = await VaultMemoryRepository.create({ root });
-  });
-  afterEach(async () => {
-    await rm(root, { recursive: true, force: true });
-  });
-
-  it("search throws NotImplementedError with statusHint 501", async () => {
-    await expect(
-      repo.search({
-        embedding: [0],
-        project_id: "p",
-        workspace_id: "ws",
-        scope: ["workspace"],
-      }),
-    ).rejects.toSatisfy((err: unknown) => {
-      return (
-        err instanceof NotImplementedError &&
-        (err as NotImplementedError).statusHint === 501 &&
-        (err as Error).message.includes("search")
-      );
-    });
-  });
-
-  it("findDuplicates throws NotImplementedError", async () => {
-    await expect(
-      repo.findDuplicates({
-        embedding: [0],
-        projectId: "p",
-        workspaceId: "ws",
-        scope: "workspace",
-        userId: "u",
-        threshold: 0.9,
-      }),
-    ).rejects.toBeInstanceOf(NotImplementedError);
-  });
-
-  it("findPairwiseSimilar throws NotImplementedError", async () => {
-    await expect(
-      repo.findPairwiseSimilar({
-        projectId: "p",
-        workspaceId: "ws",
-        scope: "workspace",
-        threshold: 0.9,
-      }),
-    ).rejects.toBeInstanceOf(NotImplementedError);
-  });
-
-  it("listWithEmbeddings throws NotImplementedError", async () => {
-    await expect(
-      repo.listWithEmbeddings({
-        projectId: "p",
-        workspaceId: "ws",
-        scope: "workspace",
-        limit: 10,
-      }),
-    ).rejects.toBeInstanceOf(NotImplementedError);
-  });
-});
-
 describe("VaultMemoryRepository — list validation", () => {
   let root: string;
+  let idx: VaultVectorIndex;
   let repo: VaultMemoryRepository;
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), "vault-memrepo-validate-"));
-    repo = await VaultMemoryRepository.create({ root });
+    idx = await VaultVectorIndex.create({ root, dims: 1 });
+    repo = await VaultMemoryRepository.create({ root, index: idx });
   });
   afterEach(async () => {
+    await idx.close();
     await rm(root, { recursive: true, force: true });
   });
 

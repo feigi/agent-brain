@@ -25,7 +25,9 @@
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1014.0",
+    "@lancedb/lancedb": "^0.27.2",
     "@modelcontextprotocol/sdk": "^1.27.1",
+    "apache-arrow": "^18.1.0",
     "cron-parser": "^4.9.0",
     "dotenv": "^16.0.0",
     "drizzle-kit": "^0.31.10",
@@ -47,11 +49,13 @@
     "@types/node": "^22.0.0",
     "@types/node-cron": "^3.0.11",
     "@types/proper-lockfile": "^4.1.4",
+    "@types/seedrandom": "^3.0.8",
     "eslint": "^10.1.0",
     "eslint-config-prettier": "^10.1.8",
     "fast-check": "^4.7.0",
     "husky": "^9.1.7",
     "prettier": "^3.8.1",
+    "seedrandom": "^3.0.5",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.57.2",
     "vitest": "^4.1.0"
