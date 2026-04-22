@@ -27,6 +27,7 @@ export class PushQueue {
   private state: State = { kind: "idle" };
   private closing = false;
   private inFlightPromise: Promise<void> | null = null;
+  private attempt = 0;
 
   constructor(private readonly cfg: PushQueueConfig) {}
 
@@ -81,16 +82,26 @@ export class PushQueue {
           // Success path: drain follow-up if queued.
           const follow = this.state.kind === "in-flight" && this.state.follow;
           this.state = { kind: "idle" };
+          this.attempt = 0;
           if (follow && !this.closing) {
             this.#schedule();
           }
         },
         (err: unknown) => {
-          // Backoff path — implemented in Task 5. For now just log + idle.
+          // Backoff path: schedule a retry after the appropriate delay.
           logger.warn(
-            `vault push failed: ${err instanceof Error ? err.message : String(err)}`,
+            `vault push failed (attempt ${this.attempt + 1}): ${err instanceof Error ? err.message : String(err)}`,
           );
-          this.state = { kind: "idle" };
+          if (this.closing) {
+            this.state = { kind: "idle" };
+            return;
+          }
+          const ms = this.#backoffMs();
+          this.attempt += 1;
+          const timer = setTimeout(() => {
+            void this.#runPush();
+          }, ms);
+          this.state = { kind: "backoff", timer, attempt: this.attempt };
         },
       )
       .finally(() => {
@@ -98,5 +109,11 @@ export class PushQueue {
       });
     this.inFlightPromise = promise;
     await promise;
+  }
+
+  #backoffMs(): number {
+    if (this.cfg.backoffMs.length === 0) return 0;
+    const idx = Math.min(this.attempt, this.cfg.backoffMs.length - 1);
+    return this.cfg.backoffMs[idx];
   }
 }

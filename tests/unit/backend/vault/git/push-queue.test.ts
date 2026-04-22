@@ -92,3 +92,102 @@ describe("PushQueue debounce + single-flight", () => {
     expect(state.calls).toBe(1);
   });
 });
+
+describe("PushQueue backoff", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("retries according to backoffMs schedule", async () => {
+    const { push, state } = fakePusher();
+    const q = new PushQueue({
+      push,
+      debounceMs: 100,
+      backoffMs: [500, 2000],
+    });
+    q.request();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(state.calls).toBe(1);
+    state.reject(new Error("boom"));
+    // Wait for the rejection to propagate and state to flip to backoff.
+    await vi.advanceTimersByTimeAsync(0);
+
+    // No retry before 500ms.
+    await vi.advanceTimersByTimeAsync(499);
+    expect(state.calls).toBe(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(state.calls).toBe(2);
+
+    state.reject(new Error("boom again"));
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(state.calls).toBe(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(state.calls).toBe(3);
+    state.resolve();
+    await q.close();
+  });
+
+  it("stays at last backoff step after exhausting schedule", async () => {
+    const { push, state } = fakePusher();
+    const q = new PushQueue({ push, debounceMs: 100, backoffMs: [500] });
+    q.request();
+    await vi.advanceTimersByTimeAsync(100);
+    state.reject(new Error("1"));
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(500);
+    state.reject(new Error("2"));
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(state.calls).toBe(3);
+    state.resolve();
+    await q.close();
+  });
+
+  it("success resets backoff to 0", async () => {
+    const { push, state } = fakePusher();
+    const q = new PushQueue({
+      push,
+      debounceMs: 100,
+      backoffMs: [500, 2000],
+    });
+    q.request();
+    await vi.advanceTimersByTimeAsync(100);
+    state.reject(new Error("1"));
+    await vi.advanceTimersByTimeAsync(500);
+    state.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Trigger another push.
+    q.request();
+    await vi.advanceTimersByTimeAsync(100);
+    state.reject(new Error("2"));
+    await vi.advanceTimersByTimeAsync(0);
+    // Should wait 500ms (attempt=0) again, not 2000ms.
+    await vi.advanceTimersByTimeAsync(499);
+    expect(state.calls).toBe(3);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(state.calls).toBe(4);
+    state.resolve();
+    await q.close();
+  });
+
+  it("request during backoff does not shorten timer", async () => {
+    const { push, state } = fakePusher();
+    const q = new PushQueue({ push, debounceMs: 100, backoffMs: [1000] });
+    q.request();
+    await vi.advanceTimersByTimeAsync(100);
+    state.reject(new Error("boom"));
+    await vi.advanceTimersByTimeAsync(0);
+    q.request(); // during backoff
+    await vi.advanceTimersByTimeAsync(500);
+    expect(state.calls).toBe(1);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(state.calls).toBe(2);
+    state.resolve();
+    await q.close();
+  });
+});
