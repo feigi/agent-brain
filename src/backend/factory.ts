@@ -7,6 +7,7 @@ export interface BackendConfig {
   backend: BackendName;
   databaseUrl: string;
   vaultRoot: string;
+  vaultTrackUsersInGit?: boolean;
   embeddingDimensions: number;
 }
 
@@ -25,6 +26,7 @@ export async function createBackend(
       return VaultBackend.create({
         root: config.vaultRoot,
         embeddingDimensions: config.embeddingDimensions,
+        trackUsersInGit: config.vaultTrackUsersInGit ?? false,
       });
     default: {
       // Exhaustiveness + runtime guard for an env-var typo that slipped past zod.
