@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import * as lancedb from "@lancedb/lancedb";
 import type { VectorQuery } from "@lancedb/lancedb";
+import { ValidationError } from "../../../utils/errors.js";
 import { memorySchema } from "./schema.js";
 
 export interface IndexRow {
@@ -51,13 +52,7 @@ export class VaultVectorIndex {
 
   async upsert(rows: IndexRow[]): Promise<void> {
     if (rows.length === 0) return;
-    for (const r of rows) {
-      if (r.vector.length !== this.dims) {
-        throw new Error(
-          `vector dimension mismatch: expected ${this.dims}, got ${r.vector.length} for id ${r.id}`,
-        );
-      }
-    }
+    for (const r of rows) this.#assertDim(r.vector, r.id);
     await this.table
       .mergeInsert("id")
       .whenMatchedUpdateAll()
@@ -66,11 +61,7 @@ export class VaultVectorIndex {
   }
 
   async search(params: SearchParams): Promise<SearchHit[]> {
-    if (params.embedding.length !== this.dims) {
-      throw new Error(
-        `vector dimension mismatch: expected ${this.dims}, got ${params.embedding.length}`,
-      );
-    }
+    this.#assertDim(params.embedding);
     const clauses: string[] = [
       `archived = false`,
       `project_id = ${sqlStr(params.projectId)}`,
@@ -107,11 +98,7 @@ export class VaultVectorIndex {
   }
 
   async findDuplicates(params: DuplicateParams): Promise<DuplicateHit[]> {
-    if (params.embedding.length !== this.dims) {
-      throw new Error(
-        `vector dimension mismatch: expected ${this.dims}, got ${params.embedding.length}`,
-      );
-    }
+    this.#assertDim(params.embedding);
     const clauses: string[] = [
       `archived = false`,
       `project_id = ${sqlStr(params.projectId)}`,
@@ -197,17 +184,21 @@ export class VaultVectorIndex {
     return pairs;
   }
 
-  async markArchived(id: string): Promise<void> {
-    await this.table.update({
+  // Returns rowsUpdated so callers can detect index drift (id missing).
+  // lancedb's update() on zero matches succeeds silently — caller must
+  // treat rowsUpdated === 0 as a warning condition, not as success.
+  async markArchived(id: string): Promise<number> {
+    const res = await this.table.update({
       where: `id = ${sqlStr(id)}`,
       values: { archived: true },
     });
+    return res.rowsUpdated;
   }
 
   async upsertMetaOnly(
     meta: Omit<IndexRow, "content_hash" | "vector">,
-  ): Promise<void> {
-    await this.table.update({
+  ): Promise<number> {
+    const res = await this.table.update({
       where: `id = ${sqlStr(meta.id)}`,
       values: {
         project_id: meta.project_id,
@@ -218,6 +209,7 @@ export class VaultVectorIndex {
         workspace_id: meta.workspace_id,
       },
     });
+    return res.rowsUpdated;
   }
 
   async listEmbeddings(
@@ -256,6 +248,14 @@ export class VaultVectorIndex {
       id: r.id,
       vector: Array.from(r.vector as ArrayLike<number>),
     }));
+  }
+
+  #assertDim(vec: number[], id?: string): void {
+    if (vec.length === this.dims) return;
+    const suffix = id === undefined ? "" : ` for id ${id}`;
+    throw new ValidationError(
+      `vector dimension mismatch: expected ${this.dims}, got ${vec.length}${suffix}`,
+    );
   }
 }
 

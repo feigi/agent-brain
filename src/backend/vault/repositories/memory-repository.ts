@@ -38,6 +38,7 @@ import {
 import { withFileLock } from "../io/lock.js";
 import { VaultVectorIndex } from "../vector/lance-index.js";
 import { contentHash } from "../vector/hash.js";
+import { logger } from "../../../utils/logger.js";
 
 export interface VaultMemoryConfig {
   root: string;
@@ -83,6 +84,16 @@ export class VaultMemoryRepository implements MemoryRepository {
     if (this.index.has(memory.id)) {
       throw new ConflictError(`memory already exists: ${memory.id}`);
     }
+    // Dimension check before touching the filesystem: after markdown
+    // is durably written, lance failures are swallowed (markdown is
+    // source of truth), so a programmer-error wrong-dim embedding
+    // here would leave the vault permanently out of sync with the
+    // index. Fail fast before any write lands on disk.
+    if (memory.embedding.length !== this.cfg.index.dims) {
+      throw new ValidationError(
+        `vector dimension mismatch: expected ${this.cfg.index.dims}, got ${memory.embedding.length} for id ${memory.id}`,
+      );
+    }
     const loc = locationFor(memory);
     const rel = memoryPath(loc);
     const md = serializeMemoryFile({
@@ -111,19 +122,30 @@ export class VaultMemoryRepository implements MemoryRepository {
       workspaceId: loc.workspaceId,
       userId: loc.userId,
     });
-    await this.cfg.index.upsert([
-      {
+    // Markdown is source of truth; lance is a derived cache. A lance
+    // failure here leaves the new memory un-indexed until Phase 5's
+    // watcher-driven reindex picks it up. Log and return success.
+    try {
+      await this.cfg.index.upsert([
+        {
+          id: memory.id,
+          project_id: memory.project_id,
+          workspace_id: memory.workspace_id,
+          scope: memory.scope,
+          author: memory.author,
+          title: memory.title,
+          archived: false,
+          content_hash: contentHash(memory.content),
+          vector: memory.embedding,
+        },
+      ]);
+    } catch (err) {
+      logger.warn("lance upsert failed on create; index stale", {
         id: memory.id,
-        project_id: memory.project_id,
-        workspace_id: memory.workspace_id,
-        scope: memory.scope,
-        author: memory.author,
-        title: memory.title,
-        archived: false,
-        content_hash: contentHash(memory.content),
-        vector: memory.embedding,
-      },
-    ]);
+        op: "create",
+        err,
+      });
+    }
     const saved = await this.#read(memory.id);
     return saved.memory;
   }
@@ -162,6 +184,20 @@ export class VaultMemoryRepository implements MemoryRepository {
         `Memory ${id} update failed: not found or archived`,
       );
 
+    // Pre-check embedding dim before acquiring the lock; same reason
+    // as create() — markdown write succeeds then the lance call is
+    // swallowed on failure, so dim-mismatch must fail before any on-
+    // disk mutation.
+    if (
+      updates.embedding !== undefined &&
+      updates.embedding !== null &&
+      updates.embedding.length !== this.cfg.index.dims
+    ) {
+      throw new ValidationError(
+        `vector dimension mismatch: expected ${this.cfg.index.dims}, got ${updates.embedding.length} for id ${id}`,
+      );
+    }
+
     const abs = join(this.cfg.root, entry.path);
     return await withFileLock(abs, async () => {
       const raw = await readMarkdown(this.cfg.root, entry.path);
@@ -192,9 +228,23 @@ export class VaultMemoryRepository implements MemoryRepository {
         flags: parsed.flags,
       });
       await writeMarkdownAtomic(this.cfg.root, entry.path, md);
-      if (embedding !== undefined && embedding !== null) {
-        await this.cfg.index.upsert([
-          {
+      try {
+        if (embedding !== undefined && embedding !== null) {
+          await this.cfg.index.upsert([
+            {
+              id: next.id,
+              project_id: next.project_id,
+              workspace_id: next.workspace_id,
+              scope: next.scope,
+              author: next.author,
+              title: next.title,
+              archived: false,
+              content_hash: contentHash(next.content),
+              vector: embedding,
+            },
+          ]);
+        } else {
+          const rowsUpdated = await this.cfg.index.upsertMetaOnly({
             id: next.id,
             project_id: next.project_id,
             workspace_id: next.workspace_id,
@@ -202,19 +252,23 @@ export class VaultMemoryRepository implements MemoryRepository {
             author: next.author,
             title: next.title,
             archived: false,
-            content_hash: contentHash(next.content),
-            vector: embedding,
-          },
-        ]);
-      } else {
-        await this.cfg.index.upsertMetaOnly({
+          });
+          // lancedb's update() is a no-op on zero matches. A missing
+          // row means the lance index and markdown vault have drifted
+          // — e.g. a previous create() swallowed an upsert failure.
+          // Markdown still wins; surface the drift for Phase 5 repair.
+          if (rowsUpdated === 0) {
+            logger.warn("lance meta-only update matched no rows; index drift", {
+              id: next.id,
+              op: "update",
+            });
+          }
+        }
+      } catch (err) {
+        logger.warn("lance upsert failed on update; index stale", {
           id: next.id,
-          project_id: next.project_id,
-          workspace_id: next.workspace_id,
-          scope: next.scope,
-          author: next.author,
-          title: next.title,
-          archived: false,
+          op: "update",
+          err,
         });
       }
       const reread = await this.#read(id);
@@ -245,8 +299,26 @@ export class VaultMemoryRepository implements MemoryRepository {
         archived.push(id);
       });
     }
+    // One lance failure (or missing row) must not abort archive
+    // propagation for the remaining ids. Markdown is already flipped
+    // for each id in `archived`, so the caller's return count is
+    // accurate regardless of lance outcome.
     for (const id of archived) {
-      await this.cfg.index.markArchived(id);
+      try {
+        const rowsUpdated = await this.cfg.index.markArchived(id);
+        if (rowsUpdated === 0) {
+          logger.warn("lance markArchived matched no rows; index drift", {
+            id,
+            op: "archive",
+          });
+        }
+      } catch (err) {
+        logger.warn("lance markArchived failed; index stale", {
+          id,
+          op: "archive",
+          err,
+        });
+      }
     }
     return count;
   }

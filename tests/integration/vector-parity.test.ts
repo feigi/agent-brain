@@ -13,6 +13,7 @@ import type { Memory } from "../../src/types/memory.js";
 
 const DIMS = 768;
 const N = 500;
+const N_PROJECT = 100;
 
 function randomUnitVec(rng: () => number): number[] {
   const v: number[] = [];
@@ -75,6 +76,39 @@ describe("vector parity — pg vs vault", () => {
       await pg.create({ ...m, embedding: v });
       await vault.create({ ...m, embedding: v });
     }
+    // Seed project-scope memories to parity-check the project-scope
+    // read path (workspace-scoped seed above only exercises workspace).
+    for (let i = 0; i < N_PROJECT; i++) {
+      const m: Memory = {
+        id: `pm${i}`,
+        project_id: "p1",
+        workspace_id: null,
+        content: `project body ${i}`,
+        title: `PT${i}`,
+        type: "fact",
+        scope: "project",
+        tags: null,
+        author: "a",
+        source: null,
+        session_id: null,
+        metadata: null,
+        embedding_model: null,
+        embedding_dimensions: DIMS,
+        version: 1,
+        created_at: now,
+        updated_at: now,
+        verified_at: null,
+        archived_at: null,
+        comment_count: 0,
+        flag_count: 0,
+        relationship_count: 0,
+        last_comment_at: null,
+        verified_by: null,
+      };
+      const v = randomUnitVec(rng);
+      await pg.create({ ...m, embedding: v });
+      await vault.create({ ...m, embedding: v });
+    }
   }, 120_000);
 
   afterAll(async () => {
@@ -105,6 +139,40 @@ describe("vector parity — pg vs vault", () => {
           project_id: "p1",
           workspace_id: "ws1",
           scope: ["workspace"],
+          limit: K,
+          min_similarity: 0,
+        })
+      ).map((h) => h.id);
+      const overlap = pgIds.filter((id) => vaultIds.includes(id)).length;
+      totalOverlap += overlap;
+    }
+    const overlapRatio = totalOverlap / (QUERIES * K);
+    expect(overlapRatio).toBeGreaterThanOrEqual(0.95);
+  }, 30_000);
+
+  it("project-scope top-10 overlap ≥ 95% across 10 queries", async () => {
+    const rng = seedrandom("parity-project-query");
+    let totalOverlap = 0;
+    const QUERIES = 10;
+    const K = 10;
+    for (let q = 0; q < QUERIES; q++) {
+      const v = randomUnitVec(rng);
+      const pgIds = (
+        await pg.search({
+          embedding: v,
+          project_id: "p1",
+          workspace_id: "ws1",
+          scope: ["project"],
+          limit: K,
+          min_similarity: 0,
+        })
+      ).map((h) => h.id);
+      const vaultIds = (
+        await vault.search({
+          embedding: v,
+          project_id: "p1",
+          workspace_id: "ws1",
+          scope: ["project"],
           limit: K,
           min_similarity: 0,
         })
