@@ -20,8 +20,10 @@ export type BackendName = "postgres" | "vault";
  * populates based on pull + push-queue state.
  */
 export interface BackendSessionStartMeta {
+  /** Literal `true` — presence means offline; `false` is not a valid state. */
   offline?: true;
   unpushed_commits?: number;
+  /** Literal `true` — presence means a rebase conflict was detected. */
   pull_conflict?: true;
   parse_errors?: number;
 }
