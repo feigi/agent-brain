@@ -304,6 +304,37 @@ describe("VaultVectorIndex — findPairwiseSimilar", () => {
   });
 });
 
+describe("VaultVectorIndex — getContentHash", () => {
+  let root: string;
+  let idx: VaultVectorIndex;
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "lance-test-"));
+    idx = await VaultVectorIndex.create({ root, dims: 4 });
+  });
+  afterEach(async () => {
+    await idx.close();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("getContentHash returns stored hash", async () => {
+    await idx.upsert([
+      {
+        id: "m1",
+        project_id: "p1",
+        workspace_id: "ws1",
+        scope: "workspace",
+        author: "u",
+        title: "T",
+        archived: false,
+        content_hash: "h1",
+        vector: [0.1, 0.2, 0.3, 0.4],
+      },
+    ]);
+    expect(await idx.getContentHash("m1")).toBe("h1");
+    expect(await idx.getContentHash("missing")).toBeNull();
+  });
+});
+
 describe("VaultVectorIndex — listEmbeddings + markArchived + upsertMetaOnly", () => {
   let root: string;
   let idx: VaultVectorIndex;
