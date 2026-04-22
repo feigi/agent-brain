@@ -322,4 +322,47 @@ describe("runSessionStart", () => {
       await cleanup();
     }
   });
+
+  it("onChangedPaths fires with changedPaths when pull returns non-empty paths", async () => {
+    const { root, index, cleanup } = await setup();
+    try {
+      const received: string[][] = [];
+      await runSessionStart({
+        root,
+        vectorIndex: index,
+        embed: async () => new Array(DIMS).fill(0.1),
+        syncFromRemote: fakeSync({
+          changedPaths: ["workspaces/ws1/memories/x.md"],
+        }),
+        pushQueue: fakePushQueue(0),
+        onChangedPaths: (paths) => {
+          received.push(paths);
+        },
+      });
+      expect(received).toHaveLength(1);
+      expect(received[0]).toEqual(["workspaces/ws1/memories/x.md"]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("onChangedPaths does NOT fire when changedPaths is empty", async () => {
+    const { root, index, cleanup } = await setup();
+    try {
+      let callCount = 0;
+      await runSessionStart({
+        root,
+        vectorIndex: index,
+        embed: async () => new Array(DIMS).fill(0.1),
+        syncFromRemote: fakeSync({ changedPaths: [] }),
+        pushQueue: fakePushQueue(0),
+        onChangedPaths: () => {
+          callCount += 1;
+        },
+      });
+      expect(callCount).toBe(0);
+    } finally {
+      await cleanup();
+    }
+  });
 });

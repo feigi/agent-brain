@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { serializeMemoryFile } from "../../../../../src/backend/vault/parser/memory-parser.js";
 import { VaultMemoryRepository } from "../../../../../src/backend/vault/repositories/memory-repository.js";
 import { VaultWorkspaceRepository } from "../../../../../src/backend/vault/repositories/workspace-repository.js";
 import { VaultVectorIndex } from "../../../../../src/backend/vault/vector/lance-index.js";
@@ -250,6 +251,75 @@ describe("VaultMemoryRepository — lance index sync", () => {
       // Version should still be 1 (no write committed).
       const current = await repo.findById("m1");
       expect(current?.version).toBe(1);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// syncPaths — updates the in-memory path index from git-relative paths
+// ---------------------------------------------------------------------------
+
+describe("VaultMemoryRepository — syncPaths", () => {
+  let root: string;
+  let idx: VaultVectorIndex;
+  let repo: VaultMemoryRepository;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "repo-sync-paths-"));
+    idx = await VaultVectorIndex.create({ root, dims: DIMS });
+    repo = await VaultMemoryRepository.create({
+      root,
+      index: idx,
+      gitOps: NOOP_GIT_OPS,
+    });
+    await new VaultWorkspaceRepository({
+      root,
+      gitOps: NOOP_GIT_OPS,
+    }).findOrCreate("ws1");
+  });
+
+  afterEach(async () => {
+    await idx.close();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("happy path: syncPaths registers a newly-dropped memory file so findById resolves", async () => {
+    // Write a valid memory markdown file directly to disk (simulating git pull).
+    const relPath = "workspaces/ws1/memories/synced.md";
+    const absPath = join(root, relPath);
+    await mkdir(join(root, "workspaces/ws1/memories"), { recursive: true });
+    const content = serializeMemoryFile({
+      memory: makeMemory({ id: "synced", workspace_id: "ws1" }),
+      flags: [],
+      comments: [],
+      relationships: [],
+    });
+    await writeFile(absPath, content);
+
+    // Before syncPaths, findById returns null (path not in index).
+    expect(await repo.findById("synced")).toBeNull();
+
+    repo.syncPaths([relPath]);
+
+    // After syncPaths, findById reads and returns the memory.
+    const found = await repo.findById("synced");
+    expect(found?.id).toBe("synced");
+  });
+
+  it("non-memory path: syncPaths silently skips .gitignore — no error, no index entry", async () => {
+    // Should not throw and should not register a path entry.
+    expect(() => repo.syncPaths([".gitignore"])).not.toThrow();
+    // findById for any id is still null (no side effects).
+    expect(await repo.findById("m1")).toBeNull();
+  });
+
+  it("unreadable file: syncPaths registers path, but findById throws on read (file missing)", async () => {
+    const relPath = "workspaces/ws1/memories/missing.md";
+    // syncPaths itself should not throw even if the file doesn't exist yet.
+    expect(() => repo.syncPaths([relPath])).not.toThrow();
+    // The path IS in the index now; findById will attempt to read and reject.
+    await expect(repo.findById("missing")).rejects.toMatchObject({
+      code: "ENOENT",
     });
   });
 });

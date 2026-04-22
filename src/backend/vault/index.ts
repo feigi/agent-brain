@@ -194,21 +194,34 @@ export class VaultBackend implements StorageBackend {
 }
 
 /**
- * When origin/main exists and the local repo has a divergent bootstrap
- * commit (i.e. the local main and origin/main have no common ancestor),
- * replace the local history with the remote's so push / pull work.
+ * Aligns the local repo with origin/main when they have diverged or
+ * when local is simply behind remote. Called once during VaultBackend
+ * creation, before any push/pull logic runs.
  *
- * This handles the "second vault initializing against an existing bare
- * repo" case: ensureVaultGit ran `git init` + committed bootstrap files,
- * but the bare already has a `main` branch from the first vault. A plain
- * `git pull --rebase` would fail with "refusing to merge unrelated
- * histories". Instead we fetch, then point main at origin/main, then
- * re-apply the bootstrap files (if they differ) as a merge commit so the
- * local .gitignore/.gitattributes invariants are satisfied without
- * diverging the graph.
+ * Behaviour by case:
  *
- * Safe to call on a repo that is already aligned — the early-return after
- * merge-base check makes it a no-op in that case.
+ * 1. No `origin` remote configured → no-op (local-only vault).
+ * 2. Origin unreachable (fetch throws) → no-op; offline handling
+ *    deferred to the PushQueue / syncFromRemote path.
+ * 3. origin/main does not yet exist (empty bare repo) → no-op; the
+ *    first push from this vault will create it.
+ * 4. No local commits yet → checks out a new `main` branch tracking
+ *    `origin/main` directly.
+ * 5. origin/main is an ancestor of local HEAD (local is ahead or equal)
+ *    → already aligned; no-op.
+ * 6. local HEAD is an ancestor of origin/main (local is behind) →
+ *    fast-forward: `reset --hard <remoteHead>` then
+ *    `branch --set-upstream-to=origin/main main`.
+ * 7. Unrelated histories (fresh second-vault bootstrap produced a
+ *    divergent root commit) → same as case 6: `reset --hard <remoteHead>`
+ *    then set upstream. The bootstrap files (.gitignore, .gitattributes)
+ *    are already present in origin because the first vault committed them,
+ *    so no re-commit is needed. This is safe only at init time (before
+ *    any user data has been written to the local repo).
+ *
+ * Note: this function does NOT produce a merge commit. In all write cases
+ * it performs a hard reset to `origin/main` and sets the upstream
+ * tracking branch.
  */
 async function alignWithRemote(git: SimpleGit): Promise<void> {
   const remotes = await git.getRemotes(true);

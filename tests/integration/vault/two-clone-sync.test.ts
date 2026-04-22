@@ -9,6 +9,30 @@ import {
 import { VaultBackend } from "../../../src/backend/vault/index.js";
 import { scrubGitEnv } from "../../../src/backend/vault/git/env.js";
 
+/**
+ * Polls until `@{u}` resolves AND `@{u}..HEAD` is empty, meaning at
+ * least one push has landed and there are no further unpushed commits.
+ * Unlike the indirect sessionStart meta signal, this directly checks
+ * what we care about: upstream tracking is configured AND all commits
+ * are pushed.
+ */
+async function waitForPushSettled(root: string): Promise<void> {
+  const git = simpleGit({ baseDir: root }).env(scrubGitEnv());
+  for (let i = 0; i < 100; i++) {
+    try {
+      await git.raw(["rev-parse", "@{u}"]);
+      const out = await git.raw(["rev-list", "--count", "@{u}..HEAD"]);
+      if (Number(out.trim()) === 0) return;
+    } catch {
+      // @{u} not yet set — first push hasn't landed yet. Keep polling.
+    }
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new Error(
+    "timed out waiting for push to settle (@{u} set + 0 unpushed)",
+  );
+}
+
 const DIMS = 768;
 
 function fakeEmbed(): (text: string) => Promise<number[]> {
@@ -29,15 +53,6 @@ async function createBackend(
   });
 }
 
-async function waitForUnpushedZero(backend: VaultBackend): Promise<void> {
-  for (let i = 0; i < 50; i++) {
-    const meta = await backend.sessionStart();
-    if (!meta.unpushed_commits || meta.unpushed_commits === 0) return;
-    await new Promise((r) => setTimeout(r, 50));
-  }
-  throw new Error("timed out waiting for unpushed_commits=0");
-}
-
 describe("vault two-clone sync", () => {
   it("write on A is visible on B after A pushes and B session-starts", async () => {
     const { bare, vaultA, vaultB, cleanup } = await setupBareAndTwoVaults();
@@ -45,7 +60,7 @@ describe("vault two-clone sync", () => {
       const a = await createBackend(vaultA, bare);
       // Seed first commit so bare repo has `main` branch.
       await a.memoryRepo.create(makeMemory("m1"));
-      await waitForUnpushedZero(a);
+      await waitForPushSettled(vaultA);
 
       const b = await createBackend(vaultB, bare);
       const meta = await b.sessionStart();
@@ -67,18 +82,18 @@ describe("vault two-clone sync", () => {
     try {
       const a = await createBackend(vaultA, bare);
       await a.memoryRepo.create(makeMemory("seed"));
-      await waitForUnpushedZero(a);
+      await waitForPushSettled(vaultA);
 
       const b = await createBackend(vaultB, bare);
       await b.sessionStart();
 
       await a.memoryRepo.create(makeMemory("from-a"));
       await b.memoryRepo.create(makeMemory("from-b"));
-      await waitForUnpushedZero(a);
+      await waitForPushSettled(vaultA);
 
       const bMeta = await b.sessionStart();
       expect(bMeta.pull_conflict).toBeUndefined();
-      await waitForUnpushedZero(b);
+      await waitForPushSettled(vaultB);
 
       const aMeta = await a.sessionStart();
       expect(aMeta.pull_conflict).toBeUndefined();
@@ -99,7 +114,7 @@ describe("vault two-clone sync", () => {
       const a = await createBackend(vaultA, bare);
       // Create a memory that will be the conflict target.
       await a.memoryRepo.create(makeMemory("target"));
-      await waitForUnpushedZero(a);
+      await waitForPushSettled(vaultA);
 
       const b = await createBackend(vaultB, bare);
       await b.sessionStart(); // pull A's target into B
@@ -141,7 +156,7 @@ describe("vault two-clone sync", () => {
     try {
       const a = await createBackend(vaultA, bare);
       await a.memoryRepo.create(makeMemory("seed"));
-      await waitForUnpushedZero(a);
+      await waitForPushSettled(vaultA);
       // Break origin. Retry a few times on ENOTEMPTY — macOS can hold
       // file descriptors on bare-repo pack files briefly after git ops.
       for (let attempt = 0; attempt < 5; attempt++) {
