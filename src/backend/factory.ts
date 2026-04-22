@@ -27,6 +27,7 @@ export async function createBackend(
         root: config.vaultRoot,
         embeddingDimensions: config.embeddingDimensions,
         trackUsersInGit: config.vaultTrackUsersInGit ?? false,
+        remoteUrl: process.env.AGENT_BRAIN_VAULT_REMOTE_URL,
       });
     default: {
       // Exhaustiveness + runtime guard for an env-var typo that slipped past zod.

@@ -1,4 +1,5 @@
 import { mkdir } from "node:fs/promises";
+import { simpleGit, type SimpleGit } from "simple-git";
 import { VaultAuditRepository } from "./repositories/audit-repository.js";
 import { VaultCommentRepository } from "./repositories/comment-repository.js";
 import { VaultFlagRepository } from "./repositories/flag-repository.js";
@@ -11,7 +12,15 @@ import { VaultWorkspaceRepository } from "./repositories/workspace-repository.js
 import { VaultVectorIndex } from "./vector/lance-index.js";
 import { ensureVaultGit } from "./git/bootstrap.js";
 import { GitOpsImpl } from "./git/git-ops.js";
+import { scrubGitEnv } from "./git/env.js";
+import { ensureRemote } from "./git/remote.js";
+import { reconcileDirty } from "./git/reconcile.js";
+import { syncFromRemote } from "./git/pull.js";
+import { PushQueue } from "./git/push-queue.js";
 import type { GitOps } from "./git/types.js";
+import { runSessionStart } from "./session-start.js";
+import type { Embedder } from "./session-start.js";
+import { createEmbeddingProvider } from "../../providers/embedding/index.js";
 import type {
   BackendName,
   StorageBackend,
@@ -36,6 +45,10 @@ export interface VaultBackendConfig {
   // workspace/project ones. Default false — `users/` stays gitignored
   // and its writes skip the commit step (privacy-first).
   trackUsersInGit?: boolean;
+  remoteUrl?: string;
+  pushDebounceMs?: number;
+  pushBackoffMs?: readonly number[];
+  embed?: Embedder;
 }
 
 // Markdown-vault backend. Composes the nine Vault* repositories backed
@@ -57,9 +70,12 @@ export class VaultBackend implements StorageBackend {
   private constructor(
     memoryRepo: MemoryRepository,
     private readonly vectorIndex: VaultVectorIndex,
-    root: string,
+    private readonly root: string,
     gitOps: GitOps,
     trackUsersInGit: boolean,
+    private readonly git: SimpleGit,
+    private readonly pushQueue: PushQueue,
+    private readonly embed: Embedder,
   ) {
     this.memoryRepo = memoryRepo;
     this.workspaceRepo = new VaultWorkspaceRepository({ root, gitOps });
@@ -91,31 +107,88 @@ export class VaultBackend implements StorageBackend {
       root: cfg.root,
       trackUsers: trackUsersInGit,
     });
+    const git = simpleGit({ baseDir: cfg.root }).env(scrubGitEnv());
+    await ensureRemote({ git, remoteUrl: cfg.remoteUrl });
+
     const gitOps: GitOps = new GitOpsImpl({ root: cfg.root });
+    await reconcileDirty({ git, ops: gitOps });
+
     const vectorIndex = await VaultVectorIndex.create({
       root: cfg.root,
       dims: cfg.embeddingDimensions,
     });
+
+    const debounceMs = cfg.pushDebounceMs ?? 5000;
+    const backoffMs = cfg.pushBackoffMs ?? [5000, 30000, 300000, 1800000];
+    const pushQueue = new PushQueue({
+      debounceMs,
+      backoffMs,
+      push: async () => {
+        await git.push("origin", "HEAD:main");
+      },
+      countUnpushed: async () => {
+        try {
+          const out = await git.raw(["rev-list", "--count", "@{u}..HEAD"]);
+          return Number(out.trim()) || 0;
+        } catch {
+          return 0;
+        }
+      },
+    });
+
+    if (gitOps.enabled) {
+      gitOps.afterCommit = () => pushQueue.request();
+    }
+
     const memoryRepo = await VaultMemoryRepository.create({
       root: cfg.root,
       index: vectorIndex,
       gitOps,
       trackUsersInGit,
     });
+
+    const embed = cfg.embed ?? defaultEmbedder(cfg.embeddingDimensions);
+
     return new VaultBackend(
       memoryRepo,
       vectorIndex,
       cfg.root,
       gitOps,
       trackUsersInGit,
+      git,
+      pushQueue,
+      embed,
     );
   }
 
   async close(): Promise<void> {
+    await this.pushQueue.close();
     await this.vectorIndex.close();
   }
 
   async sessionStart(): Promise<BackendSessionStartMeta> {
-    return {};
+    return runSessionStart({
+      root: this.root,
+      vectorIndex: this.vectorIndex,
+      embed: this.embed,
+      syncFromRemote: () => syncFromRemote({ git: this.git }),
+      pushQueue: {
+        unpushedCommits: () => this.pushQueue.unpushedCommits(),
+        request: () => this.pushQueue.request(),
+      },
+    });
   }
+}
+
+function defaultEmbedder(dims: number): Embedder {
+  const provider = createEmbeddingProvider();
+  return async (text: string) => {
+    const vec = await provider.embed(text);
+    if (vec.length !== dims) {
+      throw new Error(
+        `vault embed: provider returned ${vec.length} dims, expected ${dims}`,
+      );
+    }
+    return vec;
+  };
 }
