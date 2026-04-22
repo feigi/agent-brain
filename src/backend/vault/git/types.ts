@@ -10,7 +10,8 @@ export type CommitAction =
   | "unflagged"
   | "related"
   | "unrelated"
-  | "workspace_upsert";
+  | "workspace_upsert"
+  | "reconcile";
 
 export interface CommitTrailer {
   action: CommitAction;

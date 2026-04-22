@@ -11,6 +11,8 @@ export function formatTrailers(trailer: CommitTrailer): string {
       throw new Error("workspaceId required for workspace_upsert");
     }
     lines.push(`AB-Workspace: ${trailer.workspaceId}`);
+  } else if (trailer.action === "reconcile") {
+    // Bulk recovery commit — no single memoryId or workspaceId to attach.
   } else {
     if (!trailer.memoryId) {
       throw new Error(`memoryId required for action ${trailer.action}`);
