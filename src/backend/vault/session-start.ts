@@ -3,6 +3,8 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { parseMemoryFile } from "./parser/memory-parser.js";
 import type { VaultVectorIndex, IndexRow } from "./vector/lance-index.js";
+import type { BackendSessionStartMeta } from "../types.js";
+import type { SyncResult } from "./git/pull.js";
 import { logger } from "../../utils/logger.js";
 
 const MEMORY_PATH_RE =
@@ -95,4 +97,44 @@ function buildRow(
     content_hash: contentHash,
     vector: embedding,
   };
+}
+
+export interface PushQueueHandle {
+  unpushedCommits(): Promise<number>;
+  request(): void;
+}
+
+export interface RunSessionStartConfig {
+  root: string;
+  vectorIndex: VaultVectorIndex;
+  embed: Embedder;
+  syncFromRemote: () => Promise<SyncResult>;
+  pushQueue: PushQueueHandle;
+}
+
+export async function runSessionStart(
+  cfg: RunSessionStartConfig,
+): Promise<BackendSessionStartMeta> {
+  const meta: BackendSessionStartMeta = {};
+  const pull = await cfg.syncFromRemote();
+  if (pull.offline) meta.offline = true;
+  if (pull.conflict) meta.pull_conflict = true;
+
+  let parseErrors = 0;
+  if (pull.changedPaths.length > 0) {
+    const result = await diffReindex({
+      paths: pull.changedPaths,
+      root: cfg.root,
+      vectorIndex: cfg.vectorIndex,
+      embed: cfg.embed,
+    });
+    parseErrors = result.parseErrors;
+  }
+  if (parseErrors > 0) meta.parse_errors = parseErrors;
+
+  const unpushed = await cfg.pushQueue.unpushedCommits();
+  if (unpushed > 0) meta.unpushed_commits = unpushed;
+  cfg.pushQueue.request(); // kick drain
+
+  return meta;
 }

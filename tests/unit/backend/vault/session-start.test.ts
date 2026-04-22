@@ -3,7 +3,10 @@ import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { VaultVectorIndex } from "../../../../src/backend/vault/vector/lance-index.js";
-import { diffReindex } from "../../../../src/backend/vault/session-start.js";
+import {
+  diffReindex,
+  runSessionStart,
+} from "../../../../src/backend/vault/session-start.js";
 import { serializeMemoryFile } from "../../../../src/backend/vault/parser/memory-parser.js";
 import type { Memory } from "../../../../src/types/memory.js";
 
@@ -183,6 +186,138 @@ describe("diffReindex", () => {
       });
       expect(r.parseErrors).toBe(0);
       expect(calls).toBe(0);
+    } finally {
+      await cleanup();
+    }
+  });
+});
+
+function fakeSync(result: {
+  offline?: boolean;
+  conflict?: boolean;
+  changedPaths?: string[];
+}) {
+  return async () => ({
+    offline: result.offline ?? false,
+    conflict: result.conflict ?? false,
+    changedPaths: result.changedPaths ?? [],
+  });
+}
+
+function fakePushQueue(unpushed: number | (() => Promise<number>)) {
+  return {
+    unpushedCommits: async () =>
+      typeof unpushed === "number" ? unpushed : await unpushed(),
+    request: () => {},
+  };
+}
+
+describe("runSessionStart", () => {
+  it("all-happy returns empty meta", async () => {
+    const { root, index, cleanup } = await setup();
+    try {
+      const meta = await runSessionStart({
+        root,
+        vectorIndex: index,
+        embed: async () => new Array(DIMS).fill(0.1),
+        syncFromRemote: fakeSync({}),
+        pushQueue: fakePushQueue(0),
+      });
+      expect(meta).toEqual({});
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("offline surfaces in meta", async () => {
+    const { root, index, cleanup } = await setup();
+    try {
+      const meta = await runSessionStart({
+        root,
+        vectorIndex: index,
+        embed: async () => new Array(DIMS).fill(0.1),
+        syncFromRemote: fakeSync({ offline: true }),
+        pushQueue: fakePushQueue(0),
+      });
+      expect(meta.offline).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("conflict surfaces in meta", async () => {
+    const { root, index, cleanup } = await setup();
+    try {
+      const meta = await runSessionStart({
+        root,
+        vectorIndex: index,
+        embed: async () => new Array(DIMS).fill(0.1),
+        syncFromRemote: fakeSync({ conflict: true }),
+        pushQueue: fakePushQueue(0),
+      });
+      expect(meta.pull_conflict).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("unpushed > 0 surfaces", async () => {
+    const { root, index, cleanup } = await setup();
+    try {
+      const meta = await runSessionStart({
+        root,
+        vectorIndex: index,
+        embed: async () => new Array(DIMS).fill(0.1),
+        syncFromRemote: fakeSync({}),
+        pushQueue: fakePushQueue(3),
+      });
+      expect(meta.unpushed_commits).toBe(3);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("parse errors propagate from diffReindex", async () => {
+    const { root, index, cleanup } = await setup();
+    try {
+      await mkdir(join(root, "workspaces/ws1/memories"), { recursive: true });
+      await writeFile(
+        join(root, "workspaces/ws1/memories/bad.md"),
+        ":: not YAML ::\n",
+      );
+      const meta = await runSessionStart({
+        root,
+        vectorIndex: index,
+        embed: async () => new Array(DIMS).fill(0.1),
+        syncFromRemote: fakeSync({
+          changedPaths: ["workspaces/ws1/memories/bad.md"],
+        }),
+        pushQueue: fakePushQueue(0),
+      });
+      expect(meta.parse_errors).toBe(1);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("kicks pushQueue.request() after collecting meta", async () => {
+    const { root, index, cleanup } = await setup();
+    try {
+      let kicked = 0;
+      const meta = await runSessionStart({
+        root,
+        vectorIndex: index,
+        embed: async () => new Array(DIMS).fill(0.1),
+        syncFromRemote: fakeSync({}),
+        pushQueue: {
+          unpushedCommits: async () => 2,
+          request: () => {
+            kicked += 1;
+          },
+        },
+      });
+      expect(kicked).toBe(1);
+      expect(meta.unpushed_commits).toBe(2);
     } finally {
       await cleanup();
     }
