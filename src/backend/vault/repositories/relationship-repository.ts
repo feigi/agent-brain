@@ -1,11 +1,13 @@
 import type { RelationshipRepository } from "../../../repositories/types.js";
 import type { Relationship } from "../../../types/relationship.js";
+import type { GitOps } from "../git/types.js";
 import { NotFoundError } from "../../../utils/errors.js";
 import { VaultMemoryFiles } from "./memory-files.js";
-import { compareByCreatedAsc } from "./util.js";
+import { commitSubject, compareByCreatedAsc } from "./util.js";
 
 export interface VaultRelationshipConfig {
   root: string;
+  gitOps?: GitOps;
 }
 
 // Relationships live in the source memory's file under `## Relationships`.
@@ -15,7 +17,7 @@ export class VaultRelationshipRepository implements RelationshipRepository {
   private readonly files: VaultMemoryFiles;
 
   constructor(cfg: VaultRelationshipConfig) {
-    this.files = new VaultMemoryFiles({ root: cfg.root });
+    this.files = new VaultMemoryFiles({ root: cfg.root, gitOps: cfg.gitOps });
   }
 
   async create(relationship: Relationship): Promise<Relationship> {
@@ -27,6 +29,14 @@ export class VaultRelationshipRepository implements RelationshipRepository {
         relationships: [...parsed.relationships, persisted],
       },
       result: persisted,
+      commit: {
+        subject: commitSubject("related", parsed.memory.title),
+        trailer: {
+          action: "related",
+          memoryId: parsed.memory.id,
+          actor: persisted.created_by,
+        },
+      },
     }));
   }
 
@@ -154,8 +164,22 @@ export class VaultRelationshipRepository implements RelationshipRepository {
           if (parsed.memory.project_id !== projectId) {
             return { next: parsed, result: null };
           }
+          if (parsed.relationships.length === 0) {
+            return { next: parsed, result: null };
+          }
           count += parsed.relationships.length;
-          return { next: { ...parsed, relationships: [] }, result: null };
+          return {
+            next: { ...parsed, relationships: [] },
+            result: null,
+            commit: {
+              subject: commitSubject("unrelated", parsed.memory.title),
+              trailer: {
+                action: "unrelated",
+                memoryId: parsed.memory.id,
+                actor: "system",
+              },
+            },
+          };
         });
       } catch (err) {
         if (!(err instanceof NotFoundError)) throw err;
@@ -172,8 +196,21 @@ export class VaultRelationshipRepository implements RelationshipRepository {
       try {
         await this.files.edit(parsed.memory.id, (p) => {
           const next = p.relationships.filter((r) => r.target_id !== memoryId);
-          count += p.relationships.length - next.length;
-          return { next: { ...p, relationships: next }, result: null };
+          const removed = p.relationships.length - next.length;
+          if (removed === 0) return { next: p, result: null };
+          count += removed;
+          return {
+            next: { ...p, relationships: next },
+            result: null,
+            commit: {
+              subject: commitSubject("unrelated", p.memory.title),
+              trailer: {
+                action: "unrelated",
+                memoryId: p.memory.id,
+                actor: "system",
+              },
+            },
+          };
         });
       } catch (err) {
         if (err instanceof NotFoundError) continue;
@@ -194,9 +231,19 @@ export class VaultRelationshipRepository implements RelationshipRepository {
       return await this.files.edit(owner.parsed.memory.id, (parsed) => {
         const before = parsed.relationships.length;
         const next = parsed.relationships.filter((r) => r.id !== id);
+        const removed = next.length < before;
+        if (!removed) return { next: parsed, result: false };
         return {
           next: { ...parsed, relationships: next },
-          result: next.length < before,
+          result: true,
+          commit: {
+            subject: commitSubject("unrelated", parsed.memory.title),
+            trailer: {
+              action: "unrelated",
+              memoryId: parsed.memory.id,
+              actor: "system",
+            },
+          },
         };
       });
     } catch (err) {

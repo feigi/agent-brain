@@ -7,3 +7,8 @@ export function compareByCreatedAsc(a: HasCreatedAt, b: HasCreatedAt): number {
 export function compareByCreatedDesc(a: HasCreatedAt, b: HasCreatedAt): number {
   return b.created_at.getTime() - a.created_at.getTime();
 }
+
+export function commitSubject(action: string, title: string): string {
+  const trimmed = title.length > 60 ? title.slice(0, 57) + "..." : title;
+  return `[agent-brain] ${action}: ${trimmed}`;
+}
