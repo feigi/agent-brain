@@ -54,7 +54,7 @@ describe("installer end-to-end", () => {
   it("installs Copilot target: copies hooks, merges two JSON files, prepends instructions", async () => {
     await runInstaller(
       {
-        targets: ["copilot"],
+        targets: ["copilot-cli"],
         dryRun: false,
         uninstall: false,
         skipEnvBootstrap: true,
@@ -158,7 +158,7 @@ describe("installer end-to-end", () => {
     try {
       await runInstaller(
         {
-          targets: ["copilot", "vscode-copilot"],
+          targets: ["copilot-cli", "vscode-copilot"],
           dryRun: false,
           uninstall: false,
           skipEnvBootstrap: true,

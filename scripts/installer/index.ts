@@ -17,7 +17,7 @@ import { bootstrapEnv } from "./env-file.js";
 
 const TARGETS: Record<TargetName, Target> = {
   claude: claudeTarget,
-  copilot: copilotTarget,
+  "copilot-cli": copilotTarget,
   "vscode-copilot": vscodeCopilotTarget,
 };
 

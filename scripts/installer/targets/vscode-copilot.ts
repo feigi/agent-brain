@@ -44,8 +44,6 @@ export const vscodeCopilotTarget: Target = {
       postInstructions: [
         "Start the Agent Brain server:",
         "  docker compose -f docker-compose.prod.yml up -d --wait",
-        "For custom instructions, copy hooks/copilot/instructions-snippet.md",
-        "into .github/copilot-instructions.md in each workspace.",
       ],
     };
   },
