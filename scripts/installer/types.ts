@@ -1,4 +1,9 @@
-export type TargetName = "claude" | "copilot";
+export const ALL_TARGET_NAMES = [
+  "claude",
+  "copilot",
+  "vscode-copilot",
+] as const;
+export type TargetName = (typeof ALL_TARGET_NAMES)[number];
 
 export type MarkerId = string & { readonly __brand: "MarkerId" };
 

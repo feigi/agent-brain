@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { claudeTarget } from "../../../scripts/installer/targets/claude.js";
 import { copilotTarget } from "../../../scripts/installer/targets/copilot.js";
+import { vscodeCopilotTarget } from "../../../scripts/installer/targets/vscode-copilot.js";
 
 describe("claudeTarget.plan", () => {
   const repoRoot = "/repo";
@@ -94,6 +95,42 @@ describe("copilotTarget.plan", () => {
 
   it("postInstructions include docker-compose command", () => {
     const plan = copilotTarget.plan(repoRoot, home);
+    expect(
+      plan.postInstructions.some((s) => s.includes("docker compose")),
+    ).toBe(true);
+  });
+});
+
+describe("vscodeCopilotTarget.plan", () => {
+  const repoRoot = "/repo";
+  const home = "/home/u";
+
+  it("has no copies (no hook scripts)", () => {
+    const plan = vscodeCopilotTarget.plan(repoRoot, home);
+    expect(plan.target).toBe("vscode-copilot");
+    expect(plan.copies).toHaveLength(0);
+  });
+
+  it("has one jsonMerge for mcp.json in VS Code user data dir", () => {
+    const plan = vscodeCopilotTarget.plan(repoRoot, home);
+    expect(plan.jsonMerges).toHaveLength(1);
+    expect(plan.jsonMerges[0].file).toContain("mcp.json");
+    expect(plan.jsonMerges[0].file).toContain("Code");
+    expect(plan.jsonMerges[0].file).toContain("User");
+    const patch = plan.jsonMerges[0].patch;
+    expect(patch.kind).toBe("file");
+    if (patch.kind === "file") {
+      expect(patch.path).toContain("mcp-snippet.json");
+    }
+  });
+
+  it("has no markdownPrepends", () => {
+    const plan = vscodeCopilotTarget.plan(repoRoot, home);
+    expect(plan.markdownPrepends).toHaveLength(0);
+  });
+
+  it("postInstructions include docker-compose command", () => {
+    const plan = vscodeCopilotTarget.plan(repoRoot, home);
     expect(
       plan.postInstructions.some((s) => s.includes("docker compose")),
     ).toBe(true);

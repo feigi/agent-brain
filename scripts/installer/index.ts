@@ -1,13 +1,15 @@
 import { parseArgs } from "node:util";
-import { createInterface } from "node:readline/promises";
 import { createInterface as createLineReader } from "node:readline";
 import { stdin, stdout } from "node:process";
 import { fileURLToPath } from "node:url";
 import { realpathSync } from "node:fs";
 import { isAbsolute } from "node:path";
 import type { RunOptions, TargetName, Target } from "./types.js";
+import { ALL_TARGET_NAMES } from "./types.js";
 import { claudeTarget } from "./targets/claude.js";
 import { copilotTarget } from "./targets/copilot.js";
+import { vscodeCopilotTarget } from "./targets/vscode-copilot.js";
+import { checkbox } from "./checkbox.js";
 import { applyPlan } from "./apply.js";
 import { uninstallTarget } from "./uninstall.js";
 import { isDirectory } from "./fs-util.js";
@@ -16,6 +18,7 @@ import { bootstrapEnv } from "./env-file.js";
 const TARGETS: Record<TargetName, Target> = {
   claude: claudeTarget,
   copilot: copilotTarget,
+  "vscode-copilot": vscodeCopilotTarget,
 };
 
 export interface Env {
@@ -99,16 +102,22 @@ function createStdinAsker(): StdinAsker {
   };
 }
 
+function parseTargetList(input: string): TargetName[] {
+  const parts = input.split(",").map((s) => s.trim());
+  const valid = ALL_TARGET_NAMES as readonly string[];
+  const invalid = parts.filter((p) => !valid.includes(p));
+  if (invalid.length > 0 || parts.length === 0) {
+    throw new Error(
+      `Invalid target '${input}'. Expected: ${ALL_TARGET_NAMES.join(" | ")} | all (or comma-separated).`,
+    );
+  }
+  return parts as TargetName[];
+}
+
 async function promptTarget(): Promise<TargetName[]> {
-  const rl = createInterface({ input: stdin, output: stdout });
-  const answer = (await rl.question("Target (claude/copilot/both)? "))
-    .trim()
-    .toLowerCase();
-  rl.close();
-  if (answer === "claude" || answer === "copilot") return [answer];
-  if (answer === "both") return ["claude", "copilot"];
-  throw new Error(
-    `Invalid target '${answer}'. Expected: claude | copilot | both.`,
+  return checkbox<TargetName>(
+    "Select targets (space to toggle, enter to confirm):",
+    ALL_TARGET_NAMES.map((name) => ({ label: name, value: name })),
   );
 }
 
@@ -144,7 +153,7 @@ export async function main(argv: string[]): Promise<void> {
 
   if (values.help) {
     console.log(
-      `Usage: npm run install:agent -- [--target=claude|copilot|both] [--dry-run] [--uninstall]`,
+      `Usage: npm run install:agent -- [--target=${ALL_TARGET_NAMES.join(",")}|all] [--dry-run] [--uninstall]`,
     );
     return;
   }
@@ -152,9 +161,11 @@ export async function main(argv: string[]): Promise<void> {
   let targets: TargetName[];
   if (values.target) {
     const t = String(values.target);
-    if (t === "claude" || t === "copilot") targets = [t];
-    else if (t === "both") targets = ["claude", "copilot"];
-    else throw new Error(`Invalid --target: ${t}`);
+    if (t === "all" || t === "both") {
+      targets = [...ALL_TARGET_NAMES];
+    } else {
+      targets = parseTargetList(t);
+    }
   } else if (stdin.isTTY) {
     targets = await promptTarget();
   } else {
