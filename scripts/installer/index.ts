@@ -48,6 +48,9 @@ export async function runInstaller(opts: RunOptions, env: Env): Promise<void> {
     }
   }
 
+  const seenPostLines = new Set<string>();
+  const postInstructions: string[] = [];
+
   for (const name of opts.targets) {
     const target = TARGETS[name];
     if (opts.uninstall) {
@@ -62,8 +65,15 @@ export async function runInstaller(opts: RunOptions, env: Env): Promise<void> {
       continue;
     }
     await applyPlan(plan, { dryRun: false });
-    for (const line of plan.postInstructions) console.log(line);
+    for (const line of plan.postInstructions) {
+      if (!seenPostLines.has(line)) {
+        seenPostLines.add(line);
+        postInstructions.push(line);
+      }
+    }
   }
+
+  for (const line of postInstructions) console.log(line);
 }
 
 // `readline/promises.question` rejects with ERR_USE_AFTER_CLOSE when the

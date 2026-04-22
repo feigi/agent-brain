@@ -153,6 +153,28 @@ describe("installer end-to-end", () => {
     }
   });
 
+  it("deduplicates postInstructions across targets", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    try {
+      await runInstaller(
+        {
+          targets: ["copilot", "vscode-copilot"],
+          dryRun: false,
+          uninstall: false,
+          skipEnvBootstrap: true,
+        },
+        { repoRoot: REPO_ROOT, home },
+      );
+      const lines = logSpy.mock.calls.map((args) => args.join(" "));
+      const serverLines = lines.filter((l) =>
+        l.includes("Start the Agent Brain server"),
+      );
+      expect(serverLines).toHaveLength(1);
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
   it("skips .env bootstrap on --uninstall (dry-run)", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
     try {
