@@ -21,6 +21,23 @@ describe("createBackend", () => {
     }
   });
 
+  it("vault backend sessionStart returns empty meta", async () => {
+    const root = await mkdtemp(join(tmpdir(), "factory-vault-"));
+    try {
+      const backend = await createBackend({
+        backend: "vault",
+        databaseUrl: "postgresql://unused",
+        vaultRoot: root,
+        embeddingDimensions: 768,
+      });
+      const meta = await backend.sessionStart();
+      expect(meta).toEqual({});
+      await backend.close();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("rejects the vault backend when vaultRoot is empty", async () => {
     await expect(
       createBackend({

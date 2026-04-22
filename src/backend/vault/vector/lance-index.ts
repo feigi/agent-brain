@@ -195,6 +195,17 @@ export class VaultVectorIndex {
     return res.rowsUpdated;
   }
 
+  async getContentHash(id: string): Promise<string | null> {
+    const rows = (await this.table
+      .query()
+      .where(`id = ${sqlStr(id)}`)
+      .select(["content_hash"])
+      .limit(1)
+      .toArray()) as Array<Record<string, unknown>>;
+    if (rows.length === 0) return null;
+    return String(rows[0].content_hash);
+  }
+
   async upsertMetaOnly(
     meta: Omit<IndexRow, "content_hash" | "vector">,
   ): Promise<number> {

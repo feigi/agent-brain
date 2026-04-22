@@ -1,12 +1,15 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
 import {
   createTestService,
+  createTestServiceWith,
+  StubBackend,
   getTestDb,
   truncateAll,
   closeDb,
   assertMemory,
 } from "../helpers.js";
 import type { MemoryService } from "../../src/services/memory-service.js";
+import type { StorageBackend } from "../../src/backend/types.js";
 import { ValidationError } from "../../src/utils/errors.js";
 import { memories } from "../../src/db/schema.js";
 import { config } from "../../src/config.js";
@@ -621,5 +624,52 @@ describe("memory_session_start integration tests", () => {
     expect(result.meta).toHaveProperty("timing");
     expect(result.meta.count).toBe(1);
     expect(result.meta.timing).toBeTypeOf("number");
+  });
+
+  it("envelope meta includes backend fields when backend.sessionStart returns non-empty", async () => {
+    const stubBackend = new StubBackend();
+    stubBackend.sessionStartMeta = {
+      offline: true,
+      unpushed_commits: 2,
+      parse_errors: 1,
+    };
+    const svc = createTestServiceWith({
+      backend: stubBackend as unknown as StorageBackend,
+    });
+
+    const result = await svc.sessionStart("test-project", "alice");
+
+    expect(result.meta.offline).toBe(true);
+    expect(result.meta.unpushed_commits).toBe(2);
+    expect(result.meta.parse_errors).toBe(1);
+    expect(result.meta.pull_conflict).toBeUndefined();
+  });
+
+  it("envelope meta is unchanged when backend.sessionStart returns empty (pg-style)", async () => {
+    const stubBackend = new StubBackend();
+    stubBackend.sessionStartMeta = {}; // pg returns {}
+    const svc = createTestServiceWith({
+      backend: stubBackend as unknown as StorageBackend,
+    });
+
+    const result = await svc.sessionStart("test-project", "alice");
+
+    expect(result.meta.offline).toBeUndefined();
+    expect(result.meta.pull_conflict).toBeUndefined();
+    expect(result.meta.unpushed_commits).toBeUndefined();
+    expect(result.meta.parse_errors).toBeUndefined();
+  });
+
+  it("zero-value unpushed_commits and parse_errors are not merged into meta", async () => {
+    const stubBackend = new StubBackend();
+    stubBackend.sessionStartMeta = { unpushed_commits: 0, parse_errors: 0 };
+    const svc = createTestServiceWith({
+      backend: stubBackend as unknown as StorageBackend,
+    });
+
+    const result = await svc.sessionStart("test-project", "alice");
+
+    expect(result.meta.unpushed_commits).toBeUndefined();
+    expect(result.meta.parse_errors).toBeUndefined();
   });
 });

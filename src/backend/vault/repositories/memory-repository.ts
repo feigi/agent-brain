@@ -1,5 +1,6 @@
 import { dirname, join } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import type {
   Memory,
   MemoryScope,
@@ -186,6 +187,28 @@ export class VaultMemoryRepository implements MemoryRepository {
     );
     const saved = await this.#read(memory.id);
     return saved.memory;
+  }
+
+  // Reconciles the in-memory index with paths that changed on disk via
+  // `git pull`. Adds/updates entries that exist on disk; removes entries
+  // whose file has been deleted — otherwise a stale index entry makes
+  // findById() throw ENOENT on read instead of returning null.
+  syncPaths(paths: string[]): void {
+    for (const rel of paths) {
+      const loc = inferScopeFromPath(rel);
+      if (loc === null) continue;
+      const abs = join(this.cfg.root, rel);
+      if (existsSync(abs)) {
+        this.index.set(loc.id, {
+          path: rel,
+          scope: loc.scope,
+          workspaceId: loc.workspaceId,
+          userId: loc.userId,
+        });
+      } else {
+        this.index.delete(loc.id);
+      }
+    }
   }
 
   async findById(id: string): Promise<Memory | null> {

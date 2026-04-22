@@ -12,7 +12,11 @@ import { DrizzleAuditRepository } from "../../repositories/audit-repository.js";
 import { DrizzleFlagRepository } from "../../repositories/flag-repository.js";
 import { DrizzleRelationshipRepository } from "../../repositories/relationship-repository.js";
 import { DrizzleSchedulerStateRepository } from "../../repositories/scheduler-state-repository.js";
-import type { StorageBackend, BackendName } from "../types.js";
+import type {
+  StorageBackend,
+  BackendName,
+  BackendSessionStartMeta,
+} from "../types.js";
 import type {
   MemoryRepository,
   WorkspaceRepository,
@@ -65,5 +69,9 @@ export class PostgresBackend implements StorageBackend {
 
   async close(): Promise<void> {
     await this.db.$client.end();
+  }
+
+  async sessionStart(): Promise<BackendSessionStartMeta> {
+    return {};
   }
 }

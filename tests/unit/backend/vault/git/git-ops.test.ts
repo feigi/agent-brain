@@ -76,6 +76,49 @@ describe("GitOpsImpl", () => {
     await ops.init();
     expect((await ops.status()).clean).toBe(true);
   });
+
+  it("fires afterCommit after a successful commit", async () => {
+    const ops = new GitOpsImpl({ root });
+    await ops.init();
+    await configUser(root);
+
+    const calls: number[] = [];
+    ops.afterCommit = () => calls.push(Date.now());
+
+    const path = "note.md";
+    await writeFile(join(root, path), "hi\n");
+    await ops.stageAndCommit([path], "[t] first", {
+      action: "created",
+      memoryId: "m1",
+      actor: "a",
+    });
+
+    expect(calls).toHaveLength(1);
+  });
+
+  it("does not fire afterCommit when stageAndCommit throws", async () => {
+    const ops = new GitOpsImpl({ root });
+    await ops.init();
+    await configUser(root);
+
+    const calls: number[] = [];
+    ops.afterCommit = () => calls.push(Date.now());
+
+    // Nothing to commit → VaultGitNothingToCommitError.
+    const git = simpleGit(root).env(scrubGitEnv());
+    await writeFile(join(root, "ignored.md"), "x\n");
+    await git.add("ignored.md");
+    await git.commit("initial", ["ignored.md"]);
+    await expect(
+      ops.stageAndCommit(["ignored.md"], "again", {
+        action: "created",
+        memoryId: "m1",
+        actor: "a",
+      }),
+    ).rejects.toThrow(/nothing to commit/i);
+
+    expect(calls).toHaveLength(0);
+  });
 });
 
 async function configUser(root: string): Promise<void> {

@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
@@ -42,4 +45,56 @@ describe("server module graph loads under Node ESM", () => {
     }
     expect(result.status).toBe(0);
   });
+
+  it(
+    "boots under AGENT_BRAIN_BACKEND=vault with AGENT_BRAIN_VAULT_REMOTE_URL",
+    { timeout: 40_000 },
+    () => {
+      const dir = mkdtempSync(join(tmpdir(), "server-boot-vault-"));
+      const bare = join(dir, "origin.git");
+      const vault = join(dir, "vault");
+      try {
+        // Initialize a bare git repo to act as the remote.
+        const initResult = spawnSync("git", ["init", "--bare", bare], {
+          encoding: "utf8",
+          timeout: 10_000,
+        });
+        if (initResult.status !== 0) {
+          throw new Error(
+            `Failed to init bare repo:\nstderr: ${initResult.stderr}`,
+          );
+        }
+
+        const result = spawnSync(
+          "node",
+          ["--import", "tsx", "-e", "await import('./src/server.js');"],
+          {
+            cwd: repoRoot,
+            encoding: "utf8",
+            timeout: 30_000,
+            env: {
+              ...process.env,
+              CONSOLIDATION_ENABLED: "false",
+              PROJECT_ID: "smoke-test-vault",
+              AGENT_BRAIN_BACKEND: "vault",
+              AGENT_BRAIN_VAULT_ROOT: vault,
+              AGENT_BRAIN_VAULT_REMOTE_URL: bare,
+              EMBEDDING_PROVIDER: "mock",
+            },
+          },
+        );
+
+        if (result.status !== 0) {
+          throw new Error(
+            `Server (vault backend) failed to load (exit ${result.status}):\n` +
+              `stderr:\n${result.stderr}\nstdout:\n${result.stdout}`,
+          );
+        }
+        expect(result.status).toBe(0);
+        expect(result.stderr).not.toMatch(/vault push failed/);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+  );
 });

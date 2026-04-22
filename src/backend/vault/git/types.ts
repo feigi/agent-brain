@@ -10,15 +10,32 @@ export type CommitAction =
   | "unflagged"
   | "related"
   | "unrelated"
-  | "workspace_upsert";
+  | "workspace_upsert"
+  | "reconcile";
 
-export interface CommitTrailer {
-  action: CommitAction;
-  memoryId?: string;
-  workspaceId?: string;
-  actor: string;
-  reason?: string | null;
-}
+type MemoryAction = Exclude<CommitAction, "workspace_upsert" | "reconcile">;
+
+// Discriminated union — makes illegal (action, required-id) combinations
+// unrepresentable at compile time, so trailers.ts doesn't need runtime
+// guards.
+export type CommitTrailer =
+  | {
+      action: MemoryAction;
+      memoryId: string;
+      actor: string;
+      reason?: string | null;
+    }
+  | {
+      action: "workspace_upsert";
+      workspaceId: string;
+      actor: string;
+      reason?: string | null;
+    }
+  | {
+      action: "reconcile";
+      actor: string;
+      reason?: string | null;
+    };
 
 export interface GitOps {
   // False for the no-op implementation used by test backends that
@@ -33,6 +50,13 @@ export interface GitOps {
     trailer: CommitTrailer,
   ): Promise<void>;
   status(): Promise<{ clean: boolean }>;
+  /**
+   * Optional callback invoked after every successful stageAndCommit.
+   * Fires outside the #serialize mutex but within the same async flow —
+   * callers get a synchronous "commit landed" signal. Failures in the
+   * callback are not propagated (fire-and-forget).
+   */
+  afterCommit?: () => void;
 }
 
 // Thrown by stageAndCommit when `git add` staged nothing (file unchanged
@@ -50,6 +74,7 @@ export class VaultGitNothingToCommitError extends DomainError {
 
 export class NoopGitOps implements GitOps {
   readonly enabled = false;
+  afterCommit?: () => void;
   async isRepo(): Promise<boolean> {
     return false;
   }

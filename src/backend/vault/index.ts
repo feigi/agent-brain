@@ -1,4 +1,5 @@
 import { mkdir } from "node:fs/promises";
+import { simpleGit, type SimpleGit } from "simple-git";
 import { VaultAuditRepository } from "./repositories/audit-repository.js";
 import { VaultCommentRepository } from "./repositories/comment-repository.js";
 import { VaultFlagRepository } from "./repositories/flag-repository.js";
@@ -11,8 +12,21 @@ import { VaultWorkspaceRepository } from "./repositories/workspace-repository.js
 import { VaultVectorIndex } from "./vector/lance-index.js";
 import { ensureVaultGit } from "./git/bootstrap.js";
 import { GitOpsImpl } from "./git/git-ops.js";
+import { scrubGitEnv } from "./git/env.js";
+import { ensureRemote } from "./git/remote.js";
+import { reconcileDirty } from "./git/reconcile.js";
+import { syncFromRemote } from "./git/pull.js";
+import { PushQueue } from "./git/push-queue.js";
+import { alignWithRemote } from "./git/align.js";
 import type { GitOps } from "./git/types.js";
-import type { BackendName, StorageBackend } from "../types.js";
+import { runSessionStart } from "./session-start.js";
+import type { Embedder } from "./session-start.js";
+import { createEmbeddingProvider } from "../../providers/embedding/index.js";
+import type {
+  BackendName,
+  StorageBackend,
+  BackendSessionStartMeta,
+} from "../types.js";
 import type {
   AuditRepository,
   CommentRepository,
@@ -32,6 +46,10 @@ export interface VaultBackendConfig {
   // workspace/project ones. Default false — `users/` stays gitignored
   // and its writes skip the commit step (privacy-first).
   trackUsersInGit?: boolean;
+  remoteUrl?: string;
+  pushDebounceMs?: number;
+  pushBackoffMs?: readonly number[];
+  embed?: Embedder;
 }
 
 // Markdown-vault backend. Composes the nine Vault* repositories backed
@@ -49,15 +67,22 @@ export class VaultBackend implements StorageBackend {
   readonly flagRepo: FlagRepository;
   readonly relationshipRepo: RelationshipRepository;
   readonly schedulerStateRepo: SchedulerStateRepository;
+  // Concrete type needed — syncPaths isn't on MemoryRepository.
+  private readonly vaultMemoryRepo: VaultMemoryRepository;
 
   private constructor(
-    memoryRepo: MemoryRepository,
+    memoryRepo: VaultMemoryRepository,
     private readonly vectorIndex: VaultVectorIndex,
-    root: string,
+    private readonly root: string,
     gitOps: GitOps,
     trackUsersInGit: boolean,
+    private readonly git: SimpleGit,
+    private readonly pushQueue: PushQueue,
+    private readonly embed: Embedder,
+    private readonly bootMeta: Partial<BackendSessionStartMeta>,
   ) {
     this.memoryRepo = memoryRepo;
+    this.vaultMemoryRepo = memoryRepo;
     this.workspaceRepo = new VaultWorkspaceRepository({ root, gitOps });
     this.commentRepo = new VaultCommentRepository({
       root,
@@ -87,27 +112,113 @@ export class VaultBackend implements StorageBackend {
       root: cfg.root,
       trackUsers: trackUsersInGit,
     });
+    const git = simpleGit({ baseDir: cfg.root }).env(scrubGitEnv());
+    const bootMeta: Partial<BackendSessionStartMeta> = {};
+    const remoteResult = await ensureRemote({ git, remoteUrl: cfg.remoteUrl });
+    if (remoteResult.mismatch) bootMeta.remote_mismatch = remoteResult.mismatch;
+
     const gitOps: GitOps = new GitOpsImpl({ root: cfg.root });
+    // Reconcile BEFORE align: a post-crash dirty tree must land as a
+    // commit first, otherwise align's `reset --hard` on the
+    // unrelated-history bootstrap path silently discards it.
+    const reconcile = await reconcileDirty({ git, ops: gitOps });
+    if (reconcile.failed) bootMeta.reconcile_failed = true;
+    await alignWithRemote(git);
+
     const vectorIndex = await VaultVectorIndex.create({
       root: cfg.root,
       dims: cfg.embeddingDimensions,
     });
+
+    const debounceMs = cfg.pushDebounceMs ?? 5000;
+    // Backoff: fast first retry for transient blips, then exponential to
+    // a 30-min cap so we don't tight-loop against a broken remote.
+    const backoffMs = cfg.pushBackoffMs ?? [5000, 30000, 300000, 1800000];
+    const pushQueue = new PushQueue({
+      debounceMs,
+      backoffMs,
+      push: async () => {
+        // --set-upstream so @{u} resolves on subsequent calls and the
+        // unpushed-count query works post-first-push.
+        await git.raw(["push", "--set-upstream", "origin", "HEAD:main"]);
+      },
+      countUnpushed: async () => {
+        // Throws pre-first-push when @{u} is unset — caller classifies.
+        const out = await git.raw(["rev-list", "--count", "@{u}..HEAD"]);
+        const n = Number.parseInt(out.trim(), 10);
+        if (!Number.isFinite(n)) {
+          throw new Error(`rev-list --count returned ${out.trim()}`);
+        }
+        return n;
+      },
+    });
+
+    if (gitOps.enabled) {
+      gitOps.afterCommit = () => pushQueue.request();
+    }
+
     const memoryRepo = await VaultMemoryRepository.create({
       root: cfg.root,
       index: vectorIndex,
       gitOps,
       trackUsersInGit,
     });
+
+    const embed = cfg.embed ?? defaultEmbedder(cfg.embeddingDimensions);
+
     return new VaultBackend(
       memoryRepo,
       vectorIndex,
       cfg.root,
       gitOps,
       trackUsersInGit,
+      git,
+      pushQueue,
+      embed,
+      bootMeta,
     );
   }
 
   async close(): Promise<void> {
+    await this.pushQueue.close();
     await this.vectorIndex.close();
   }
+
+  async sessionStart(): Promise<BackendSessionStartMeta> {
+    const meta = await runSessionStart({
+      root: this.root,
+      vectorIndex: this.vectorIndex,
+      embed: this.embed,
+      syncFromRemote: () => syncFromRemote({ git: this.git }),
+      pushQueue: {
+        unpushedCommits: () => this.pushQueue.unpushedCommits(),
+        lastPushError: () => this.pushQueue.lastPushError(),
+        request: () => this.pushQueue.request(),
+      },
+      onChangedPaths: (paths) => {
+        // Pulled files need path-index refresh or findById misses until restart.
+        this.vaultMemoryRepo.syncPaths(paths);
+      },
+    });
+    // Boot-time meta (remote_mismatch, reconcile_failed) is sticky for
+    // the life of the backend — clients should see it on every session
+    // start until the process is restarted with a fixed config.
+    if (this.bootMeta.remote_mismatch)
+      meta.remote_mismatch = this.bootMeta.remote_mismatch;
+    if (this.bootMeta.reconcile_failed) meta.reconcile_failed = true;
+    return meta;
+  }
+}
+
+function defaultEmbedder(dims: number): Embedder {
+  const provider = createEmbeddingProvider();
+  return async (text: string) => {
+    const vec = await provider.embed(text);
+    if (vec.length !== dims) {
+      throw new Error(
+        `vault embed: provider returned ${vec.length} dims, expected ${dims}`,
+      );
+    }
+    return vec;
+  };
 }

@@ -1,6 +1,7 @@
 import { simpleGit, type SimpleGit } from "simple-git";
 import { formatTrailers } from "./trailers.js";
 import { scrubGitEnv } from "./env.js";
+import { logger } from "../../../utils/logger.js";
 import {
   VaultGitNothingToCommitError,
   type CommitTrailer,
@@ -13,6 +14,7 @@ export interface GitOpsConfig {
 
 export class GitOpsImpl implements GitOps {
   readonly enabled = true;
+  afterCommit?: () => void;
   private readonly git: SimpleGit;
   // Process-wide serialization of git index operations. Two writers
   // on different markdown files share one .git/index; without a
@@ -47,7 +49,7 @@ export class GitOpsImpl implements GitOps {
     if (paths.length === 0) {
       throw new Error("stageAndCommit: paths must be non-empty");
     }
-    return this.#serialize(async () => {
+    await this.#serialize(async () => {
       await this.git.add(paths);
       const status = await this.git.status();
       if (status.staged.length === 0 && status.created.length === 0) {
@@ -59,6 +61,14 @@ export class GitOpsImpl implements GitOps {
       // land its file under our trailer.
       await this.git.commit(`${subject}\n\n${body}`, paths);
     });
+    // Fire outside serialize so a hook that calls into git can't deadlock on the mutex.
+    try {
+      this.afterCommit?.();
+    } catch (err) {
+      logger.error(
+        `vault: afterCommit hook threw; push may not be scheduled: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   async status(): Promise<{ clean: boolean }> {
