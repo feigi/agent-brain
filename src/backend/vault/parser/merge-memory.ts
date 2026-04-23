@@ -6,10 +6,7 @@ export type MergeResult =
   | { ok: true; merged: string }
   | { ok: false; reason: string };
 
-export interface Diff3Result {
-  clean: boolean;
-  text?: string;
-}
+export type Diff3Result = { clean: true; text: string } | { clean: false };
 
 export interface MergeOptions {
   /**
@@ -60,18 +57,22 @@ export async function mergeMemoryFiles(
     o.memory.content,
     t.memory.content,
   );
-  const mergedContent =
-    bodyResult.clean && bodyResult.text !== undefined
-      ? bodyResult.text
-      : later.memory.content;
+  const mergedContent = bodyResult.clean
+    ? bodyResult.text
+    : later.memory.content;
 
   // verified_at/verified_by: take the pair with the later verified_at.
   const { verified_at: mergedVerifiedAt, verified_by: mergedVerifiedBy } =
-    mergeVerified(o.memory, t.memory);
+    mergeVerified(
+      o.memory.verified_at,
+      o.memory.verified_by,
+      t.memory.verified_at,
+      t.memory.verified_by,
+    );
 
   const mergedMemory: Memory = {
     // Start from the later side for all LWW fields.
-    ...later.memory,
+    ...later.memory, // version: LWW from later side; post-merge bump is caller's responsibility
     // Body text (three-way or LWW fallback).
     content: mergedContent,
     // updated_at is always max of both sides.
@@ -85,7 +86,11 @@ export async function mergeMemoryFiles(
     tags: unionSorted(o.memory.tags, t.memory.tags),
     // metadata: per-key LWW — later side wins per key, missing keys from
     // earlier side are filled in.
-    metadata: mergeMetadata(o.memory, t.memory, oTime >= tTime),
+    metadata: mergeMetadata(
+      o.memory.metadata,
+      t.memory.metadata,
+      oTime >= tTime,
+    ),
     // Derived counts are recomputed below from the merged body sections.
     flag_count: 0,
     comment_count: 0,
@@ -100,7 +105,9 @@ export async function mergeMemoryFiles(
   // extended with an update timestamp, deterministic 'theirs wins' is the best
   // we can do without risking silent data loss. Collisions are rare in practice
   // since these sections are append-only from each clone.
-  const comments = unionBy(o.comments, t.comments, (c) => c.id);
+  const comments = unionBy(o.comments, t.comments, (c) => c.id).sort(
+    (a, b) => a.created_at.getTime() - b.created_at.getTime(),
+  );
   const flags = unionBy(o.flags, t.flags, (f) => f.id);
   const relationships = unionBy(
     o.relationships,
@@ -143,23 +150,25 @@ function maxDate(a: Date | null, b: Date | null): Date | null {
  * If both are null, result is null/null.
  */
 function mergeVerified(
-  a: Memory,
-  b: Memory,
+  oVerifiedAt: Date | null,
+  oVerifiedBy: string | null,
+  tVerifiedAt: Date | null,
+  tVerifiedBy: string | null,
 ): { verified_at: Date | null; verified_by: string | null } {
-  if (a.verified_at === null && b.verified_at === null) {
+  if (oVerifiedAt === null && tVerifiedAt === null) {
     return { verified_at: null, verified_by: null };
   }
-  if (a.verified_at === null) {
-    return { verified_at: b.verified_at, verified_by: b.verified_by };
+  if (oVerifiedAt === null) {
+    return { verified_at: tVerifiedAt, verified_by: tVerifiedBy };
   }
-  if (b.verified_at === null) {
-    return { verified_at: a.verified_at, verified_by: a.verified_by };
+  if (tVerifiedAt === null) {
+    return { verified_at: oVerifiedAt, verified_by: oVerifiedBy };
   }
   // Both non-null: pick the later one.
-  if (a.verified_at.getTime() >= b.verified_at.getTime()) {
-    return { verified_at: a.verified_at, verified_by: a.verified_by };
+  if (oVerifiedAt.getTime() >= tVerifiedAt.getTime()) {
+    return { verified_at: oVerifiedAt, verified_by: oVerifiedBy };
   }
-  return { verified_at: b.verified_at, verified_by: b.verified_by };
+  return { verified_at: tVerifiedAt, verified_by: tVerifiedBy };
 }
 
 /**
@@ -178,13 +187,13 @@ function unionSorted(a: string[] | null, b: string[] | null): string[] | null {
  * earlier side are included (union of keys).
  */
 function mergeMetadata(
-  a: Memory,
-  b: Memory,
+  a: Record<string, unknown> | null,
+  b: Record<string, unknown> | null,
   aIsLater: boolean,
 ): Record<string, unknown> | null {
-  if (a.metadata === null && b.metadata === null) return null;
-  const winner = aIsLater ? a.metadata : b.metadata;
-  const loser = aIsLater ? b.metadata : a.metadata;
+  if (a === null && b === null) return null;
+  const winner = aIsLater ? a : b;
+  const loser = aIsLater ? b : a;
   const out: Record<string, unknown> = { ...(loser ?? {}) };
   if (winner !== null) {
     for (const [k, v] of Object.entries(winner)) {
