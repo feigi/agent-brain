@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  rm,
+  readFile,
+  writeFile,
+  mkdir,
+  stat,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { simpleGit } from "simple-git";
@@ -105,5 +112,30 @@ describe("ensureVaultGit", () => {
     await ensureVaultGit({ root, trackUsers: false });
     const headAfter = (await git.log()).latest?.hash;
     expect(headAfter).toBe(headBefore);
+  });
+});
+
+describe("ensureVaultGit — _audit/ cleanup", () => {
+  let root: string;
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "vault-"));
+  });
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("removes an existing _audit/ directory on startup", async () => {
+    await mkdir(join(root, "_audit"), { recursive: true });
+    await writeFile(join(root, "_audit", "mem-1.jsonl"), "{}\n", "utf8");
+    await ensureVaultGit({ root, trackUsers: false });
+    await expect(stat(join(root, "_audit"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
+  it("does not list _audit/ in the committed .gitignore", async () => {
+    await ensureVaultGit({ root, trackUsers: false });
+    const body = await readFile(join(root, ".gitignore"), "utf8");
+    expect(body).not.toMatch(/^_audit\/?$/m);
   });
 });

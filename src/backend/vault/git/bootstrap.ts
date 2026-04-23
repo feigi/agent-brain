@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { simpleGit, type SimpleGit } from "simple-git";
 import { DomainError } from "../../../utils/errors.js";
@@ -15,7 +15,6 @@ const RUNTIME_IGNORES = [
   "_sessions/",
   "_session-tracking/",
   "_scheduler-state.json",
-  "_audit/",
 ];
 
 const GITATTRIBUTES_RULE = "*.md merge=union";
@@ -28,6 +27,10 @@ export async function ensureVaultGit(
   if (!wasRepo) {
     await git.init();
   }
+  // Phase 4c cleanup: _audit/ is no longer produced (audit reads from
+  // git log). Remove any leftovers from earlier phases so a stale
+  // directory doesn't confuse the user.
+  await rmrf(join(opts.root, "_audit"));
   // Commits need a user.email/user.name pair. On docker, CI, or a
   // fresh dev machine neither may be set globally, which would make
   // every stageAndCommit fail silently. Set repo-local fallbacks but
@@ -148,4 +151,8 @@ async function readOrEmpty(path: string): Promise<string> {
     if ((err as { code?: string }).code === "ENOENT") return "";
     throw err;
   }
+}
+
+async function rmrf(path: string): Promise<void> {
+  await rm(path, { recursive: true, force: true });
 }
