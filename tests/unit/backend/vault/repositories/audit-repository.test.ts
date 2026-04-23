@@ -5,7 +5,7 @@ import { VaultAuditRepository } from "../../../../../src/backend/vault/repositor
 const PROJECT_ID = "proj-1";
 
 function fakeGit(stubs: {
-  log?: (args: unknown) => string;
+  log?: (args: string[]) => string;
   show?: (rev: string) => string;
   diffTree?: (sha: string) => string;
 }): SimpleGit {
@@ -74,7 +74,6 @@ describe("VaultAuditRepository (git-log reader)", () => {
     const repo = new VaultAuditRepository({
       root: "/tmp/vault",
       git,
-      projectId: PROJECT_ID,
     });
     expect(await repo.findByMemoryId("mem-1")).toEqual([]);
   });
@@ -91,7 +90,6 @@ describe("VaultAuditRepository (git-log reader)", () => {
     const repo = new VaultAuditRepository({
       root: "/tmp/vault",
       git,
-      projectId: PROJECT_ID,
     });
     const entries = await repo.findByMemoryId("mem-1");
     expect(entries).toHaveLength(1);
@@ -127,10 +125,10 @@ describe("VaultAuditRepository (git-log reader)", () => {
     const repo = new VaultAuditRepository({
       root: "/tmp/vault",
       git,
-      projectId: PROJECT_ID,
     });
     const entries = await repo.findByMemoryId("mem-1");
     expect(entries).toHaveLength(1);
+    expect(entries[0]!.project_id).toBe(PROJECT_ID);
     expect(entries[0]!.diff).toEqual({
       before: {
         content: "body-text",
@@ -171,10 +169,10 @@ describe("VaultAuditRepository (git-log reader)", () => {
     const repo = new VaultAuditRepository({
       root: "/tmp/vault",
       git,
-      projectId: PROJECT_ID,
     });
     const entries = await repo.findByMemoryId("mem-1");
     expect(entries).toHaveLength(1);
+    expect(entries[0]!.project_id).toBe(PROJECT_ID);
     expect(entries[0]!.diff).toEqual({
       before: {
         content: "body-text",
@@ -209,7 +207,6 @@ describe("VaultAuditRepository (git-log reader)", () => {
     const repo = new VaultAuditRepository({
       root: "/tmp/vault",
       git,
-      projectId: PROJECT_ID,
     });
     const entries = await repo.findByMemoryId("mem-1");
     expect(entries).toHaveLength(1);
@@ -236,7 +233,6 @@ describe("VaultAuditRepository (git-log reader)", () => {
     const repo = new VaultAuditRepository({
       root: "/tmp/vault",
       git,
-      projectId: PROJECT_ID,
     });
     const entries = await repo.findByMemoryId("mem-1");
     expect(entries.map((e) => e.action)).toEqual(["archived", "created"]);
@@ -247,7 +243,6 @@ describe("VaultAuditRepository (git-log reader)", () => {
     const repo = new VaultAuditRepository({
       root: "/tmp/vault",
       git,
-      projectId: PROJECT_ID,
     });
     await repo.create({
       id: "a1",
@@ -278,7 +273,32 @@ describe("VaultAuditRepository (git-log reader)", () => {
     const repo = new VaultAuditRepository({
       root: "/tmp/vault",
       git,
-      projectId: PROJECT_ID,
+    });
+    const entries = await repo.findByMemoryId("mem-1");
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.action).toBe("created");
+  });
+
+  it("drops commits with unmapped action (e.g. AB-Action: verified)", async () => {
+    // Documents the policy: actions not in TRAILER_TO_AUDIT are silently filtered.
+    const git = fakeGit({
+      log: () =>
+        [
+          [
+            "ccc",
+            "2026-04-03T00:00:00.000Z",
+            "x\n\nAB-Action: verified\nAB-Memory: mem-1\nAB-Actor: a",
+          ].join("\x1f"),
+          [
+            "ddd",
+            "2026-04-04T00:00:00.000Z",
+            "x\n\nAB-Action: created\nAB-Memory: mem-1\nAB-Actor: a",
+          ].join("\x1f"),
+        ].join("\x1e") + "\x1e",
+    });
+    const repo = new VaultAuditRepository({
+      root: "/tmp/vault",
+      git,
     });
     const entries = await repo.findByMemoryId("mem-1");
     expect(entries).toHaveLength(1);

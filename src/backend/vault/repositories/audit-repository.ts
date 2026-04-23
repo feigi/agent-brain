@@ -11,11 +11,11 @@ import { logger } from "../../../utils/logger.js";
 export interface VaultAuditConfig {
   root: string;
   git: SimpleGit;
-  projectId: string;
 }
 
-// Five fields match what MemoryService.update passes to
-// AuditService.logUpdate — keep in sync or the contract test will fail.
+// How MemoryService.update constructs its diff argument — `logUpdate` takes
+// opaque `Record<string, unknown>`, so the constraint really lives at the
+// call site, not in AuditService.logUpdate's signature.
 type DiffFields = Pick<
   ReturnType<typeof parseMemoryFile>["memory"],
   "content" | "title" | "type" | "tags" | "metadata"
@@ -71,27 +71,40 @@ export class VaultAuditRepository implements AuditRepository {
       const auditAction = TRAILER_TO_AUDIT[trailers.action];
       if (!auditAction) continue;
 
+      const createdAt = new Date(iso);
+      if (Number.isNaN(createdAt.getTime())) {
+        logger.warn(
+          `vault audit: skipping ${sha} with invalid created_at: ${iso}`,
+        );
+        continue;
+      }
+
       let diff: Record<string, unknown> | null = null;
+      let projectId = "";
       if (auditAction === "updated") {
         try {
-          diff = await this.reconstructUpdateDiff(sha, memoryId);
+          const result = await this.reconstructUpdateDiff(sha, memoryId);
+          diff = result?.diffFields ?? null;
+          projectId = result?.projectId ?? "";
         } catch (err) {
           logger.warn(
             `vault audit: failed to reconstruct diff for ${sha} ${memoryId}`,
             err,
           );
         }
+      } else {
+        projectId = await this.readProjectId(sha, memoryId);
       }
 
       entries.push({
         id: sha,
-        project_id: this.cfg.projectId,
+        project_id: projectId,
         memory_id: memoryId,
         action: auditAction,
         actor: trailers.actor,
         reason: trailers.reason ?? null,
         diff,
-        created_at: new Date(iso),
+        created_at: createdAt,
       });
     }
 
@@ -103,7 +116,10 @@ export class VaultAuditRepository implements AuditRepository {
   private async reconstructUpdateDiff(
     sha: string,
     memoryId: string,
-  ): Promise<{ before: DiffFields; after: DiffFields } | null> {
+  ): Promise<{
+    diffFields: { before: DiffFields; after: DiffFields };
+    projectId: string;
+  } | null> {
     // Read the "after" blob first to determine the memory's scope and
     // workspace — we need the path to then read the "before" blob.
     // We probe the three known layout patterns; the first successful read wins.
@@ -113,16 +129,50 @@ export class VaultAuditRepository implements AuditRepository {
       if (afterRaw === null) continue;
 
       const beforeRaw = await this.safeShow(`${sha}^:${path}`);
+      // No parent blob at this path means this is an update commit where the
+      // file was first introduced on this branch (git shallow clone or orphan
+      // lineage); skip the before/after reconstruction.
       if (beforeRaw === null) return null;
 
       const before = parseMemoryFile(beforeRaw).memory;
       const after = parseMemoryFile(afterRaw).memory;
       return {
-        before: pickFields(before),
-        after: pickFields(after),
+        diffFields: {
+          before: pickFields(before),
+          after: pickFields(after),
+        },
+        projectId: after.project_id,
       };
     }
     return null;
+  }
+
+  // Read the project_id from the blob for the given memory at the given commit.
+  // Uses diff-tree to find the actual path, then git show to read the blob.
+  // Returns "" on any parse failure (clearly-invalid sentinel, unambiguous).
+  private async readProjectId(sha: string, memoryId: string): Promise<string> {
+    try {
+      const candidatePaths = await this.guessCandidatePaths(sha, memoryId);
+      for (const path of candidatePaths) {
+        const raw = await this.safeShow(`${sha}:${path}`);
+        if (raw === null) continue;
+        try {
+          const parsed = parseMemoryFile(raw);
+          return parsed.memory.project_id;
+        } catch {
+          logger.warn(
+            `vault audit: failed to parse memory blob for ${sha}:${path}`,
+          );
+          return "";
+        }
+      }
+    } catch (err) {
+      logger.warn(
+        `vault audit: failed to read project_id for ${sha} ${memoryId}`,
+        err,
+      );
+    }
+    return "";
   }
 
   // Produce candidate blob paths for a memory id. We use `git diff-tree`
@@ -187,7 +237,7 @@ function pickFields(
     type: m.type,
     tags: m.tags,
     metadata: m.metadata,
-  } as DiffFields;
+  } satisfies DiffFields;
 }
 
 function escapeRe(s: string): string {
