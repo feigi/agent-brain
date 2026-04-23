@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFile, writeFile, mkdtemp } from "node:fs/promises";
+import { readFile, writeFile, mkdtemp, rm } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -51,31 +51,35 @@ async function gitMergeFile(
   their: string,
 ): Promise<Diff3Result> {
   const dir = await mkdtemp(join(tmpdir(), "mm-"));
-  const [basePath, ourPath, theirPath] = await Promise.all([
-    writeAndReturn(join(dir, "base"), base),
-    writeAndReturn(join(dir, "ours"), our),
-    writeAndReturn(join(dir, "theirs"), their),
-  ]);
-
-  return new Promise<Diff3Result>((resolve, reject) => {
-    const child = spawn("git", [
-      "merge-file",
-      "-p",
-      ourPath,
-      basePath,
-      theirPath,
+  try {
+    const [basePath, ourPath, theirPath] = await Promise.all([
+      writeAndReturn(join(dir, "base"), base),
+      writeAndReturn(join(dir, "ours"), our),
+      writeAndReturn(join(dir, "theirs"), their),
     ]);
-    const chunks: Buffer[] = [];
-    child.stdout.on("data", (c: Buffer) => chunks.push(c));
-    child.stderr.on("data", () => {}); // suppress git diagnostics
-    child.on("error", reject);
-    child.on("close", (code) => {
-      const text = Buffer.concat(chunks).toString("utf8");
-      if (code === 0) resolve({ clean: true, text });
-      else if (code === 1) resolve({ clean: false });
-      else reject(new Error(`git merge-file exited ${String(code)}`));
+
+    return await new Promise<Diff3Result>((resolve, reject) => {
+      const child = spawn("git", [
+        "merge-file",
+        "-p",
+        ourPath,
+        basePath,
+        theirPath,
+      ]);
+      const chunks: Buffer[] = [];
+      child.stdout.on("data", (c: Buffer) => chunks.push(c));
+      child.stderr.on("data", () => {}); // suppress git diagnostics
+      child.on("error", reject);
+      child.on("close", (code) => {
+        const text = Buffer.concat(chunks).toString("utf8");
+        if (code === 0) resolve({ clean: true, text });
+        else if (code === 1) resolve({ clean: false });
+        else reject(new Error(`git merge-file exited ${String(code)}`));
+      });
     });
-  });
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 async function writeAndReturn(p: string, body: string): Promise<string> {
