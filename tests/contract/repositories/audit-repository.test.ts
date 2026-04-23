@@ -1,11 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { pgFactory, type TestBackend } from "./_factories.js";
-
-// Vault's audit log is derived from git history — create() is a no-op and
-// findByMemoryId reads git log. Round-trip contract tests (create → find)
-// are not applicable. Vault audit behavior is covered by the unit tests at
-// tests/unit/backend/vault/repositories/audit-repository.test.ts.
-const factories = [pgFactory];
+import { factories, type TestBackend } from "./_factories.js";
 import type { AuditEntry } from "../../../src/types/audit.js";
 import type { Memory } from "../../../src/types/memory.js";
 
@@ -58,6 +52,14 @@ function makeMemory(overrides: Partial<Memory> = {}): Memory {
 
 describe.each(factories)("AuditRepository contract — $name", (factory) => {
   let backend: TestBackend;
+  // Vault derives its audit log from git history: create() is a no-op and
+  // findByMemoryId reads git log. Round-trip tests (create → find) are
+  // structurally impossible against vault and are covered in the unit tests at
+  // tests/unit/backend/vault/repositories/audit-repository.test.ts.
+  // Only "unknown memory → []" can run against vault, which exercises
+  // the empty-git-log path and validates interface compliance.
+  const isVault = factory.name === "vault";
+
   beforeEach(async () => {
     backend = await factory.create();
     // pg enforces FK audit_log.memory_id → memories.id — seed a memory
@@ -69,7 +71,9 @@ describe.each(factories)("AuditRepository contract — $name", (factory) => {
     await backend.close();
   });
 
-  it("create + findByMemoryId returns the entry", async () => {
+  // Roundtrip tests require create() to persist entries; vault's create()
+  // is intentionally a no-op (git commits are the audit log).
+  it.skipIf(isVault)("create + findByMemoryId returns the entry", async () => {
     await backend.auditRepo.create(makeEntry());
     const found = await backend.auditRepo.findByMemoryId("m1");
     expect(found).toHaveLength(1);
@@ -77,44 +81,55 @@ describe.each(factories)("AuditRepository contract — $name", (factory) => {
     expect(found[0]!.actor).toBe("chris");
   });
 
+  // This test does NOT require create() — it verifies the empty-result path,
+  // which vault supports by returning [] when git log finds no matching commits.
   it("findByMemoryId returns empty array for unknown memory", async () => {
     expect(await backend.auditRepo.findByMemoryId("nope")).toEqual([]);
   });
 
-  it("findByMemoryId returns entries ordered by created_at desc", async () => {
-    const base = new Date("2026-04-21T00:00:00.000Z").getTime();
-    await backend.auditRepo.create(
-      makeEntry({ id: "a1", created_at: new Date(base) }),
-    );
-    await backend.auditRepo.create(
-      makeEntry({ id: "a2", created_at: new Date(base + 1000) }),
-    );
-    await backend.auditRepo.create(
-      makeEntry({ id: "a3", created_at: new Date(base + 500) }),
-    );
-    const found = await backend.auditRepo.findByMemoryId("m1");
-    expect(found.map((e) => e.id)).toEqual(["a2", "a3", "a1"]);
-  });
+  it.skipIf(isVault)(
+    "findByMemoryId returns entries ordered by created_at desc",
+    async () => {
+      const base = new Date("2026-04-21T00:00:00.000Z").getTime();
+      await backend.auditRepo.create(
+        makeEntry({ id: "a1", created_at: new Date(base) }),
+      );
+      await backend.auditRepo.create(
+        makeEntry({ id: "a2", created_at: new Date(base + 1000) }),
+      );
+      await backend.auditRepo.create(
+        makeEntry({ id: "a3", created_at: new Date(base + 500) }),
+      );
+      const found = await backend.auditRepo.findByMemoryId("m1");
+      expect(found.map((e) => e.id)).toEqual(["a2", "a3", "a1"]);
+    },
+  );
 
-  it("preserves diff and reason payloads across roundtrip", async () => {
-    const diff = { content: ["old", "new"], tags: [["x"], ["x", "y"]] };
-    await backend.auditRepo.create(
-      makeEntry({
-        action: "updated",
-        reason: "refactor",
-        diff,
-      }),
-    );
-    const [entry] = await backend.auditRepo.findByMemoryId("m1");
-    expect(entry?.reason).toBe("refactor");
-    expect(entry?.diff).toEqual(diff);
-    expect(entry?.action).toBe("updated");
-  });
+  it.skipIf(isVault)(
+    "preserves diff and reason payloads across roundtrip",
+    async () => {
+      const diff = { content: ["old", "new"], tags: [["x"], ["x", "y"]] };
+      await backend.auditRepo.create(
+        makeEntry({
+          action: "updated",
+          reason: "refactor",
+          diff,
+        }),
+      );
+      const [entry] = await backend.auditRepo.findByMemoryId("m1");
+      expect(entry?.reason).toBe("refactor");
+      expect(entry?.diff).toEqual(diff);
+      expect(entry?.action).toBe("updated");
+    },
+  );
 
-  it("preserves caller-supplied created_at byte-for-byte", async () => {
-    const iso = "2020-01-01T00:00:00.000Z";
-    await backend.auditRepo.create(makeEntry({ created_at: new Date(iso) }));
-    const [entry] = await backend.auditRepo.findByMemoryId("m1");
-    expect(entry?.created_at.toISOString()).toBe(iso);
-  });
+  it.skipIf(isVault)(
+    "preserves caller-supplied created_at byte-for-byte",
+    async () => {
+      const iso = "2020-01-01T00:00:00.000Z";
+      await backend.auditRepo.create(makeEntry({ created_at: new Date(iso) }));
+      const [entry] = await backend.auditRepo.findByMemoryId("m1");
+      expect(entry?.created_at.toISOString()).toBe(iso);
+    },
+  );
 });

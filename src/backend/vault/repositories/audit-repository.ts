@@ -128,6 +128,12 @@ export class VaultAuditRepository implements AuditRepository {
   // Produce candidate blob paths for a memory id. We use `git diff-tree`
   // (not `git show --name-only`) so the "show" mock in tests only ever
   // receives blob-like rev arguments.
+  //
+  // If diff-tree fails or returns no matching path we return [] and let
+  // reconstructUpdateDiff emit diff:null. We deliberately do NOT fall back
+  // to a hardcoded heuristic path — workspace-scoped and user-scoped memories
+  // live under different prefixes, so a wrong guess silently produces null
+  // anyway but hides the real failure from logs.
   private async guessCandidatePaths(
     sha: string,
     memoryId: string,
@@ -148,12 +154,17 @@ export class VaultAuditRepository implements AuditRepository {
         if (p.endsWith(`/${memoryId}.md`)) paths.push(p);
       }
       if (paths.length > 0) return paths;
-    } catch {
-      // diff-tree unavailable (e.g. root commit) — fall through to heuristic
+      // diff-tree succeeded but found no matching path for this memory id.
+      logger.warn(
+        `vault audit: diff-tree returned no path matching ${memoryId}.md for ${sha}`,
+      );
+      return [];
+    } catch (err) {
+      // diff-tree unavailable (e.g. root commit) — log and return empty so
+      // the caller emits diff:null rather than guessing a wrong path.
+      logger.warn(`vault audit: diff-tree failed for ${sha} ${memoryId}`, err);
+      return [];
     }
-    // Heuristic fallback: return a wildcard-ish set of patterns so
-    // safeShow probing works for common layouts.
-    return [`project/memories/${memoryId}.md`];
   }
 
   private async safeShow(rev: string): Promise<string | null> {
