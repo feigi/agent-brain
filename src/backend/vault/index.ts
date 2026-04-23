@@ -208,14 +208,22 @@ export class VaultBackend implements StorageBackend {
     );
   }
 
-  /** Pulls from remote. Returns `{ conflict: true }` on merge conflict. */
-  async pullFromRemote(): Promise<{ conflict: boolean }> {
+  /**
+   * Pulls from remote.
+   * - `conflict`: true when a rebase conflict could not be auto-resolved.
+   * - `offline`: true when the remote was unreachable (network/auth); the
+   *   local state is unchanged and the caller can continue serving local data.
+   */
+  async pullFromRemote(): Promise<{ conflict: boolean; offline: boolean }> {
     const res = await syncFromRemote({ git: this.git });
     if (res.kind === "ok") {
       // Notify path-index of pulled changes so findById stays accurate.
       this.vaultMemoryRepo.syncPaths(res.changedPaths);
     }
-    return { conflict: res.kind === "conflict" };
+    return {
+      conflict: res.kind === "conflict",
+      offline: res.kind === "offline",
+    };
   }
 
   async sessionStart(): Promise<BackendSessionStartMeta> {
