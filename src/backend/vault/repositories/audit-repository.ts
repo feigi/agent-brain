@@ -151,26 +151,19 @@ export class VaultAuditRepository implements AuditRepository {
   // Uses diff-tree to find the actual path, then git show to read the blob.
   // Returns "" on any parse failure (clearly-invalid sentinel, unambiguous).
   private async readProjectId(sha: string, memoryId: string): Promise<string> {
-    try {
-      const candidatePaths = await this.guessCandidatePaths(sha, memoryId);
-      for (const path of candidatePaths) {
-        const raw = await this.safeShow(`${sha}:${path}`);
-        if (raw === null) continue;
-        try {
-          const parsed = parseMemoryFile(raw);
-          return parsed.memory.project_id;
-        } catch {
-          logger.warn(
-            `vault audit: failed to parse memory blob for ${sha}:${path}`,
-          );
-          return "";
-        }
+    const candidatePaths = await this.guessCandidatePaths(sha, memoryId);
+    for (const path of candidatePaths) {
+      const raw = await this.safeShow(`${sha}:${path}`);
+      if (raw === null) continue;
+      try {
+        const parsed = parseMemoryFile(raw);
+        return parsed.memory.project_id;
+      } catch {
+        logger.warn(
+          `vault audit: failed to parse memory blob for ${sha}:${path}`,
+        );
+        return "";
       }
-    } catch (err) {
-      logger.warn(
-        `vault audit: failed to read project_id for ${sha} ${memoryId}`,
-        err,
-      );
     }
     return "";
   }
