@@ -103,7 +103,15 @@ export const vaultFactory: Factory = {
       gitOps,
     });
     const workspaceRepo = new VaultWorkspaceRepository({ root, gitOps });
-    const git = simpleGit({ baseDir: root });
+    // VaultAuditRepository reads git log, so it needs an actual git repo
+    // even when other repos use NOOP_GIT_OPS. A bare `git init` (no commits)
+    // is sufficient: `git log` on an empty repo returns "" → findByMemoryId
+    // returns [] for all IDs, which is correct for the one contract test that
+    // runs against vault ("findByMemoryId returns empty array for unknown memory").
+    const git = simpleGit({ baseDir: root }).env(scrubGitEnv());
+    await git.init();
+    await git.addConfig("user.email", "contract@example.com");
+    await git.addConfig("user.name", "Contract Test");
     const auditRepo = new VaultAuditRepository({ root, git, projectId: "p1" });
     const schedulerStateRepo = new VaultSchedulerStateRepository({ root });
     const sessionTrackingRepo = new VaultSessionTrackingRepository({ root });
