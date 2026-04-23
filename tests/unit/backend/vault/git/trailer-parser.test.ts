@@ -71,4 +71,10 @@ describe("parseTrailers", () => {
   it("returns null for an unknown AB-Action value", () => {
     expect(parseTrailers("x\n\nAB-Action: nonsense\nAB-Actor: a")).toBeNull();
   });
+
+  it("returns null when AB-Actor is absent", () => {
+    expect(
+      parseTrailers("x\n\nAB-Action: updated\nAB-Memory: mem-1"),
+    ).toBeNull();
+  });
 });
