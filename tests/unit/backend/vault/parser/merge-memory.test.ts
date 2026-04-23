@@ -340,6 +340,43 @@ describe("mergeMemoryFiles", () => {
       expect(merged).toHaveLength(1);
       expect(merged[0]!.content).toBe("theirs version");
     });
+
+    it("comments sorted ascending by created_at even when theirs has an older comment than ours", async () => {
+      // Regression: unionBy preserves insertion order (ours first, then theirs).
+      // If theirs has an older comment, it would appear after ours without an explicit sort.
+      const comOurs = {
+        id: "com-newer",
+        author: "alice",
+        ts: "2026-04-20T12:00:00.000Z",
+        text: "newer comment added on ours",
+      };
+      const comTheirs = {
+        id: "com-older",
+        author: "bob",
+        ts: "2026-04-10T08:00:00.000Z",
+        text: "older comment added on theirs",
+      };
+
+      const ancestor = base();
+      const ours = base({ body: ["body", "", commentBlock([comOurs]), ""] });
+      const theirs = base({
+        body: ["body", "", commentBlock([comTheirs]), ""],
+      });
+
+      const res = await mergeMemoryFiles(ancestor, ours, theirs, {
+        diff3: passthroughDiff3,
+      });
+      if (!res.ok) throw new Error(res.reason);
+
+      const { comments: merged } = parseMemoryFile(res.merged);
+      expect(merged).toHaveLength(2);
+      // Must be in chronological ascending order regardless of which side each came from
+      expect(merged[0]!.id).toBe("com-older");
+      expect(merged[1]!.id).toBe("com-newer");
+      expect(merged[0]!.created_at.getTime()).toBeLessThan(
+        merged[1]!.created_at.getTime(),
+      );
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -434,6 +471,7 @@ describe("mergeMemoryFiles", () => {
 
       const { relationships: merged } = parseMemoryFile(res.merged);
       // Collision on (source_id=mem-1, target_id=mem-2, type=overrides) → theirs wins
+      // source_id comes from id: mem-1 in the base() fixture (composite key relies on it)
       expect(merged).toHaveLength(1);
       expect(merged[0]!.id).toBe("rel-theirs");
       expect(merged[0]!.confidence).toBeCloseTo(0.95);
