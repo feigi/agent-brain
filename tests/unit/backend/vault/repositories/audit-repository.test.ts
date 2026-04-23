@@ -86,11 +86,13 @@ describe("VaultAuditRepository (git-log reader)", () => {
           "2026-04-01T00:00:00.000Z",
           "create\n\nAB-Action: created\nAB-Memory: mem-1\nAB-Actor: alice",
         ].join("\x1f") + "\x1e",
+      diffTree: () => "project/memories/mem-1.md\n",
+      show: (rev) => {
+        if (rev.startsWith("abc123:")) return memoryMd({});
+        throw new Error(`unexpected rev ${rev}`);
+      },
     });
-    const repo = new VaultAuditRepository({
-      root: "/tmp/vault",
-      git,
-    });
+    const repo = new VaultAuditRepository({ root: "/tmp/vault", git });
     const entries = await repo.findByMemoryId("mem-1");
     expect(entries).toHaveLength(1);
     expect(entries[0]).toMatchObject({
@@ -99,6 +101,7 @@ describe("VaultAuditRepository (git-log reader)", () => {
       actor: "alice",
       reason: null,
       diff: null,
+      project_id: PROJECT_ID,
     });
     expect(entries[0]!.created_at).toBeInstanceOf(Date);
   });
