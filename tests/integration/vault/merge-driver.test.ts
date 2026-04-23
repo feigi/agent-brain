@@ -3,6 +3,7 @@ import { stat, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setupBareAndTwoVaults } from "../../contract/repositories/_git-helpers.js";
 import { VaultBackend } from "../../../src/backend/vault/index.js";
+import { parseMemoryFile } from "../../../src/backend/vault/parser/memory-parser.js";
 
 const DIMS = 32;
 
@@ -94,13 +95,16 @@ describe("merge driver — concurrent frontmatter edits", () => {
       // B pulls — now both clones share the same base commit.
       await backendB.pullFromRemote();
 
-      // Concurrent edits: A adds "ours", B adds "theirs".
-      // Both start from the same version so the commits diverge.
+      // Concurrent edits: A adds "zebra" (sorts last), B adds "alpha" (sorts
+      // first). Plain text merge would preserve insertion order and produce
+      // ["shared", "zebra", "alpha"]; our custom driver calls unionSorted
+      // which sorts the union, giving ["alpha", "shared", "zebra"]. This
+      // distinguishes driver-fired from plain-text-merge.
       await backendA.memoryRepo.update(mem.id, mem.version, {
-        tags: ["shared", "ours"],
+        tags: ["shared", "zebra"],
       });
       await backendB.memoryRepo.update(mem.id, mem.version, {
-        tags: ["shared", "theirs"],
+        tags: ["shared", "alpha"],
       });
 
       // A pushes first (lands on origin).
@@ -112,7 +116,10 @@ describe("merge driver — concurrent frontmatter edits", () => {
       const pulled = await backendB.pullFromRemote();
       expect(pulled.conflict).toBe(false);
 
-      // Both tags must appear in B's local file.
+      // Parse B's merged file and assert the custom driver ran.
+      // Our driver calls unionSorted → Array.from(new Set([...])).sort(),
+      // giving ["alpha", "shared", "zebra"]. Plain text merge would instead
+      // preserve insertion order, e.g. ["shared", "zebra", "alpha"].
       const path = join(
         vaultB,
         "workspaces",
@@ -121,9 +128,8 @@ describe("merge driver — concurrent frontmatter edits", () => {
         "merge-smoke-1.md",
       );
       const body = await readFile(path, "utf8");
-      expect(body).toContain("- shared");
-      expect(body).toContain("- ours");
-      expect(body).toContain("- theirs");
+      const merged = parseMemoryFile(body).memory;
+      expect(merged.tags).toEqual(["alpha", "shared", "zebra"]);
 
       await backendA.close();
       await backendB.close();
