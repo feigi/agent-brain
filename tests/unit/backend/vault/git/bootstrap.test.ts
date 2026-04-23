@@ -30,7 +30,8 @@ describe("ensureVaultGit", () => {
     expect(ignore).toContain(".agent-brain/");
     expect(ignore).toContain("users/");
     const attrs = await readFile(join(root, ".gitattributes"), "utf8");
-    expect(attrs).toContain("*.md merge=union");
+    expect(attrs).toContain("merge=agent-brain-memory");
+    expect(attrs).not.toContain("*.md merge=union");
   });
 
   it("omits users/ from .gitignore when trackUsers=true", async () => {
@@ -50,15 +51,16 @@ describe("ensureVaultGit", () => {
     expect(usersCount).toBe(1);
   });
 
-  it("appends *.md merge=union to an existing .gitattributes, preserving prior rules", async () => {
+  it("appends path-specific merge=agent-brain-memory rules to an existing .gitattributes, preserving prior rules", async () => {
     await writeFile(join(root, ".gitattributes"), "*.json binary\n", "utf8");
     await ensureVaultGit({ root, trackUsers: false });
     const attrs = await readFile(join(root, ".gitattributes"), "utf8");
     expect(attrs).toContain("*.json binary");
-    expect(attrs).toContain("*.md merge=union");
+    expect(attrs).toContain("merge=agent-brain-memory");
+    expect(attrs).not.toContain("*.md merge=union");
   });
 
-  it("throws VAULT_BOOTSTRAP_FAILED if the required rule is only inside a comment", async () => {
+  it("appends path-specific rules even when a comment mentions an old rule", async () => {
     await writeFile(
       join(root, ".gitattributes"),
       "# reminder: *.md merge=union\n",
@@ -66,13 +68,18 @@ describe("ensureVaultGit", () => {
     );
     await ensureVaultGit({ root, trackUsers: false });
     // hasActiveRule is line-based, so the comment should not count as
-    // present — bootstrap must append the real rule.
+    // present — bootstrap must append the real rules.
     const attrs = await readFile(join(root, ".gitattributes"), "utf8");
     const active = attrs
       .split("\n")
       .map((l) => l.trim())
       .filter((l) => l !== "" && !l.startsWith("#"));
-    expect(active).toContain("*.md merge=union");
+    expect(active).toContain(
+      "workspaces/**/memories/*.md merge=agent-brain-memory",
+    );
+    expect(active).toContain("project/memories/*.md merge=agent-brain-memory");
+    expect(active).toContain("users/**/memories/*.md merge=agent-brain-memory");
+    expect(active).not.toContain("*.md merge=union");
   });
 
   it("is idempotent: second call produces byte-identical files", async () => {
@@ -124,6 +131,39 @@ describe("ensureVaultGit", () => {
       "merge.agent-brain-memory.driver",
     ]);
     expect(driver).toMatch(/node ".+merge-memory\.js" %A %O %B/);
+  });
+
+  it("writes the three memory-path merge=agent-brain-memory rules", async () => {
+    const root = await mkdtemp(join(tmpdir(), "vault-"));
+    await ensureVaultGit({ root, trackUsers: true });
+    const body = await readFile(join(root, ".gitattributes"), "utf8");
+    expect(body).toMatch(
+      /^workspaces\/\*\*\/memories\/\*\.md merge=agent-brain-memory$/m,
+    );
+    expect(body).toMatch(
+      /^project\/memories\/\*\.md merge=agent-brain-memory$/m,
+    );
+    expect(body).toMatch(
+      /^users\/\*\*\/memories\/\*\.md merge=agent-brain-memory$/m,
+    );
+    expect(body).not.toMatch(/^\*\.md merge=union$/m);
+  });
+
+  it("migrates a Phase 4b vault by replacing *.md merge=union", async () => {
+    const root = await mkdtemp(join(tmpdir(), "vault-"));
+    // Simulate a Phase 4b bootstrap
+    await writeFile(join(root, ".gitattributes"), "*.md merge=union\n", "utf8");
+    const git = simpleGit({ baseDir: root }).env(scrubGitEnv());
+    await git.init();
+    await git.addConfig("user.email", "t@t");
+    await git.addConfig("user.name", "t");
+    await git.add([".gitattributes"]);
+    await git.commit("seed");
+
+    await ensureVaultGit({ root, trackUsers: false });
+    const body = await readFile(join(root, ".gitattributes"), "utf8");
+    expect(body).not.toMatch(/merge=union/);
+    expect(body).toMatch(/merge=agent-brain-memory/);
   });
 });
 
