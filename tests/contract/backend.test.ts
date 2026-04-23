@@ -186,7 +186,18 @@ describe.each(cases)("StorageBackend assembly — $name", (c) => {
       created_at: new Date("2026-04-21T10:00:00.000Z"),
     });
     const audits = await backend.auditRepo.findByMemoryId("m1");
-    expect(audits).toHaveLength(1);
+    if (c.name === "vault") {
+      // Under vault, findByMemoryId reads git log — every mutation that touched
+      // m1 via a repo that commits (memory create, comment, flag) appears as an
+      // entry. The explicit create() above is a no-op. We assert the audit log
+      // reflects the real mutation history, not just the explicit create.
+      // Actions that don't map through TRAILER_TO_AUDIT (unflagged, related)
+      // are filtered out, so only created/commented/flagged surface.
+      const actions = audits.map((a) => a.action).sort();
+      expect(actions).toEqual(["commented", "created", "flagged"]);
+    } else {
+      expect(audits).toHaveLength(1);
+    }
 
     const now = new Date("2026-04-21T11:00:00.000Z");
     await backend.schedulerStateRepo.recordRun("consolidation", now);
