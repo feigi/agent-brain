@@ -112,7 +112,7 @@ export const vaultFactory: Factory = {
     await git.init();
     await git.addConfig("user.email", "contract@example.com");
     await git.addConfig("user.name", "Contract Test");
-    const auditRepo = new VaultAuditRepository({ root, git, projectId: "p1" });
+    const auditRepo = new VaultAuditRepository({ root, git });
     const schedulerStateRepo = new VaultSchedulerStateRepository({ root });
     const sessionTrackingRepo = new VaultSessionTrackingRepository({ root });
     const sessionRepo = new VaultSessionRepository({ root });
@@ -170,7 +170,6 @@ export function makeVaultGitFactory(
       const auditRepo = new VaultAuditRepository({
         root,
         git: cfgGit,
-        projectId: "p1",
       });
       const schedulerStateRepo = new VaultSchedulerStateRepository({ root });
       const sessionTrackingRepo = new VaultSessionTrackingRepository({ root });

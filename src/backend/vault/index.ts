@@ -94,7 +94,6 @@ export class VaultBackend implements StorageBackend {
     this.auditRepo = new VaultAuditRepository({
       root,
       git: this.git,
-      projectId: "UNKNOWN", // project ids are per-memory; vault reads from git log
     });
     this.flagRepo = new VaultFlagRepository({
       root,

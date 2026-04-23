@@ -32,7 +32,7 @@ describe("traversal rejection for vault secondary repositories", () => {
     // before passing it to git grep.
     it.each(UNSAFE)("findByMemoryId(%j) throws", async (memoryId) => {
       const git = simpleGit({ baseDir: root });
-      const repo = new VaultAuditRepository({ root, git, projectId: "p1" });
+      const repo = new VaultAuditRepository({ root, git });
       await expect(repo.findByMemoryId(memoryId)).rejects.toThrow(
         /invalid memory_id/,
       );
