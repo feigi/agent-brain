@@ -21,7 +21,7 @@ export function parseTrailers(message: string): ParsedTrailers | null {
   // Normalize to LF so the line iterator works uniformly.
   for (const raw of message.replace(/\r\n?/g, "\n").split("\n")) {
     const m = raw.match(/^(AB-[A-Za-z]+):\s?(.*)$/);
-    if (m) fields[m[1]!] = m[2]!;
+    if (m) fields[m[1]!] = m[2]!.trim();
   }
 
   const action = fields["AB-Action"] as CommitAction | undefined;
