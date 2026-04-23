@@ -21,7 +21,12 @@ const RUNTIME_IGNORES = [
   "_scheduler-state.json",
 ];
 
-const GITATTRIBUTES_RULE = "*.md merge=union";
+const LEGACY_ATTR_RULE = "*.md merge=union";
+const GITATTRIBUTES_RULES = [
+  "workspaces/**/memories/*.md merge=agent-brain-memory",
+  "project/memories/*.md merge=agent-brain-memory",
+  "users/**/memories/*.md merge=agent-brain-memory",
+];
 
 export async function ensureVaultGit(
   opts: EnsureVaultGitOptions,
@@ -92,11 +97,39 @@ async function ensureGitignore(
 async function ensureGitattributes(root: string): Promise<boolean> {
   const path = join(root, ".gitattributes");
   const existing = await readOrEmpty(path);
-  if (hasActiveRule(existing, GITATTRIBUTES_RULE)) return false;
-  const trailingNewline =
-    existing === "" || existing.endsWith("\n") ? "" : "\n";
-  const merged = existing + trailingNewline + `${GITATTRIBUTES_RULE}\n`;
-  await writeFile(path, merged, "utf8");
+  const lines = existing.split(/\r?\n/);
+  let changed = false;
+
+  // Drop any active `*.md merge=union` line (ignore commented-out).
+  const kept = lines.filter((line) => {
+    const trimmed = line.trim();
+    if (trimmed === LEGACY_ATTR_RULE) {
+      changed = true;
+      return false;
+    }
+    return true;
+  });
+
+  // Add each required rule if not already present as a live rule.
+  const activeSet = new Set(
+    kept.map((l) => l.trim()).filter((l) => l !== "" && !l.startsWith("#")),
+  );
+  const toAppend: string[] = [];
+  for (const rule of GITATTRIBUTES_RULES) {
+    if (!activeSet.has(rule)) {
+      toAppend.push(rule);
+      changed = true;
+    }
+  }
+
+  if (!changed) return false;
+  // Normalize trailing newline before appending.
+  const trimmed = kept.join("\n").replace(/\n+$/, "");
+  const body =
+    (trimmed === "" ? "" : trimmed + "\n") +
+    toAppend.join("\n") +
+    (toAppend.length ? "\n" : "");
+  await writeFile(path, body, "utf8");
   return true;
 }
 
@@ -133,9 +166,18 @@ async function assertRequiredRules(
     }
   }
   const attrBody = await readOrEmpty(join(root, ".gitattributes"));
-  if (!hasActiveRule(attrBody, GITATTRIBUTES_RULE)) {
+  for (const rule of GITATTRIBUTES_RULES) {
+    if (!hasActiveRule(attrBody, rule)) {
+      throw new DomainError(
+        `vault bootstrap failed: .gitattributes is missing rule '${rule}'`,
+        "VAULT_BOOTSTRAP_FAILED",
+        500,
+      );
+    }
+  }
+  if (hasActiveRule(attrBody, LEGACY_ATTR_RULE)) {
     throw new DomainError(
-      `vault bootstrap failed: .gitattributes is missing rule '${GITATTRIBUTES_RULE}'`,
+      `vault bootstrap failed: legacy '${LEGACY_ATTR_RULE}' still active`,
       "VAULT_BOOTSTRAP_FAILED",
       500,
     );
