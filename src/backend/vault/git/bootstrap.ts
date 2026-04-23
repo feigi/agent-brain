@@ -4,6 +4,10 @@ import { simpleGit, type SimpleGit } from "simple-git";
 import { DomainError } from "../../../utils/errors.js";
 import { mergeGitignore } from "./gitignore-merge.js";
 import { scrubGitEnv } from "./env.js";
+import {
+  ensureMergeDriverConfig,
+  resolveDriverPath,
+} from "./merge-driver-config.js";
 
 export interface EnsureVaultGitOptions {
   root: string;
@@ -36,6 +40,10 @@ export async function ensureVaultGit(
   // every stageAndCommit fail silently. Set repo-local fallbacks but
   // never override an operator-configured identity.
   await ensureIdentity(git);
+  await ensureMergeDriverConfig({
+    root: opts.root,
+    driverPath: resolveDriverPath(),
+  });
   const ignoreChanged = await ensureGitignore(opts.root, opts.trackUsers);
   const attrChanged = await ensureGitattributes(opts.root);
   await assertRequiredRules(opts.root, opts.trackUsers);

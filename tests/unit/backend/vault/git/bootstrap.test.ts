@@ -113,6 +113,18 @@ describe("ensureVaultGit", () => {
     const headAfter = (await git.log()).latest?.hash;
     expect(headAfter).toBe(headBefore);
   });
+
+  it("writes the merge driver config on bootstrap", async () => {
+    const root = await mkdtemp(join(tmpdir(), "vault-"));
+    await ensureVaultGit({ root, trackUsers: false });
+    const git = simpleGit({ baseDir: root }).env(scrubGitEnv());
+    const driver = await git.raw([
+      "config",
+      "--local",
+      "merge.agent-brain-memory.driver",
+    ]);
+    expect(driver).toMatch(/node ".+merge-memory\.js" %A %O %B/);
+  });
 });
 
 describe("ensureVaultGit — _audit/ cleanup", () => {
