@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { factories, type TestBackend } from "./_factories.js";
+import { pgFactory, type TestBackend } from "./_factories.js";
+
+// Vault's audit log is derived from git history — create() is a no-op and
+// findByMemoryId reads git log. Round-trip contract tests (create → find)
+// are not applicable. Vault audit behavior is covered by the unit tests at
+// tests/unit/backend/vault/repositories/audit-repository.test.ts.
+const factories = [pgFactory];
 import type { AuditEntry } from "../../../src/types/audit.js";
 import type { Memory } from "../../../src/types/memory.js";
 

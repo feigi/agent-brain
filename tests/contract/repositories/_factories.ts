@@ -103,7 +103,8 @@ export const vaultFactory: Factory = {
       gitOps,
     });
     const workspaceRepo = new VaultWorkspaceRepository({ root, gitOps });
-    const auditRepo = new VaultAuditRepository({ root });
+    const git = simpleGit({ baseDir: root });
+    const auditRepo = new VaultAuditRepository({ root, git, projectId: "p1" });
     const schedulerStateRepo = new VaultSchedulerStateRepository({ root });
     const sessionTrackingRepo = new VaultSessionTrackingRepository({ root });
     const sessionRepo = new VaultSessionRepository({ root });
@@ -158,7 +159,11 @@ export function makeVaultGitFactory(
         trackUsersInGit,
       });
       const workspaceRepo = new VaultWorkspaceRepository({ root, gitOps });
-      const auditRepo = new VaultAuditRepository({ root });
+      const auditRepo = new VaultAuditRepository({
+        root,
+        git: cfgGit,
+        projectId: "p1",
+      });
       const schedulerStateRepo = new VaultSchedulerStateRepository({ root });
       const sessionTrackingRepo = new VaultSessionTrackingRepository({ root });
       const sessionRepo = new VaultSessionRepository({ root });
