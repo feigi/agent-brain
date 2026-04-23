@@ -77,8 +77,8 @@ One side's value wins wholesale; winner is the side with the greater `updated_at
 Memory body is split by `splitBody()` into `{ content, relationshipSection, commentSection }`. After parsing, the driver merges each section:
 
 - `## Comments` — append-only list merged by `id`; chronological ascending preserved.
-- `## Relationships` — union by `(source_id, target_id, type)` tuple; on collision take the entry with the greater `updated_at`.
-- Inline flags (frontmatter `flags: []` block) — union by `id`; on collision take the greater `updated_at` entry.
+- `## Relationships` — union by `(source_id, target_id, type)` tuple; on collision take the entry from the 'theirs' side. Rationale: `Relationship` has only `created_at`, not `updated_at`; until the schema carries an update timestamp, deterministic 'theirs wins' is the best we can do. Collisions are rare in practice — relationships are typically append-only from each clone.
+- Inline flags (frontmatter `flags: []` block) — union by `id`; on collision take the entry from the 'theirs' side; `Flag` also lacks `updated_at`.
 
 ### Body text (`content`) merge
 
