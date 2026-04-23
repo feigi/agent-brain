@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { simpleGit } from "simple-git";
 import { VaultAuditRepository } from "../../../../../src/backend/vault/repositories/audit-repository.js";
 import { VaultSessionRepository } from "../../../../../src/backend/vault/repositories/session-repository.js";
 import { VaultSessionTrackingRepository } from "../../../../../src/backend/vault/repositories/session-tracking-repository.js";
@@ -25,25 +26,13 @@ describe("traversal rejection for vault secondary repositories", () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  describe("VaultAuditRepository.create rejects unsafe memory_id", () => {
-    it.each(UNSAFE)("memory_id=%j throws", async (memoryId) => {
-      const repo = new VaultAuditRepository({ root });
-      await expect(
-        repo.create({
-          id: "a1",
-          project_id: "p1",
-          memory_id: memoryId,
-          action: "created",
-          actor: "chris",
-          reason: null,
-          diff: null,
-          created_at: new Date("2026-04-21T00:00:00.000Z"),
-        }),
-      ).rejects.toThrow(/invalid memory_id/);
-    });
-
+  describe("VaultAuditRepository.findByMemoryId rejects unsafe memory_id", () => {
+    // create() is a no-op in the git-log-reader implementation, so no
+    // traversal guard is needed there. findByMemoryId validates the id
+    // before passing it to git grep.
     it.each(UNSAFE)("findByMemoryId(%j) throws", async (memoryId) => {
-      const repo = new VaultAuditRepository({ root });
+      const git = simpleGit({ baseDir: root });
+      const repo = new VaultAuditRepository({ root, git, projectId: "p1" });
       await expect(repo.findByMemoryId(memoryId)).rejects.toThrow(
         /invalid memory_id/,
       );
