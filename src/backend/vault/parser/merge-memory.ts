@@ -94,6 +94,12 @@ export async function mergeMemoryFiles(
   };
 
   // Body sub-sections: union by stable key.
+  // Collision policy: 'theirs wins' (b overwrites a in unionBy).
+  // NOTE: This is NOT LWW-by-updated_at. Neither Flag nor Relationship carries
+  // an updated_at field — both have only created_at. Until the schema is
+  // extended with an update timestamp, deterministic 'theirs wins' is the best
+  // we can do without risking silent data loss. Collisions are rare in practice
+  // since these sections are append-only from each clone.
   const comments = unionBy(o.comments, t.comments, (c) => c.id);
   const flags = unionBy(o.flags, t.flags, (f) => f.id);
   const relationships = unionBy(
