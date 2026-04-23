@@ -445,16 +445,19 @@ Forces behavioral parity; divergence = test failure.
 
 ## Phased rollout
 
-| Phase | Deliverable                                                                                                                               |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| 0     | `StorageBackend` interface extraction. Move existing drizzle repos behind factory. No behavior change. Green tests.                       |
-| 1     | Vault parser + serializer (pure). Roundtrip property tests for all entity types.                                                          |
-| 2     | Vault repositories against a local directory (no git, no vector). Parameterized repo contract tests pass against both backends.           |
-| 3     | LanceDB index integration. Vector parity tests.                                                                                           |
-| 4     | Git sync layer. Commit-on-write, pull-on-session_start, conflict handling. Two-clone integration test. **Done — 4a (#34), 4b (this PR).** |
-| 5     | Chokidar watcher. External edit E2E.                                                                                                      |
-| 6     | Migration CLI + reverse migration.                                                                                                        |
-| 7     | Docs, recommended Obsidian vault template (Dataview, Tasks plugins), README updates.                                                      |
+| Phase | Deliverable                                                                                                                            |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | `StorageBackend` interface extraction. Move existing drizzle repos behind factory. No behavior change. Green tests.                    |
+| 1     | Vault parser + serializer (pure). Roundtrip property tests for all entity types.                                                       |
+| 2     | Vault repositories against a local directory (no git, no vector). Parameterized repo contract tests pass against both backends.        |
+| 3     | LanceDB index integration. Vector parity tests.                                                                                        |
+| 4a    | Git write path: commit-on-write, `AB-*` trailers, bootstrap `.gitignore`/`.gitattributes`, `users/` privacy invariant. **Done — #34.** |
+| 4b    | Push queue + pull-on-session_start. Debounced push, rebase pull, diff-driven reindex, conflict/offline meta. **Done — #37.**           |
+| 4c    | `VaultAuditRepository` on git log + smart YAML merge driver (`agent-brain-memory`). **Done — #39.**                                    |
+| 4d    | Surface `parse_errors` as per-memory flags (consolidation producer) + write-path perf budget verification under load.                  |
+| 5     | Chokidar watcher. External edit E2E.                                                                                                   |
+| 6     | Migration CLI + reverse migration.                                                                                                     |
+| 7     | Docs, recommended Obsidian vault template (Dataview, Tasks plugins), README updates.                                                   |
 
 ## Open questions
 
