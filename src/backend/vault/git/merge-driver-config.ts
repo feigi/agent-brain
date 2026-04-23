@@ -47,6 +47,14 @@ export async function ensureMergeDriverConfig(
  * Resolves the absolute path to the compiled merge driver. Prefers the
  * installed package entry; falls back to the repo-local dist/ for
  * development clones.
+ *
+ * The dev fallback handles two execution contexts:
+ *  - Compiled JS (dist/):  this file is at dist/src/backend/vault/git/…
+ *    → ../../../cli/merge-memory.js resolves to dist/src/cli/merge-memory.js ✓
+ *  - TypeScript source (src/, via tsx / vitest):  import.meta.url ends in
+ *    .ts and this file is at src/backend/vault/git/… so the same relative
+ *    path would land in src/cli/merge-memory.js (a .ts file, not a Node
+ *    subprocess).  Detect the .ts suffix and add one extra dist/ segment.
  */
 export function resolveDriverPath(): string {
   try {
@@ -54,11 +62,19 @@ export function resolveDriverPath(): string {
     const require = createRequire(import.meta.url);
     return require.resolve("agent-brain/dist/src/cli/merge-memory.js");
   } catch {
-    // Dev fallback: resolve relative to this compiled module's location.
-    // At runtime this file lives at `<...>/dist/src/backend/vault/git/merge-driver-config.js`.
-    // The CLI lives at `<...>/dist/src/cli/merge-memory.js`, so ../../../cli/merge-memory.js.
-    return fileURLToPath(
-      new URL("../../../cli/merge-memory.js", import.meta.url),
-    );
+    // Dev fallback.
+    const thisUrl = import.meta.url;
+    if (thisUrl.endsWith(".ts")) {
+      // Running under tsx/vitest from TypeScript sources.
+      // This file: <project>/src/backend/vault/git/merge-driver-config.ts
+      // CLI target: <project>/dist/src/cli/merge-memory.js
+      // Go up 4 levels (git/ → vault/ → backend/ → src/) then into dist/src/cli/.
+      return fileURLToPath(
+        new URL("../../../../dist/src/cli/merge-memory.js", thisUrl),
+      );
+    }
+    // Compiled JS: this file lives at dist/src/backend/vault/git/…
+    // CLI lives at dist/src/cli/merge-memory.js → go up 3 levels.
+    return fileURLToPath(new URL("../../../cli/merge-memory.js", thisUrl));
   }
 }

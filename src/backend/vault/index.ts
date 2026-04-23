@@ -187,6 +187,37 @@ export class VaultBackend implements StorageBackend {
     await this.vectorIndex.close();
   }
 
+  /**
+   * Waits until all pending pushes have landed on the remote.
+   * Polls git until `@{u}..HEAD` is empty (no unpushed commits).
+   * Used by integration tests to synchronise after a write.
+   */
+  async flushPushes(): Promise<void> {
+    for (let i = 0; i < 200; i++) {
+      try {
+        await this.git.raw(["rev-parse", "@{u}"]);
+        const out = await this.git.raw(["rev-list", "--count", "@{u}..HEAD"]);
+        if (Number(out.trim()) === 0) return;
+      } catch {
+        // @{u} not yet set — first push hasn't landed. Keep polling.
+      }
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    throw new Error(
+      "flushPushes: timed out waiting for push to settle (@{u} set + 0 unpushed)",
+    );
+  }
+
+  /** Pulls from remote. Returns `{ conflict: true }` on merge conflict. */
+  async pullFromRemote(): Promise<{ conflict: boolean }> {
+    const res = await syncFromRemote({ git: this.git });
+    if (res.kind === "ok") {
+      // Notify path-index of pulled changes so findById stays accurate.
+      this.vaultMemoryRepo.syncPaths(res.changedPaths);
+    }
+    return { conflict: res.kind === "conflict" };
+  }
+
   async sessionStart(): Promise<BackendSessionStartMeta> {
     const meta = await runSessionStart({
       root: this.root,
