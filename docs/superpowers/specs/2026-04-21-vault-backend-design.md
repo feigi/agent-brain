@@ -454,7 +454,7 @@ Forces behavioral parity; divergence = test failure.
 | 4a    | Git write path: commit-on-write, `AB-*` trailers, bootstrap `.gitignore`/`.gitattributes`, `users/` privacy invariant. **Done — #34.** |
 | 4b    | Push queue + pull-on-session_start. Debounced push, rebase pull, diff-driven reindex, conflict/offline meta. **Done — #37.**           |
 | 4c    | `VaultAuditRepository` on git log + smart YAML merge driver (`agent-brain-memory`). **Done — #39.**                                    |
-| 4d    | Surface `parse_errors` as per-memory flags (consolidation producer) + write-path perf budget verification under load.                  |
+| 4d    | Surface `parse_errors` as per-memory flags (consolidation producer) + write-path perf budget verification under load. **Done — #TBD.** |
 | 5     | Chokidar watcher. External edit E2E.                                                                                                   |
 | 6     | Migration CLI + reverse migration.                                                                                                     |
 | 7     | Docs, recommended Obsidian vault template (Dataview, Tasks plugins), README updates.                                                   |
