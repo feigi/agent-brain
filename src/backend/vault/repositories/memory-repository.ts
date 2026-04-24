@@ -116,12 +116,7 @@ export class VaultMemoryRepository implements MemoryRepository {
       }
       await writeMarkdownAtomic(this.cfg.root, rel, md);
     });
-    this.vaultIndex.register(memory.id, {
-      path: rel,
-      scope: scopeLoc.scope,
-      workspaceId: scopeLoc.workspaceId,
-      userId: scopeLoc.userId,
-    });
+    this.vaultIndex.register(memory.id, { ...scopeLoc, path: rel });
     // Markdown is source of truth; lance is a derived cache. A lance
     // failure here leaves the new memory un-indexed until Phase 5's
     // watcher-driven reindex picks it up. Log and return success.
@@ -256,31 +251,26 @@ export class VaultMemoryRepository implements MemoryRepository {
       // Detect title change → rename file to new slug
       const titleChanged =
         updates.title !== undefined && updates.title !== parsed.memory.title;
-      let newRel = entry.path;
+      const oldRel = entry.path;
+      let newRel = oldRel;
 
       if (titleChanged) {
         const scopeLoc = scopeLocationFor(next);
         const dir = scopeDir(scopeLoc);
-        const newSlug = this.vaultIndex.slugForTitle(next.title, dir);
-        const currentFilename = entry.path
-          .split("/")
-          .pop()!
-          .replace(/\.md$/, "");
-        if (newSlug !== currentFilename) {
-          newRel = memoryPath({ ...scopeLoc, slug: newSlug });
-        }
+        const newSlug = this.vaultIndex.slugForTitle(next.title, dir, id);
+        newRel = memoryPath({ ...scopeLoc, slug: newSlug });
       }
 
-      if (newRel !== entry.path) {
+      if (newRel !== oldRel) {
         // Rename: write new, update index, then delete old.
         // Index before delete so a crash leaves a harmless orphan
         // rather than an ambiguous duplicate.
-        const oldAbs = join(this.cfg.root, entry.path);
+        const oldAbs = join(this.cfg.root, oldRel);
         await writeMarkdownAtomic(this.cfg.root, newRel, md);
         this.vaultIndex.move(id, newRel);
         await rm(oldAbs);
       } else {
-        await writeMarkdownAtomic(this.cfg.root, entry.path, md);
+        await writeMarkdownAtomic(this.cfg.root, oldRel, md);
       }
 
       try {
@@ -324,8 +314,7 @@ export class VaultMemoryRepository implements MemoryRepository {
       }
 
       // Stage both paths on rename so git records the move
-      const commitPaths =
-        newRel !== entry.path ? [entry.path, newRel] : [entry.path];
+      const commitPaths = newRel !== oldRel ? [oldRel, newRel] : [newRel];
       await this.#commitPaths(
         commitPaths,
         next.scope,

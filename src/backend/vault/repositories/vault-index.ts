@@ -67,12 +67,7 @@ export class VaultIndex {
           });
           continue; // keep first occurrence
         }
-        index.map.set(id, {
-          path: rel,
-          scope: scopeLoc.scope,
-          workspaceId: scopeLoc.workspaceId,
-          userId: scopeLoc.userId,
-        });
+        index.map.set(id, { ...scopeLoc, path: rel });
       } catch (err) {
         logger.warn("vault index: failed to parse frontmatter", {
           path: rel,
@@ -120,13 +115,15 @@ export class VaultIndex {
   /**
    * Generate a slug for a title, checking for collisions in `targetDir`.
    * On collision, appends a `-<4-char-nanoid>` suffix.
+   * Pass `excludeId` to skip the memory's own path during collision check
+   * (needed when renaming — the memory's current path is not a collision).
    */
-  slugForTitle(title: string, targetDir: string): string {
+  slugForTitle(title: string, targetDir: string, excludeId?: string): string {
     const base = slugify(title);
     const candidate = `${targetDir}/${base}.md`;
 
     // Check if any existing entry occupies this path
-    if (!this.pathExists(candidate)) return base;
+    if (!this.pathExists(candidate, excludeId)) return base;
 
     // Collision — append a short nanoid suffix
     const suffix = nanoid(4);
@@ -165,14 +162,12 @@ export class VaultIndex {
           const { data: fm } = matter(raw);
           const id = fm.id;
           if (typeof id !== "string" || id.length === 0) continue;
-          this.register(id, {
+          this.register(id, { ...scopeLoc, path: rel });
+        } catch (err) {
+          logger.warn("vault index: syncPaths failed to parse frontmatter", {
             path: rel,
-            scope: scopeLoc.scope,
-            workspaceId: scopeLoc.workspaceId,
-            userId: scopeLoc.userId,
+            err,
           });
-        } catch {
-          // Can't parse — skip
         }
       } else {
         // File deleted — find entry by path and remove
@@ -187,10 +182,11 @@ export class VaultIndex {
   }
 
   /** Check whether any indexed entry occupies the given path. */
-  private pathExists(path: string): boolean {
+  private pathExists(path: string, excludeId?: string): boolean {
     // Normalize to posix separators for comparison
     const normalized = path.split("\\").join(posix.sep);
-    for (const entry of this.map.values()) {
+    for (const [id, entry] of this.map) {
+      if (id === excludeId) continue;
       if (entry.path === normalized) return true;
     }
     return false;
@@ -217,6 +213,11 @@ export class VaultIndex {
         mismatches.push({
           memoryId: id,
           reason: `File at ${entry.path} has frontmatter workspace_id '${entry.workspaceId}' but directory implies '${dirScope.workspaceId}'`,
+        });
+      } else if (dirScope.userId !== entry.userId) {
+        mismatches.push({
+          memoryId: id,
+          reason: `File at ${entry.path} has frontmatter user_id '${entry.userId}' but directory implies '${dirScope.userId}'`,
         });
       }
     }
