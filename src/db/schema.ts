@@ -203,6 +203,7 @@ export const flagTypeEnum = pgEnum("flag_type", [
   "superseded",
   "verify",
   "path_mismatch",
+  "parse_error",
 ]);
 
 export const flagSeverityEnum = pgEnum("flag_severity", [
