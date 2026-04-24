@@ -20,6 +20,15 @@ export interface PathConsistencyChecker {
   check(): Promise<Array<{ memoryId: string; reason: string }>>;
 }
 
+export interface ParseErrorChecker {
+  check(): Promise<ParseErrorCheckResult>;
+}
+
+export interface ParseErrorCheckResult {
+  errors: Array<{ memoryId: string; path: string; reason: string }>;
+  resolved: string[]; // memory IDs whose parse_error flags were auto-resolved
+}
+
 export type ClassificationResult =
   | "auto_archive"
   | "flag_duplicate"
