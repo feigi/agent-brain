@@ -10,6 +10,11 @@ import { logger } from "../../utils/logger.js";
 
 export type Embedder = (text: string) => Promise<number[]>;
 
+export interface ParseErrorEntry {
+  path: string;
+  reason: string;
+}
+
 export interface DiffReindexConfig {
   paths: string[];
   root: string;
@@ -18,13 +23,13 @@ export interface DiffReindexConfig {
 }
 
 export interface DiffReindexResult {
-  parseErrorPaths: string[];
+  parseErrors: ParseErrorEntry[];
 }
 
 export async function diffReindex(
   cfg: DiffReindexConfig,
 ): Promise<DiffReindexResult> {
-  const parseErrorPaths: string[] = [];
+  const parseErrors: ParseErrorEntry[] = [];
   for (const rel of cfg.paths) {
     if (inferScopeFromPath(rel) === null) continue;
     const abs = join(cfg.root, rel);
@@ -45,10 +50,9 @@ export async function diffReindex(
     try {
       parsed = parseMemoryFile(raw);
     } catch (err) {
-      logger.warn(
-        `diffReindex: parse failed for ${rel}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      parseErrorPaths.push(rel);
+      const reason = err instanceof Error ? err.message : String(err);
+      logger.warn(`diffReindex: parse failed for ${rel}: ${reason}`);
+      parseErrors.push({ path: rel, reason });
       continue;
     }
     const { memory } = parsed;
@@ -71,7 +75,7 @@ export async function diffReindex(
     const embedding = await cfg.embed(memory.content);
     await cfg.vectorIndex.upsert([buildRow(memory, newHash, embedding)]);
   }
-  return { parseErrorPaths };
+  return { parseErrors };
 }
 
 function sha256(s: string): string {
@@ -118,7 +122,9 @@ export interface RunSessionStartConfig {
   pushQueue: PushQueueHandle;
   // Ordering matters: callback runs before reindex so findById resolves.
   onChangedPaths?: (paths: string[]) => void | Promise<void>;
-  unindexablePaths?: string[];
+  // Files the boot-time index scan couldn't parse (missing id, bad YAML,
+  // etc.). Merged with this-session parse errors, deduped by path.
+  unindexableEntries?: ReadonlyArray<ParseErrorEntry>;
 }
 
 export async function runSessionStart(
@@ -127,7 +133,7 @@ export async function runSessionStart(
   const meta: BackendSessionStartMeta = {};
   const pull = await cfg.syncFromRemote();
 
-  let parseErrorPaths: string[] = [];
+  let parseErrors: ParseErrorEntry[] = [];
   switch (pull.kind) {
     case "offline":
       meta.offline = true;
@@ -145,16 +151,13 @@ export async function runSessionStart(
           vectorIndex: cfg.vectorIndex,
           embed: cfg.embed,
         });
-        parseErrorPaths = result.parseErrorPaths;
+        parseErrors = result.parseErrors;
       }
       break;
   }
 
-  const allParseErrors = [
-    ...(cfg.unindexablePaths ?? []),
-    ...parseErrorPaths,
-  ];
-  if (allParseErrors.length > 0) meta.parse_errors = allParseErrors;
+  const merged = mergeUniqueByPath(cfg.unindexableEntries ?? [], parseErrors);
+  if (merged.length > 0) meta.parse_errors = merged;
 
   const unpushed = await cfg.pushQueue.unpushedCommits();
   if (unpushed > 0) meta.unpushed_commits = unpushed;
@@ -165,4 +168,25 @@ export async function runSessionStart(
   cfg.pushQueue.request(); // kick drain
 
   return meta;
+}
+
+function mergeUniqueByPath(
+  boot: ReadonlyArray<ParseErrorEntry>,
+  live: ReadonlyArray<ParseErrorEntry>,
+): ParseErrorEntry[] {
+  const seen = new Set<string>();
+  const out: ParseErrorEntry[] = [];
+  // Live entries win: diffReindex saw the file more recently than the
+  // boot-time scan, so its reason is fresher.
+  for (const e of live) {
+    if (seen.has(e.path)) continue;
+    seen.add(e.path);
+    out.push(e);
+  }
+  for (const e of boot) {
+    if (seen.has(e.path)) continue;
+    seen.add(e.path);
+    out.push(e);
+  }
+  return out;
 }

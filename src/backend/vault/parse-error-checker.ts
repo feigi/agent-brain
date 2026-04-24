@@ -7,6 +7,7 @@ import type {
   ParseErrorCheckResult,
 } from "../../services/consolidation-service.js";
 import { parseMemoryFile } from "./parser/memory-parser.js";
+import { logger } from "../../utils/logger.js";
 
 export class VaultParseErrorChecker implements ParseErrorChecker {
   constructor(
@@ -17,15 +18,24 @@ export class VaultParseErrorChecker implements ParseErrorChecker {
 
   async check(): Promise<ParseErrorCheckResult> {
     const errors: ParseErrorCheckResult["errors"] = [];
-    const resolved: string[] = [];
+    const resolvable: ParseErrorCheckResult["resolvable"] = [];
 
     for (const [id, entry] of this.vaultIndex.entries()) {
       const abs = join(this.root, entry.path);
       let raw: string;
       try {
         raw = await readFile(abs, "utf8");
-      } catch {
-        continue; // file gone — not a parse error
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException | undefined)?.code;
+        if (code === "ENOENT") {
+          // File gone — path-consistency checker owns deleted-file surfacing.
+          continue;
+        }
+        logger.error(
+          `parse-error-checker: readFile failed for ${entry.path} (${code ?? "unknown"}):`,
+          err,
+        );
+        continue;
       }
 
       let parseOk = true;
@@ -38,30 +48,23 @@ export class VaultParseErrorChecker implements ParseErrorChecker {
       }
 
       if (parseOk) {
-        // Auto-resolve stale parse_error flags
-        const hasFlag = await this.flagService.hasOpenFlag(id, "parse_error");
-        if (hasFlag) {
-          try {
-            const flags = await this.flagService.getFlagsByMemoryId(id);
-            for (const f of flags) {
-              if (f.flag_type === "parse_error" && f.resolved_at === null) {
-                await this.flagService.resolveFlag(f.id, "system", "accepted");
-                resolved.push(id);
-                break;
-              }
-            }
-          } catch {
-            // Flag deleted between check and resolve — skip silently
+        const flags = await this.flagService.getFlagsByMemoryId(id);
+        for (const f of flags) {
+          if (f.flag_type === "parse_error" && f.resolved_at === null) {
+            resolvable.push({ memoryId: id, flagId: f.id });
           }
         }
       } else {
-        const alreadyFlagged = await this.flagService.hasOpenFlag(id, "parse_error");
+        const alreadyFlagged = await this.flagService.hasOpenFlag(
+          id,
+          "parse_error",
+        );
         if (!alreadyFlagged) {
           errors.push({ memoryId: id, path: entry.path, reason });
         }
       }
     }
 
-    return { errors, resolved };
+    return { errors, resolvable };
   }
 }

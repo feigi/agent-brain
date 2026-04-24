@@ -1,5 +1,6 @@
 import { bench, describe, beforeAll, afterAll } from "vitest";
-import { rm, mkdir, writeFile } from "node:fs/promises";
+import { rm, mkdir, writeFile, mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { simpleGit } from "simple-git";
 import { VaultBackend } from "../../src/backend/vault/index.js";
@@ -7,7 +8,7 @@ import { serializeMemoryFile } from "../../src/backend/vault/parser/memory-parse
 import { nanoid } from "nanoid";
 import type { Memory } from "../../src/types/memory.js";
 
-const DIMS = 384; // small dims for speed
+const DIMS = 384;
 
 function makeMemory(id: string, wsId: string): Memory {
   const now = new Date();
@@ -52,20 +53,18 @@ async function seedVault(root: string, count: number): Promise<void> {
     });
     await writeFile(join(memDir, `mem-${i}.md`), md);
   }
-  // Stage and commit all seeded files
   const git = simpleGit({ baseDir: root });
   await git.add(".");
   await git.commit("seed memories");
 }
 
 async function initVaultDir(): Promise<string> {
-  const root = join(process.cwd(), "test-vault-bench", Date.now().toString());
-  await mkdir(root, { recursive: true });
+  const root = await mkdtemp(join(tmpdir(), "vault-bench-"));
   const git = simpleGit({ baseDir: root });
   await git.init();
   await git.addConfig("user.email", "bench@test.com");
   await git.addConfig("user.name", "Bench");
-  // Create initial commit so git operations work
+  // VaultBackend requires a HEAD commit before first push/rebase runs.
   await writeFile(join(root, ".gitignore"), "_vector/\n");
   await git.add(".");
   await git.commit("init");
@@ -93,14 +92,18 @@ describe("vault write path", () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  bench("single memory create (empty vault)", async () => {
-    const id = nanoid();
-    const embedding = new Array(DIMS).fill(0.1);
-    await backend.memoryRepo.create({
-      ...makeMemory(id, "bench-ws"),
-      embedding,
-    });
-  }, { iterations: 20, warmupIterations: 2 });
+  bench(
+    "single memory create (empty vault)",
+    async () => {
+      const id = nanoid();
+      const embedding = new Array(DIMS).fill(0.1);
+      await backend.memoryRepo.create({
+        ...makeMemory(id, "bench-ws"),
+        embedding,
+      });
+    },
+    { iterations: 20, warmupIterations: 2 },
+  );
 });
 
 describe("vault write path (1k existing)", () => {
@@ -115,21 +118,25 @@ describe("vault write path (1k existing)", () => {
       embeddingDimensions: DIMS,
       embed: fakeEmbed,
     });
-  }, 60000); // 60s timeout for seeding
+  }, 60000);
 
   afterAll(async () => {
     await backend.close();
     await rm(root, { recursive: true, force: true });
   });
 
-  bench("single memory create (1k existing)", async () => {
-    const id = nanoid();
-    const embedding = new Array(DIMS).fill(0.1);
-    await backend.memoryRepo.create({
-      ...makeMemory(id, "bench-ws"),
-      embedding,
-    });
-  }, { iterations: 10, warmupIterations: 1 });
+  bench(
+    "single memory create (1k existing)",
+    async () => {
+      const id = nanoid();
+      const embedding = new Array(DIMS).fill(0.1);
+      await backend.memoryRepo.create({
+        ...makeMemory(id, "bench-ws"),
+        embedding,
+      });
+    },
+    { iterations: 10, warmupIterations: 1 },
+  );
 });
 
 describe("vault cold start", () => {
@@ -142,28 +149,36 @@ describe("vault cold start", () => {
 
     root10k = await initVaultDir();
     await seedVault(root10k, 10000);
-  }, 120000); // 2 min for 10k seeding
+  }, 120000);
 
   afterAll(async () => {
     await rm(root1k, { recursive: true, force: true });
     await rm(root10k, { recursive: true, force: true });
   });
 
-  bench("cold start (1k memories)", async () => {
-    const b = await VaultBackend.create({
-      root: root1k,
-      embeddingDimensions: DIMS,
-      embed: fakeEmbed,
-    });
-    await b.close();
-  }, { iterations: 5, warmupIterations: 1 });
+  bench(
+    "cold start (1k memories)",
+    async () => {
+      const b = await VaultBackend.create({
+        root: root1k,
+        embeddingDimensions: DIMS,
+        embed: fakeEmbed,
+      });
+      await b.close();
+    },
+    { iterations: 5, warmupIterations: 1 },
+  );
 
-  bench("cold start (10k memories)", async () => {
-    const b = await VaultBackend.create({
-      root: root10k,
-      embeddingDimensions: DIMS,
-      embed: fakeEmbed,
-    });
-    await b.close();
-  }, { iterations: 3, warmupIterations: 1 });
+  bench(
+    "cold start (10k memories)",
+    async () => {
+      const b = await VaultBackend.create({
+        root: root10k,
+        embeddingDimensions: DIMS,
+        embed: fakeEmbed,
+      });
+      await b.close();
+    },
+    { iterations: 3, warmupIterations: 1 },
+  );
 });

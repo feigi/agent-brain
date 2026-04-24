@@ -301,6 +301,80 @@ describe("VaultIndex", () => {
       );
       const idx = await VaultIndex.create(root);
       expect(idx.unindexable).toHaveLength(0);
+      expect(idx.size).toBe(0);
+    });
+
+    it("tracks duplicate-id files in unindexable", async () => {
+      await writeMemoryFile(root, "workspaces/ws1/memories/first.md", "dup-id");
+      await writeMemoryFile(
+        root,
+        "workspaces/ws1/memories/second.md",
+        "dup-id",
+      );
+      const idx = await VaultIndex.create(root);
+      expect(idx.size).toBe(1);
+      expect(idx.unindexable).toHaveLength(1);
+      expect(idx.unindexable[0]!.path).toBe(
+        "workspaces/ws1/memories/second.md",
+      );
+      expect(idx.unindexable[0]!.reason).toMatch(/duplicate/i);
+    });
+  });
+
+  describe("syncPaths unindexable lifecycle", () => {
+    it("adds a newly-broken file to unindexable", async () => {
+      const idx = await VaultIndex.create(root);
+      await mkdir(join(root, "workspaces/ws1/memories"), { recursive: true });
+      await writeFile(
+        join(root, "workspaces/ws1/memories/bad.md"),
+        "---\n[busted yaml\n---\nBody",
+      );
+      await idx.syncPaths(root, ["workspaces/ws1/memories/bad.md"]);
+      expect(idx.unindexable).toHaveLength(1);
+      expect(idx.unindexable[0]!.path).toBe("workspaces/ws1/memories/bad.md");
+    });
+
+    it("removes a file from unindexable once it parses again", async () => {
+      await mkdir(join(root, "workspaces/ws1/memories"), { recursive: true });
+      await writeFile(
+        join(root, "workspaces/ws1/memories/fix.md"),
+        "---\n[busted\n---\nBody",
+      );
+      const idx = await VaultIndex.create(root);
+      expect(idx.unindexable).toHaveLength(1);
+
+      await writeMemoryFile(root, "workspaces/ws1/memories/fix.md", "mem-fix");
+      await idx.syncPaths(root, ["workspaces/ws1/memories/fix.md"]);
+
+      expect(idx.unindexable).toHaveLength(0);
+      expect(idx.resolve("mem-fix")).toBe("workspaces/ws1/memories/fix.md");
+    });
+
+    it("removes deleted file from unindexable", async () => {
+      await mkdir(join(root, "workspaces/ws1/memories"), { recursive: true });
+      await writeFile(
+        join(root, "workspaces/ws1/memories/gone.md"),
+        "---\ntitle: oops\n---\nBody\n",
+      );
+      const idx = await VaultIndex.create(root);
+      expect(idx.unindexable).toHaveLength(1);
+
+      await rm(join(root, "workspaces/ws1/memories/gone.md"));
+      await idx.syncPaths(root, ["workspaces/ws1/memories/gone.md"]);
+
+      expect(idx.unindexable).toHaveLength(0);
+    });
+
+    it("deduplicates when syncPaths re-reports the same broken file", async () => {
+      const idx = await VaultIndex.create(root);
+      await mkdir(join(root, "workspaces/ws1/memories"), { recursive: true });
+      await writeFile(
+        join(root, "workspaces/ws1/memories/bad.md"),
+        "---\n[busted\n---\nBody",
+      );
+      await idx.syncPaths(root, ["workspaces/ws1/memories/bad.md"]);
+      await idx.syncPaths(root, ["workspaces/ws1/memories/bad.md"]);
+      expect(idx.unindexable).toHaveLength(1);
     });
   });
 });

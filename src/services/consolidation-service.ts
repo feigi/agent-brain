@@ -26,7 +26,9 @@ export interface ParseErrorChecker {
 
 export interface ParseErrorCheckResult {
   errors: Array<{ memoryId: string; path: string; reason: string }>;
-  resolved: string[]; // memory IDs whose parse_error flags were auto-resolved
+  // Open parse_error flags whose files now parse. Resolution is performed
+  // by ConsolidationService so flag-write side effects stay in one place.
+  resolvable: Array<{ memoryId: string; flagId: string }>;
 }
 
 export type ClassificationResult =
@@ -62,11 +64,21 @@ export function classifyPair(
 export interface ConsolidationResult {
   archived: number;
   flagged: number;
+  resolved: number;
   errors: number;
   flags: FlagResponse[];
 }
 
-type SubResult = { flagged: number; errors: number; flags: FlagResponse[] };
+type SubResult = {
+  flagged: number;
+  resolved: number;
+  errors: number;
+  flags: FlagResponse[];
+};
+
+function emptySubResult(): SubResult {
+  return { flagged: 0, resolved: 0, errors: 0, flags: [] };
+}
 
 export class ConsolidationService {
   constructor(
@@ -147,6 +159,7 @@ export class ConsolidationService {
     const result: ConsolidationResult = {
       archived: 0,
       flagged: 0,
+      resolved: 0,
       errors: 0,
       flags: [],
     };
@@ -219,6 +232,7 @@ export class ConsolidationService {
       try {
         const parseResult = await this.checkParseErrors();
         result.flagged += parseResult.flagged;
+        result.resolved += parseResult.resolved;
         result.errors += parseResult.errors;
         result.flags.push(...parseResult.flags);
       } catch (error) {
@@ -237,6 +251,7 @@ export class ConsolidationService {
     const result: ConsolidationResult = {
       archived: 0,
       flagged: 0,
+      resolved: 0,
       errors: 0,
       flags: [],
     };
@@ -411,7 +426,7 @@ export class ConsolidationService {
   }
 
   private async crossScopeCheck(workspaceId: string): Promise<SubResult> {
-    const subResult: SubResult = { flagged: 0, errors: 0, flags: [] };
+    const subResult: SubResult = emptySubResult();
 
     const wsMemories = await this.memoryRepo.listWithEmbeddings({
       projectId: this.projectId,
@@ -484,7 +499,7 @@ export class ConsolidationService {
   }
 
   private async userScopeCheck(workspaceId: string): Promise<SubResult> {
-    const subResult: SubResult = { flagged: 0, errors: 0, flags: [] };
+    const subResult: SubResult = emptySubResult();
 
     const userMemories = await this.memoryRepo.listWithEmbeddings({
       projectId: this.projectId,
@@ -567,7 +582,7 @@ export class ConsolidationService {
   private async flagVerificationCandidates(
     workspaceId: string,
   ): Promise<SubResult> {
-    const subResult: SubResult = { flagged: 0, errors: 0, flags: [] };
+    const subResult: SubResult = emptySubResult();
 
     const threshold = this.config.verifyAfterDays;
     const staleResult = await this.memoryRepo.findStale({
@@ -616,7 +631,7 @@ export class ConsolidationService {
   }
 
   private async checkPathConsistency(): Promise<SubResult> {
-    const subResult: SubResult = { flagged: 0, errors: 0, flags: [] };
+    const subResult: SubResult = emptySubResult();
     if (!this.pathChecker) return subResult;
 
     const mismatches = await this.pathChecker.check();
@@ -657,34 +672,60 @@ export class ConsolidationService {
   }
 
   private async checkParseErrors(): Promise<SubResult> {
-    const subResult: SubResult = { flagged: 0, errors: 0, flags: [] };
+    const subResult: SubResult = emptySubResult();
     if (!this.parseErrorChecker) return subResult;
 
     const result = await this.parseErrorChecker.check();
 
-    for (const { memoryId, path, reason } of result.errors) {
+    for (const { memoryId, flagId } of result.resolvable) {
       try {
+        await this.flagService.resolveFlag(flagId, SYSTEM_ACTOR, "accepted");
+        subResult.resolved++;
+      } catch (error) {
+        logger.error(
+          `parse_error flag auto-resolve failed (memory=${memoryId}, flag=${flagId}):`,
+          error,
+        );
+        subResult.errors++;
+      }
+    }
+
+    for (const { memoryId, path, reason } of result.errors) {
+      const reasonText = `Parse error in ${path}: ${reason}`;
+      try {
+        const memory =
+          await this.memoryRepo.findByIdIncludingArchived(memoryId);
+        if (!memory) {
+          // Memory vanished between check() and flag write — path-consistency
+          // checker owns the orphan surface.
+          logger.warn(
+            `parse_error flag skipped: memory ${memoryId} not found (path=${path})`,
+          );
+          continue;
+        }
         const flag = await this.flagService.createFlag({
           memoryId,
           flagType: "parse_error",
           severity: "needs_review",
-          details: { reason: `Parse error in ${path}: ${reason}` },
+          details: { reason: reasonText },
         });
         subResult.flags.push({
           flag_id: flag.id,
           flag_type: flag.flag_type,
           memory: {
-            id: memoryId,
-            title: "",
-            content: "",
-            scope: "workspace",
+            id: memory.id,
+            title: memory.title,
+            content: memory.content,
+            scope: memory.scope,
           },
-          related_memory: null,
-          reason: `Parse error in ${path}: ${reason}`,
+          reason: reasonText,
         });
         subResult.flagged++;
       } catch (error) {
-        logger.warn(`Parse error flag failed for ${memoryId}:`, error);
+        logger.error(
+          `parse_error flag write failed (memory=${memoryId}, path=${path}):`,
+          error,
+        );
         subResult.errors++;
       }
     }

@@ -67,19 +67,27 @@ export class VaultIndex {
           logger.warn("vault index: skipping file without frontmatter id", {
             path: rel,
           });
-          index._unindexable.push({ 
-            path: rel, 
-            reason: "Missing frontmatter id" 
+          index._unindexable.push({
+            path: rel,
+            reason: "Missing frontmatter id",
           });
           continue;
         }
         if (index.map.has(id)) {
+          const existingPath = index.map.get(id)!.path;
           logger.warn("vault index: duplicate frontmatter id", {
             id,
-            existing: index.map.get(id)!.path,
+            existing: existingPath,
             duplicate: rel,
           });
-          continue; // keep first occurrence
+          // Keep first occurrence in the id→path map; surface the dropped
+          // file so users can see a duplicate-id corruption instead of
+          // silently losing it.
+          index._unindexable.push({
+            path: rel,
+            reason: `Duplicate frontmatter id (also used by ${existingPath})`,
+          });
+          continue;
         }
         index.map.set(id, { ...scopeLoc, path: rel });
       } catch (err) {
@@ -87,9 +95,9 @@ export class VaultIndex {
           path: rel,
           err,
         });
-        index._unindexable.push({ 
-          path: rel, 
-          reason: `Failed to parse frontmatter: ${err instanceof Error ? err.message : String(err)}` 
+        index._unindexable.push({
+          path: rel,
+          reason: `Failed to parse frontmatter: ${err instanceof Error ? err.message : String(err)}`,
         });
       }
     }
@@ -166,7 +174,9 @@ export class VaultIndex {
   /**
    * Reconcile the index with paths that changed on disk (e.g. after
    * `git pull`). For new/changed files, reads frontmatter to discover
-   * the id. For deleted files, removes the stale entry.
+   * the id. For deleted files, removes the stale entry. Also keeps
+   * `_unindexable` in sync so post-boot corruption/fixup is visible in
+   * `meta.parse_errors` without requiring a process restart.
    */
   async syncPaths(root: string, paths: string[]): Promise<void> {
     for (const rel of paths) {
@@ -179,15 +189,22 @@ export class VaultIndex {
           const raw = await readFile(abs, "utf8");
           const { data: fm } = matter(raw);
           const id = fm.id;
-          if (typeof id !== "string" || id.length === 0) continue;
+          if (typeof id !== "string" || id.length === 0) {
+            this.setUnindexable(rel, "Missing frontmatter id");
+            continue;
+          }
+          this.clearUnindexable(rel);
           this.register(id, { ...scopeLoc, path: rel });
         } catch (err) {
+          const reason = `Failed to parse frontmatter: ${err instanceof Error ? err.message : String(err)}`;
           logger.warn("vault index: syncPaths failed to parse frontmatter", {
             path: rel,
             err,
           });
+          this.setUnindexable(rel, reason);
         }
       } else {
+        this.clearUnindexable(rel);
         // File deleted — find entry by path and remove
         for (const [id, entry] of this.map) {
           if (entry.path === rel) {
@@ -197,6 +214,20 @@ export class VaultIndex {
         }
       }
     }
+  }
+
+  private setUnindexable(path: string, reason: string): void {
+    const existingIdx = this._unindexable.findIndex((u) => u.path === path);
+    if (existingIdx >= 0) {
+      this._unindexable[existingIdx] = { path, reason };
+    } else {
+      this._unindexable.push({ path, reason });
+    }
+  }
+
+  private clearUnindexable(path: string): void {
+    const idx = this._unindexable.findIndex((u) => u.path === path);
+    if (idx >= 0) this._unindexable.splice(idx, 1);
   }
 
   /** Check whether any indexed entry occupies the given path. */

@@ -95,7 +95,7 @@ describe("diffReindex", () => {
         vectorIndex: index,
         embed,
       });
-      expect(r1.parseErrorPaths).toEqual([]);
+      expect(r1.parseErrors).toEqual([]);
       expect(calls).toBe(1);
 
       await writeMemory(root, "workspaces/ws1/memories/m1.md", "m1", "body-v2");
@@ -105,7 +105,7 @@ describe("diffReindex", () => {
         vectorIndex: index,
         embed,
       });
-      expect(r2.parseErrorPaths).toEqual([]);
+      expect(r2.parseErrors).toEqual([]);
       expect(calls).toBe(2);
     } finally {
       await cleanup();
@@ -164,7 +164,9 @@ describe("diffReindex", () => {
         vectorIndex: index,
         embed,
       });
-      expect(r.parseErrorPaths).toEqual(["workspaces/ws1/memories/bad.md"]);
+      expect(r.parseErrors).toHaveLength(1);
+      expect(r.parseErrors[0].path).toBe("workspaces/ws1/memories/bad.md");
+      expect(r.parseErrors[0].reason).toBeTruthy();
     } finally {
       await cleanup();
     }
@@ -184,7 +186,7 @@ describe("diffReindex", () => {
         vectorIndex: index,
         embed,
       });
-      expect(r.parseErrorPaths).toEqual([]);
+      expect(r.parseErrors).toEqual([]);
       expect(calls).toBe(0);
     } finally {
       await cleanup();
@@ -299,7 +301,11 @@ describe("runSessionStart", () => {
         }),
         pushQueue: fakePushQueue(0),
       });
-      expect(meta.parse_errors).toEqual(["workspaces/ws1/memories/bad.md"]);
+      expect(meta.parse_errors).toHaveLength(1);
+      expect(meta.parse_errors?.[0].path).toBe(
+        "workspaces/ws1/memories/bad.md",
+      );
+      expect(meta.parse_errors?.[0].reason).toBeTruthy();
     } finally {
       await cleanup();
     }
@@ -371,7 +377,7 @@ describe("runSessionStart", () => {
     }
   });
 
-  it("merges unindexable paths into meta.parse_errors", async () => {
+  it("merges unindexable entries into meta.parse_errors with reason preserved", async () => {
     const { root, index, cleanup } = await setup();
     try {
       const meta = await runSessionStart({
@@ -380,9 +386,19 @@ describe("runSessionStart", () => {
         embed: async () => new Array(DIMS).fill(0.1),
         syncFromRemote: fakeSync({}),
         pushQueue: fakePushQueue(0),
-        unindexablePaths: ["workspaces/ws1/memories/broken.md"],
+        unindexableEntries: [
+          {
+            path: "workspaces/ws1/memories/broken.md",
+            reason: "Missing frontmatter id",
+          },
+        ],
       });
-      expect(meta.parse_errors).toEqual(["workspaces/ws1/memories/broken.md"]);
+      expect(meta.parse_errors).toEqual([
+        {
+          path: "workspaces/ws1/memories/broken.md",
+          reason: "Missing frontmatter id",
+        },
+      ]);
     } finally {
       await cleanup();
     }
@@ -397,9 +413,53 @@ describe("runSessionStart", () => {
         embed: async () => new Array(DIMS).fill(0.1),
         syncFromRemote: fakeSync({}),
         pushQueue: fakePushQueue(0),
-        unindexablePaths: [],
+        unindexableEntries: [],
       });
       expect(meta.parse_errors).toBeUndefined();
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("dedupes parse_errors by path, preferring live diffReindex reason over boot snapshot", async () => {
+    const { root, index, cleanup } = await setup();
+    try {
+      await mkdir(join(root, "workspaces/ws1/memories"), { recursive: true });
+      await writeFile(
+        join(root, "workspaces/ws1/memories/bad.md"),
+        ":: not YAML ::\n",
+      );
+      const meta = await runSessionStart({
+        root,
+        vectorIndex: index,
+        embed: async () => new Array(DIMS).fill(0.1),
+        syncFromRemote: fakeSync({
+          changedPaths: ["workspaces/ws1/memories/bad.md"],
+        }),
+        pushQueue: fakePushQueue(0),
+        unindexableEntries: [
+          {
+            path: "workspaces/ws1/memories/bad.md",
+            reason: "stale boot reason",
+          },
+          {
+            path: "workspaces/ws1/memories/other.md",
+            reason: "Missing frontmatter id",
+          },
+        ],
+      });
+      expect(meta.parse_errors).toHaveLength(2);
+      // Live diffReindex entry takes precedence for duplicated path.
+      const bad = meta.parse_errors?.find(
+        (e) => e.path === "workspaces/ws1/memories/bad.md",
+      );
+      expect(bad?.reason).not.toBe("stale boot reason");
+      expect(bad?.reason).toBeTruthy();
+      // Boot-only path is kept.
+      const other = meta.parse_errors?.find(
+        (e) => e.path === "workspaces/ws1/memories/other.md",
+      );
+      expect(other?.reason).toBe("Missing frontmatter id");
     } finally {
       await cleanup();
     }

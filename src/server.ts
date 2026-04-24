@@ -124,8 +124,12 @@ async function main() {
       verifyAfterDays: config.consolidationVerifyAfterDays,
     },
     relationshipService,
-    backend instanceof VaultBackend ? backend.pathConsistencyChecker : undefined,
-    backend instanceof VaultBackend ? backend.createParseErrorChecker(flagService) : undefined,
+    backend instanceof VaultBackend
+      ? backend.pathConsistencyChecker
+      : undefined,
+    backend instanceof VaultBackend
+      ? backend.createParseErrorChecker(flagService)
+      : undefined,
   );
 
   // Initialize consolidation scheduler (opt-in via config)
