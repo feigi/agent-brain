@@ -125,18 +125,20 @@ describe("vault two-clone sync", () => {
       // API. When B pulls (rebases), git sees "deleted in HEAD,
       // modified in B's commit" → CONFLICT.
       const gitA = simpleGit({ baseDir: vaultA }).env(scrubGitEnv());
-      const targetPath = join("workspaces", "ws1", "memories", "target.md");
+      const targetPath = join("workspaces", "ws1", "memories", "t-target.md");
       await unlink(join(vaultA, targetPath));
       await gitA.rm([targetPath]);
       await gitA.commit("[test] delete target to force conflict", [targetPath]);
       // Push A's deletion so origin has "target deleted".
       await gitA.raw(["push", "--set-upstream", "origin", "HEAD:main"]);
 
-      // B updates the same file through the vault API.
+      // B updates the same file through the vault API (content only,
+      // NOT title — changing the title would rename the file, which
+      // avoids the modify/delete conflict this test targets).
       const targetOnB = await b.memoryRepo.findById("target");
       if (!targetOnB) throw new Error("target not found on B");
       await b.memoryRepo.update("target", targetOnB.version, {
-        title: "b-updated-title",
+        content: "b-updated-content",
       });
 
       // B's sessionStart pulls → rebase applies B's modify-commit on

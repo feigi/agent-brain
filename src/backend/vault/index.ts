@@ -10,6 +10,7 @@ import { VaultSessionRepository } from "./repositories/session-repository.js";
 import { VaultSessionTrackingRepository } from "./repositories/session-tracking-repository.js";
 import { VaultWorkspaceRepository } from "./repositories/workspace-repository.js";
 import { VaultVectorIndex } from "./vector/lance-index.js";
+import { VaultIndex } from "./repositories/vault-index.js";
 import { ensureVaultGit } from "./git/bootstrap.js";
 import { GitOpsImpl } from "./git/git-ops.js";
 import { scrubGitEnv } from "./git/env.js";
@@ -27,6 +28,7 @@ import type {
   StorageBackend,
   BackendSessionStartMeta,
 } from "../types.js";
+import type { PathConsistencyChecker } from "../../services/consolidation-service.js";
 import type {
   AuditRepository,
   CommentRepository,
@@ -73,6 +75,7 @@ export class VaultBackend implements StorageBackend {
   private constructor(
     memoryRepo: VaultMemoryRepository,
     private readonly vectorIndex: VaultVectorIndex,
+    private readonly vaultIdx: VaultIndex,
     private readonly root: string,
     gitOps: GitOps,
     trackUsersInGit: boolean,
@@ -88,6 +91,7 @@ export class VaultBackend implements StorageBackend {
       root,
       gitOps,
       trackUsersInGit,
+      vaultIndex: vaultIdx,
     });
     this.sessionRepo = new VaultSessionTrackingRepository({ root });
     this.sessionLifecycleRepo = new VaultSessionRepository({ root });
@@ -99,11 +103,13 @@ export class VaultBackend implements StorageBackend {
       root,
       gitOps,
       trackUsersInGit,
+      vaultIndex: vaultIdx,
     });
     this.relationshipRepo = new VaultRelationshipRepository({
       root,
       gitOps,
       trackUsersInGit,
+      vaultIndex: vaultIdx,
     });
     this.schedulerStateRepo = new VaultSchedulerStateRepository({ root });
   }
@@ -160,11 +166,14 @@ export class VaultBackend implements StorageBackend {
       gitOps.afterCommit = () => pushQueue.request();
     }
 
-    const memoryRepo = await VaultMemoryRepository.create({
+    const vaultIdx = await VaultIndex.create(cfg.root);
+
+    const memoryRepo = VaultMemoryRepository.create({
       root: cfg.root,
-      index: vectorIndex,
+      vectorIndex: vectorIndex,
       gitOps,
       trackUsersInGit,
+      vaultIndex: vaultIdx,
     });
 
     const embed = cfg.embed ?? defaultEmbedder(cfg.embeddingDimensions);
@@ -172,6 +181,7 @@ export class VaultBackend implements StorageBackend {
     return new VaultBackend(
       memoryRepo,
       vectorIndex,
+      vaultIdx,
       cfg.root,
       gitOps,
       trackUsersInGit,
@@ -185,6 +195,14 @@ export class VaultBackend implements StorageBackend {
   async close(): Promise<void> {
     await this.pushQueue.close();
     await this.vectorIndex.close();
+  }
+
+  /** Returns a PathConsistencyChecker backed by this vault's index. */
+  get pathConsistencyChecker(): PathConsistencyChecker {
+    const vaultIdx = this.vaultIdx;
+    return {
+      check: async () => vaultIdx.checkPathConsistency(),
+    };
   }
 
   /**
@@ -218,7 +236,7 @@ export class VaultBackend implements StorageBackend {
     const res = await syncFromRemote({ git: this.git });
     if (res.kind === "ok") {
       // Notify path-index of pulled changes so findById stays accurate.
-      this.vaultMemoryRepo.syncPaths(res.changedPaths);
+      await this.vaultMemoryRepo.syncPaths(res.changedPaths);
     }
     return {
       conflict: res.kind === "conflict",
@@ -237,9 +255,9 @@ export class VaultBackend implements StorageBackend {
         lastPushError: () => this.pushQueue.lastPushError(),
         request: () => this.pushQueue.request(),
       },
-      onChangedPaths: (paths) => {
+      onChangedPaths: async (paths) => {
         // Pulled files need path-index refresh or findById misses until restart.
-        this.vaultMemoryRepo.syncPaths(paths);
+        await this.vaultMemoryRepo.syncPaths(paths);
       },
     });
     // Boot-time meta (remote_mismatch, reconcile_failed) is sticky for

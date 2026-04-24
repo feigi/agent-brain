@@ -6,12 +6,7 @@ import {
   serializeMemoryFile,
   type ParsedMemoryFile,
 } from "../parser/memory-parser.js";
-import { inferScopeFromPath } from "../io/paths.js";
-import {
-  listMarkdownFiles,
-  readMarkdown,
-  writeMarkdownAtomic,
-} from "../io/vault-fs.js";
+import { readMarkdown, writeMarkdownAtomic } from "../io/vault-fs.js";
 import { withFileLock } from "../io/lock.js";
 import {
   VaultGitNothingToCommitError,
@@ -19,10 +14,12 @@ import {
   type GitOps,
 } from "../git/types.js";
 import { assertUsersIgnored } from "../git/users-gitignore-invariant.js";
+import type { VaultIndex } from "./vault-index.js";
 
 export interface VaultMemoryFilesConfig {
   root: string;
   gitOps: GitOps;
+  vaultIndex: VaultIndex;
   // When false, user-scope mutations skip the commit (privacy) and
   // additionally assert .gitignore still lists `users/` so the rule
   // hasn't been removed while the assumption is still load-bearing.
@@ -43,18 +40,13 @@ export class VaultParseError extends DomainError {
 }
 
 // Shared id-to-path resolution + locked read-modify-write for every
-// repository that persists inside a memory's markdown file. Scan-based
-// lookup; no cross-repo index.
+// repository that persists inside a memory's markdown file.
+// Path resolution is O(1) via the shared VaultIndex.
 export class VaultMemoryFiles {
   constructor(private readonly cfg: VaultMemoryFilesConfig) {}
 
   async resolvePath(memoryId: string): Promise<string | null> {
-    const files = await safeListMd(this.cfg.root);
-    for (const rel of files) {
-      const loc = inferScopeFromPath(rel);
-      if (loc?.id === memoryId) return rel;
-    }
-    return null;
+    return this.cfg.vaultIndex.resolve(memoryId);
   }
 
   async read(memoryId: string): Promise<ParsedMemoryFile | null> {
@@ -135,12 +127,12 @@ export class VaultMemoryFiles {
   async listAllParsed(): Promise<
     Array<{ rel: string; parsed: ParsedMemoryFile }>
   > {
-    const files = await safeListMd(this.cfg.root);
     const out: Array<{ rel: string; parsed: ParsedMemoryFile }> = [];
-    for (const rel of files) {
-      const loc = inferScopeFromPath(rel);
-      if (loc === null) continue;
-      out.push({ rel, parsed: await parseAt(this.cfg.root, rel) });
+    for (const [, entry] of this.cfg.vaultIndex.entries()) {
+      out.push({
+        rel: entry.path,
+        parsed: await parseAt(this.cfg.root, entry.path),
+      });
     }
     return out;
   }
@@ -174,15 +166,6 @@ async function readMarkdownOrNotFound(
     return await readMarkdown(root, rel);
   } catch (err: unknown) {
     if (isErrnoCode(err, "ENOENT")) throw new NotFoundError("memory", memoryId);
-    throw err;
-  }
-}
-
-async function safeListMd(root: string): Promise<string[]> {
-  try {
-    return await listMarkdownFiles(root);
-  } catch (err: unknown) {
-    if (isErrnoCode(err, "ENOENT")) return [];
     throw err;
   }
 }

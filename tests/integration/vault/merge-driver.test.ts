@@ -125,7 +125,7 @@ describe("merge driver — concurrent frontmatter edits", () => {
         "workspaces",
         "ws-1",
         "memories",
-        "merge-smoke-1.md",
+        "merge-smoke.md",
       );
       const body = await readFile(path, "utf8");
       const merged = parseMemoryFile(body).memory;

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { VaultMemoryRepository } from "../../../../../src/backend/vault/repositories/memory-repository.js";
 import { VaultVectorIndex } from "../../../../../src/backend/vault/vector/lance-index.js";
+import { VaultIndex } from "../../../../../src/backend/vault/repositories/vault-index.js";
 import { NOOP_GIT_OPS } from "../../../../../src/backend/vault/git/types.js";
 import {
   ConflictError,
@@ -49,9 +50,10 @@ describe("VaultMemoryRepository — CRUD", () => {
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), "vault-memrepo-"));
     idx = await VaultVectorIndex.create({ root, dims: 1 });
-    repo = await VaultMemoryRepository.create({
+    repo = VaultMemoryRepository.create({
       root,
-      index: idx,
+      vectorIndex: idx,
+      vaultIndex: await VaultIndex.create(root),
       gitOps: NOOP_GIT_OPS,
     });
   });
@@ -66,9 +68,9 @@ describe("VaultMemoryRepository — CRUD", () => {
     expect(saved.id).toBe("m1");
     const found = await repo.findById("m1");
     expect(found?.title).toBe("Title");
-    // File is at workspaces/ws1/memories/m1.md
+    // File is at workspaces/ws1/memories/title.md (slug of "Title")
     const raw = await readFile(
-      join(root, "workspaces/ws1/memories/m1.md"),
+      join(root, "workspaces/ws1/memories/title.md"),
       "utf8",
     );
     expect(raw).toMatch(/title: Title/);
@@ -140,9 +142,10 @@ describe("VaultMemoryRepository — CRUD", () => {
   it("VaultMemoryRepository.create rebuilds index from existing vault", async () => {
     // Pre-seed a memory via the same repo API on a separate instance,
     // then construct a fresh repo against the same root.
-    const pre = await VaultMemoryRepository.create({
+    const pre = VaultMemoryRepository.create({
       root,
-      index: idx,
+      vectorIndex: idx,
+      vaultIndex: await VaultIndex.create(root),
       gitOps: NOOP_GIT_OPS,
     });
     await pre.create({
@@ -150,9 +153,10 @@ describe("VaultMemoryRepository — CRUD", () => {
       embedding: [0],
     });
 
-    const repo2 = await VaultMemoryRepository.create({
+    const repo2 = VaultMemoryRepository.create({
       root,
-      index: idx,
+      vectorIndex: idx,
+      vaultIndex: await VaultIndex.create(root),
       gitOps: NOOP_GIT_OPS,
     });
     expect(await repo2.findById("preexist")).not.toBeNull();
@@ -167,9 +171,10 @@ describe("VaultMemoryRepository — listings", () => {
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), "vault-memrepo-list-"));
     idx = await VaultVectorIndex.create({ root, dims: 1 });
-    repo = await VaultMemoryRepository.create({
+    repo = VaultMemoryRepository.create({
       root,
-      index: idx,
+      vectorIndex: idx,
+      vaultIndex: await VaultIndex.create(root),
       gitOps: NOOP_GIT_OPS,
     });
   });
@@ -436,9 +441,10 @@ describe("VaultMemoryRepository — list validation", () => {
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), "vault-memrepo-validate-"));
     idx = await VaultVectorIndex.create({ root, dims: 1 });
-    repo = await VaultMemoryRepository.create({
+    repo = VaultMemoryRepository.create({
       root,
-      index: idx,
+      vectorIndex: idx,
+      vaultIndex: await VaultIndex.create(root),
       gitOps: NOOP_GIT_OPS,
     });
   });

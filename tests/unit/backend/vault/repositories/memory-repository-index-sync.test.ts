@@ -6,6 +6,7 @@ import { serializeMemoryFile } from "../../../../../src/backend/vault/parser/mem
 import { VaultMemoryRepository } from "../../../../../src/backend/vault/repositories/memory-repository.js";
 import { VaultWorkspaceRepository } from "../../../../../src/backend/vault/repositories/workspace-repository.js";
 import { VaultVectorIndex } from "../../../../../src/backend/vault/vector/lance-index.js";
+import { VaultIndex } from "../../../../../src/backend/vault/repositories/vault-index.js";
 import { NOOP_GIT_OPS } from "../../../../../src/backend/vault/git/types.js";
 import { ValidationError } from "../../../../../src/utils/errors.js";
 import type { Memory } from "../../../../../src/types/memory.js";
@@ -51,9 +52,10 @@ describe("VaultMemoryRepository — lance index sync", () => {
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), "repo-sync-"));
     idx = await VaultVectorIndex.create({ root, dims: DIMS });
-    repo = await VaultMemoryRepository.create({
+    repo = VaultMemoryRepository.create({
       root,
-      index: idx,
+      vectorIndex: idx,
+      vaultIndex: await VaultIndex.create(root),
       gitOps: NOOP_GIT_OPS,
     });
     await new VaultWorkspaceRepository({
@@ -129,7 +131,7 @@ describe("VaultMemoryRepository — lance index sync", () => {
       expect(saved.id).toBe("m1");
 
       const body = await readFile(
-        join(root, "workspaces/ws1/memories/m1.md"),
+        join(root, "workspaces/ws1/memories/title.md"),
         "utf8",
       );
       expect(body).toContain("m1");
@@ -267,9 +269,10 @@ describe("VaultMemoryRepository — syncPaths", () => {
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), "repo-sync-paths-"));
     idx = await VaultVectorIndex.create({ root, dims: DIMS });
-    repo = await VaultMemoryRepository.create({
+    repo = VaultMemoryRepository.create({
       root,
-      index: idx,
+      vectorIndex: idx,
+      vaultIndex: await VaultIndex.create(root),
       gitOps: NOOP_GIT_OPS,
     });
     await new VaultWorkspaceRepository({
@@ -299,7 +302,7 @@ describe("VaultMemoryRepository — syncPaths", () => {
     // Before syncPaths, findById returns null (path not in index).
     expect(await repo.findById("synced")).toBeNull();
 
-    repo.syncPaths([relPath]);
+    await repo.syncPaths([relPath]);
 
     // After syncPaths, findById reads and returns the memory.
     const found = await repo.findById("synced");
@@ -308,14 +311,14 @@ describe("VaultMemoryRepository — syncPaths", () => {
 
   it("non-memory path: syncPaths silently skips .gitignore — no error, no index entry", async () => {
     // Should not throw and should not register a path entry.
-    expect(() => repo.syncPaths([".gitignore"])).not.toThrow();
+    await expect(repo.syncPaths([".gitignore"])).resolves.not.toThrow();
     // findById for any id is still null (no side effects).
     expect(await repo.findById("m1")).toBeNull();
   });
 
   it("missing file: syncPaths skips registration so findById returns null (post-delete)", async () => {
     const relPath = "workspaces/ws1/memories/missing.md";
-    expect(() => repo.syncPaths([relPath])).not.toThrow();
+    await expect(repo.syncPaths([relPath])).resolves.not.toThrow();
     expect(await repo.findById("missing")).toBeNull();
   });
 
@@ -332,12 +335,12 @@ describe("VaultMemoryRepository — syncPaths", () => {
         relationships: [],
       }),
     );
-    repo.syncPaths([relPath]);
+    await repo.syncPaths([relPath]);
     expect((await repo.findById("gone"))?.id).toBe("gone");
 
     // Simulate a pulled remote delete: file gone, syncPaths called with the path.
     await rm(absPath);
-    repo.syncPaths([relPath]);
+    await repo.syncPaths([relPath]);
     expect(await repo.findById("gone")).toBeNull();
   });
 });

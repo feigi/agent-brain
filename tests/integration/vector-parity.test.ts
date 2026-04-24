@@ -8,6 +8,7 @@ import { DrizzleWorkspaceRepository } from "../../src/repositories/workspace-rep
 import { VaultMemoryRepository } from "../../src/backend/vault/repositories/memory-repository.js";
 import { VaultWorkspaceRepository } from "../../src/backend/vault/repositories/workspace-repository.js";
 import { VaultVectorIndex } from "../../src/backend/vault/vector/lance-index.js";
+import { VaultIndex } from "../../src/backend/vault/repositories/vault-index.js";
 import { NOOP_GIT_OPS } from "../../src/backend/vault/git/types.js";
 import { getTestDb, truncateAll } from "../helpers.js";
 import type { Memory } from "../../src/types/memory.js";
@@ -39,9 +40,10 @@ describe("vector parity — pg vs vault", () => {
     await truncateAll();
     root = await mkdtemp(join(tmpdir(), "parity-"));
     idx = await VaultVectorIndex.create({ root, dims: DIMS });
-    vault = await VaultMemoryRepository.create({
+    vault = VaultMemoryRepository.create({
       root,
-      index: idx,
+      vectorIndex: idx,
+      vaultIndex: await VaultIndex.create(root),
       gitOps: NOOP_GIT_OPS,
     });
     pg = new DrizzleMemoryRepository(db);

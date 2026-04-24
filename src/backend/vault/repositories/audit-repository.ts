@@ -120,13 +120,14 @@ export class VaultAuditRepository implements AuditRepository {
     diffFields: { before: DiffFields; after: DiffFields };
     projectId: string;
   } | null> {
-    // Read the "after" blob first to determine the memory's scope and
-    // workspace — we need the path to then read the "before" blob.
-    // We probe the three known layout patterns; the first successful read wins.
     const candidatePaths = await this.guessCandidatePaths(sha, memoryId);
     for (const path of candidatePaths) {
       const afterRaw = await this.safeShow(`${sha}:${path}`);
       if (afterRaw === null) continue;
+
+      // Verify this blob belongs to the requested memory
+      const after = parseMemoryFile(afterRaw).memory;
+      if (after.id !== memoryId) continue;
 
       const beforeRaw = await this.safeShow(`${sha}^:${path}`);
       // No parent blob at this path means this is an update commit where the
@@ -135,7 +136,6 @@ export class VaultAuditRepository implements AuditRepository {
       if (beforeRaw === null) return null;
 
       const before = parseMemoryFile(beforeRaw).memory;
-      const after = parseMemoryFile(afterRaw).memory;
       return {
         diffFields: {
           before: pickFields(before),
@@ -157,6 +157,7 @@ export class VaultAuditRepository implements AuditRepository {
       if (raw === null) continue;
       try {
         const parsed = parseMemoryFile(raw);
+        if (parsed.memory.id !== memoryId) continue;
         return parsed.memory.project_id;
       } catch {
         logger.warn(
@@ -172,6 +173,10 @@ export class VaultAuditRepository implements AuditRepository {
   // (not `git show --name-only`) so the "show" mock in tests only ever
   // receives blob-like rev arguments.
   //
+  // With title-based filenames the memory id is no longer part of the path,
+  // so we return ALL .md paths touched by the commit and let the caller
+  // verify the id via frontmatter parsing.
+  //
   // If diff-tree fails or returns no matching path we return [] and let
   // reconstructUpdateDiff emit diff:null. We deliberately do NOT fall back
   // to a hardcoded heuristic path — workspace-scoped and user-scoped memories
@@ -182,8 +187,8 @@ export class VaultAuditRepository implements AuditRepository {
     memoryId: string,
   ): Promise<string[]> {
     try {
-      // diff-tree lists paths changed by this commit. We pick any path
-      // that ends with `/<memoryId>.md`.
+      // diff-tree lists paths changed by this commit. We pick any .md path
+      // (the caller will verify the frontmatter id matches).
       const out = await this.cfg.git.raw([
         "diff-tree",
         "--no-commit-id",
@@ -194,12 +199,12 @@ export class VaultAuditRepository implements AuditRepository {
       const paths: string[] = [];
       for (const line of out.split("\n")) {
         const p = line.trim();
-        if (p.endsWith(`/${memoryId}.md`)) paths.push(p);
+        if (p.endsWith(".md")) paths.push(p);
       }
       if (paths.length > 0) return paths;
-      // diff-tree succeeded but found no matching path for this memory id.
+      // diff-tree succeeded but found no matching .md path.
       logger.warn(
-        `vault audit: diff-tree returned no path matching ${memoryId}.md for ${sha}`,
+        `vault audit: diff-tree returned no .md path for ${sha} (memory ${memoryId})`,
       );
       return [];
     } catch (err) {

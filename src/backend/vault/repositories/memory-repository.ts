@@ -1,6 +1,5 @@
 import { dirname, join } from "node:path";
-import { mkdir, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { mkdir, writeFile, rm } from "node:fs/promises";
 import type {
   Memory,
   MemoryScope,
@@ -26,16 +25,8 @@ import {
   serializeMemoryFile,
   type ParsedMemoryFile,
 } from "../parser/memory-parser.js";
-import {
-  inferScopeFromPath,
-  memoryPath,
-  type MemoryLocation,
-} from "../io/paths.js";
-import {
-  listMarkdownFiles,
-  readMarkdown,
-  writeMarkdownAtomic,
-} from "../io/vault-fs.js";
+import { scopeDir, memoryPath, type ScopeLocation } from "../io/paths.js";
+import { readMarkdown, writeMarkdownAtomic } from "../io/vault-fs.js";
 import { withFileLock } from "../io/lock.js";
 import { VaultVectorIndex } from "../vector/lance-index.js";
 import { contentHash } from "../vector/hash.js";
@@ -47,10 +38,12 @@ import {
 } from "../git/types.js";
 import { assertUsersIgnored } from "../git/users-gitignore-invariant.js";
 import { commitSubject } from "./util.js";
+import { VaultIndex } from "./vault-index.js";
 
 export interface VaultMemoryConfig {
   root: string;
-  index: VaultVectorIndex;
+  vectorIndex: VaultVectorIndex;
+  vaultIndex: VaultIndex;
   gitOps: GitOps;
   // When true, user-scope memories are committed alongside
   // workspace/project ones. Default false: users/ stays gitignored
@@ -60,47 +53,23 @@ export interface VaultMemoryConfig {
   trackUsersInGit?: boolean;
 }
 
-interface IndexEntry {
-  path: string;
-  scope: MemoryScope;
-  workspaceId: string | null;
-  userId: string | null;
-}
-
 export class VaultMemoryRepository implements MemoryRepository {
-  private readonly index: Map<string, IndexEntry>;
+  private readonly vaultIndex: VaultIndex;
   private readonly gitOps: GitOps;
   private readonly trackUsersInGit: boolean;
 
-  private constructor(
-    private readonly cfg: VaultMemoryConfig,
-    initialIndex: Map<string, IndexEntry>,
-  ) {
-    this.index = initialIndex;
+  private constructor(private readonly cfg: VaultMemoryConfig) {
+    this.vaultIndex = cfg.vaultIndex;
     this.gitOps = cfg.gitOps;
     this.trackUsersInGit = cfg.trackUsersInGit ?? false;
   }
 
-  static async create(cfg: VaultMemoryConfig): Promise<VaultMemoryRepository> {
-    const index = new Map<string, IndexEntry>();
-    const files = await safeListMd(cfg.root);
-    for (const rel of files) {
-      const loc = inferScopeFromPath(rel);
-      // Non-memory files (e.g. _workspace.md) don't match the three
-      // memory layouts and are skipped here.
-      if (loc === null) continue;
-      index.set(loc.id, {
-        path: rel,
-        scope: loc.scope,
-        workspaceId: loc.workspaceId,
-        userId: loc.userId,
-      });
-    }
-    return new VaultMemoryRepository(cfg, index);
+  static create(cfg: VaultMemoryConfig): VaultMemoryRepository {
+    return new VaultMemoryRepository(cfg);
   }
 
   async create(memory: Memory & { embedding: number[] }): Promise<Memory> {
-    if (this.index.has(memory.id)) {
+    if (this.vaultIndex.has(memory.id)) {
       throw new ConflictError(`memory already exists: ${memory.id}`);
     }
     // Dimension check before touching the filesystem: after markdown
@@ -108,9 +77,9 @@ export class VaultMemoryRepository implements MemoryRepository {
     // source of truth), so a programmer-error wrong-dim embedding
     // here would leave the vault permanently out of sync with the
     // index. Fail fast before any write lands on disk.
-    if (memory.embedding.length !== this.cfg.index.dims) {
+    if (memory.embedding.length !== this.cfg.vectorIndex.dims) {
       throw new ValidationError(
-        `vector dimension mismatch: expected ${this.cfg.index.dims}, got ${memory.embedding.length} for id ${memory.id}`,
+        `vector dimension mismatch: expected ${this.cfg.vectorIndex.dims}, got ${memory.embedding.length} for id ${memory.id}`,
       );
     }
     // Privacy guard: refuse user-scope writes if the .gitignore rule
@@ -123,8 +92,10 @@ export class VaultMemoryRepository implements MemoryRepository {
     ) {
       await assertUsersIgnored(this.cfg.root);
     }
-    const loc = locationFor(memory);
-    const rel = memoryPath(loc);
+    const scopeLoc = scopeLocationFor(memory);
+    const dir = scopeDir(scopeLoc);
+    const slug = this.vaultIndex.slugForTitle(memory.title, dir);
+    const rel = memoryPath({ ...scopeLoc, slug });
     const md = serializeMemoryFile({
       memory,
       comments: [],
@@ -145,17 +116,17 @@ export class VaultMemoryRepository implements MemoryRepository {
       }
       await writeMarkdownAtomic(this.cfg.root, rel, md);
     });
-    this.index.set(memory.id, {
+    this.vaultIndex.register(memory.id, {
       path: rel,
-      scope: loc.scope,
-      workspaceId: loc.workspaceId,
-      userId: loc.userId,
+      scope: scopeLoc.scope,
+      workspaceId: scopeLoc.workspaceId,
+      userId: scopeLoc.userId,
     });
     // Markdown is source of truth; lance is a derived cache. A lance
     // failure here leaves the new memory un-indexed until Phase 5's
     // watcher-driven reindex picks it up. Log and return success.
     try {
-      await this.cfg.index.upsert([
+      await this.cfg.vectorIndex.upsert([
         {
           id: memory.id,
           project_id: memory.project_id,
@@ -190,36 +161,21 @@ export class VaultMemoryRepository implements MemoryRepository {
   }
 
   // Reconciles the in-memory index with paths that changed on disk via
-  // `git pull`. Adds/updates entries that exist on disk; removes entries
-  // whose file has been deleted — otherwise a stale index entry makes
-  // findById() throw ENOENT on read instead of returning null.
-  syncPaths(paths: string[]): void {
-    for (const rel of paths) {
-      const loc = inferScopeFromPath(rel);
-      if (loc === null) continue;
-      const abs = join(this.cfg.root, rel);
-      if (existsSync(abs)) {
-        this.index.set(loc.id, {
-          path: rel,
-          scope: loc.scope,
-          workspaceId: loc.workspaceId,
-          userId: loc.userId,
-        });
-      } else {
-        this.index.delete(loc.id);
-      }
-    }
+  // `git pull`. Delegates to VaultIndex which reads frontmatter to
+  // discover ids (since filenames are no longer stable identifiers).
+  async syncPaths(paths: string[]): Promise<void> {
+    await this.vaultIndex.syncPaths(this.cfg.root, paths);
   }
 
   async findById(id: string): Promise<Memory | null> {
-    const entry = this.index.get(id);
+    const entry = this.vaultIndex.get(id);
     if (!entry) return null;
     const { memory } = await this.#read(id);
     return memory.archived_at === null ? memory : null;
   }
 
   async findByIdIncludingArchived(id: string): Promise<Memory | null> {
-    const entry = this.index.get(id);
+    const entry = this.vaultIndex.get(id);
     if (!entry) return null;
     const { memory } = await this.#read(id);
     return memory;
@@ -239,7 +195,7 @@ export class VaultMemoryRepository implements MemoryRepository {
     expectedVersion: number,
     updates: Partial<Memory> & { embedding?: number[] | null },
   ): Promise<Memory> {
-    const entry = this.index.get(id);
+    const entry = this.vaultIndex.get(id);
     if (!entry)
       throw new ConflictError(
         `Memory ${id} update failed: not found or archived`,
@@ -252,10 +208,10 @@ export class VaultMemoryRepository implements MemoryRepository {
     if (
       updates.embedding !== undefined &&
       updates.embedding !== null &&
-      updates.embedding.length !== this.cfg.index.dims
+      updates.embedding.length !== this.cfg.vectorIndex.dims
     ) {
       throw new ValidationError(
-        `vector dimension mismatch: expected ${this.cfg.index.dims}, got ${updates.embedding.length} for id ${id}`,
+        `vector dimension mismatch: expected ${this.cfg.vectorIndex.dims}, got ${updates.embedding.length} for id ${id}`,
       );
     }
 
@@ -296,10 +252,37 @@ export class VaultMemoryRepository implements MemoryRepository {
         relationships: parsed.relationships,
         flags: parsed.flags,
       });
-      await writeMarkdownAtomic(this.cfg.root, entry.path, md);
+
+      // Detect title change → rename file to new slug
+      const titleChanged =
+        updates.title !== undefined && updates.title !== parsed.memory.title;
+      let newRel = entry.path;
+
+      if (titleChanged) {
+        const scopeLoc = scopeLocationFor(next);
+        const dir = scopeDir(scopeLoc);
+        const newSlug = this.vaultIndex.slugForTitle(next.title, dir);
+        const currentFilename = entry.path
+          .split("/")
+          .pop()!
+          .replace(/\.md$/, "");
+        if (newSlug !== currentFilename) {
+          newRel = memoryPath({ ...scopeLoc, slug: newSlug });
+        }
+      }
+
+      if (newRel !== entry.path) {
+        // Rename: write to new path, delete old, stage both
+        await writeMarkdownAtomic(this.cfg.root, newRel, md);
+        await rm(join(this.cfg.root, entry.path));
+        this.vaultIndex.move(id, newRel);
+      } else {
+        await writeMarkdownAtomic(this.cfg.root, entry.path, md);
+      }
+
       try {
         if (embedding !== undefined && embedding !== null) {
-          await this.cfg.index.upsert([
+          await this.cfg.vectorIndex.upsert([
             {
               id: next.id,
               project_id: next.project_id,
@@ -313,7 +296,7 @@ export class VaultMemoryRepository implements MemoryRepository {
             },
           ]);
         } else {
-          const rowsUpdated = await this.cfg.index.upsertMetaOnly({
+          const rowsUpdated = await this.cfg.vectorIndex.upsertMetaOnly({
             id: next.id,
             project_id: next.project_id,
             workspace_id: next.workspace_id,
@@ -322,10 +305,6 @@ export class VaultMemoryRepository implements MemoryRepository {
             title: next.title,
             archived: false,
           });
-          // lancedb's update() is a no-op on zero matches. A missing
-          // row means the lance index and markdown vault have drifted
-          // — e.g. a previous create() swallowed an upsert failure.
-          // Markdown still wins; surface the drift for Phase 5 repair.
           if (rowsUpdated === 0) {
             logger.warn("lance meta-only update matched no rows; index drift", {
               id: next.id,
@@ -340,8 +319,12 @@ export class VaultMemoryRepository implements MemoryRepository {
           err,
         });
       }
-      await this.#commit(
-        entry.path,
+
+      // Stage both paths on rename so git records the move
+      const commitPaths =
+        newRel !== entry.path ? [entry.path, newRel] : [entry.path];
+      await this.#commitPaths(
+        commitPaths,
         next.scope,
         commitSubject("updated", next.title),
         { action: "updated", memoryId: next.id, actor: next.author },
@@ -362,7 +345,7 @@ export class VaultMemoryRepository implements MemoryRepository {
       author: string;
     }> = [];
     for (const id of ids) {
-      const entry = this.index.get(id);
+      const entry = this.vaultIndex.get(id);
       if (!entry) continue;
       if (
         entry.scope === "user" &&
@@ -399,7 +382,7 @@ export class VaultMemoryRepository implements MemoryRepository {
     // accurate regardless of lance outcome.
     for (const rec of archived) {
       try {
-        const rowsUpdated = await this.cfg.index.markArchived(rec.id);
+        const rowsUpdated = await this.cfg.vectorIndex.markArchived(rec.id);
         if (rowsUpdated === 0) {
           logger.warn("lance markArchived matched no rows; index drift", {
             id: rec.id,
@@ -424,7 +407,7 @@ export class VaultMemoryRepository implements MemoryRepository {
   }
 
   async verify(id: string, verifiedBy: string): Promise<Memory | null> {
-    const entry = this.index.get(id);
+    const entry = this.vaultIndex.get(id);
     if (!entry) return null;
     if (
       entry.scope === "user" &&
@@ -619,7 +602,7 @@ export class VaultMemoryRepository implements MemoryRepository {
         throw new ValidationError("user_id is required for user-scoped search");
       }
     }
-    const hits = await this.cfg.index.search({
+    const hits = await this.cfg.vectorIndex.search({
       embedding: options.embedding,
       projectId: options.project_id,
       workspaceId: options.workspace_id,
@@ -649,7 +632,7 @@ export class VaultMemoryRepository implements MemoryRepository {
         "workspaceId is required for user-scoped dedup",
       );
     }
-    return await this.cfg.index.findDuplicates({
+    return await this.cfg.vectorIndex.findDuplicates({
       embedding: options.embedding,
       projectId: options.projectId,
       workspaceId: options.workspaceId,
@@ -662,7 +645,7 @@ export class VaultMemoryRepository implements MemoryRepository {
   async findPairwiseSimilar(
     options: Parameters<MemoryRepository["findPairwiseSimilar"]>[0],
   ): ReturnType<MemoryRepository["findPairwiseSimilar"]> {
-    return await this.cfg.index.findPairwiseSimilar({
+    return await this.cfg.vectorIndex.findPairwiseSimilar({
       projectId: options.projectId,
       workspaceId: options.workspaceId,
       scope: options.scope,
@@ -673,7 +656,7 @@ export class VaultMemoryRepository implements MemoryRepository {
   async listWithEmbeddings(
     options: Parameters<MemoryRepository["listWithEmbeddings"]>[0],
   ): ReturnType<MemoryRepository["listWithEmbeddings"]> {
-    const rows = await this.cfg.index.listEmbeddings({
+    const rows = await this.cfg.vectorIndex.listEmbeddings({
       projectId: options.projectId,
       workspaceId: options.workspaceId,
       scope: options.scope,
@@ -690,7 +673,7 @@ export class VaultMemoryRepository implements MemoryRepository {
 
   async #loadAll(): Promise<Memory[]> {
     const out: Memory[] = [];
-    for (const id of this.index.keys()) {
+    for (const id of this.vaultIndex.keys()) {
       const { memory } = await this.#read(id);
       out.push(memory);
     }
@@ -698,7 +681,7 @@ export class VaultMemoryRepository implements MemoryRepository {
   }
 
   async #read(id: string): Promise<ParsedMemoryFile> {
-    const entry = this.index.get(id);
+    const entry = this.vaultIndex.get(id);
     if (!entry) throw new NotFoundError("memory", id);
     const raw = await readMarkdown(this.cfg.root, entry.path);
     return parseMemoryFile(raw);
@@ -718,18 +701,27 @@ export class VaultMemoryRepository implements MemoryRepository {
     subject: string,
     trailer: CommitTrailer,
   ): Promise<void> {
+    return this.#commitPaths([rel], scope, subject, trailer);
+  }
+
+  async #commitPaths(
+    rels: string[],
+    scope: MemoryScope,
+    subject: string,
+    trailer: CommitTrailer,
+  ): Promise<void> {
     if (!this.#shouldCommit(scope)) return;
     try {
-      await this.gitOps.stageAndCommit([rel], subject, trailer);
+      await this.gitOps.stageAndCommit(rels, subject, trailer);
     } catch (err) {
       if (err instanceof VaultGitNothingToCommitError) {
         logger.debug("vault git nothing to commit", {
-          rel,
+          rels,
           action: trailer.action,
         });
       } else {
         logger.error("vault git commit failed; markdown/git drift", {
-          rel,
+          rels,
           action: trailer.action,
           err,
         });
@@ -738,27 +730,12 @@ export class VaultMemoryRepository implements MemoryRepository {
   }
 }
 
-function locationFor(memory: Memory): MemoryLocation {
+function scopeLocationFor(memory: Memory): ScopeLocation {
   return {
-    id: memory.id,
     scope: memory.scope,
     workspaceId: memory.workspace_id,
     userId: memory.scope === "user" ? memory.author : null,
   };
-}
-
-async function safeListMd(root: string): Promise<string[]> {
-  try {
-    return await listMarkdownFiles(root);
-  } catch (err: unknown) {
-    if (
-      typeof err === "object" &&
-      err !== null &&
-      (err as { code?: string }).code === "ENOENT"
-    )
-      return [];
-    throw err;
-  }
 }
 
 // proper-lockfile requires the target to exist. Create parent dirs +

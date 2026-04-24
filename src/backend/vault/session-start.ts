@@ -117,7 +117,7 @@ export interface RunSessionStartConfig {
   syncFromRemote: () => Promise<SyncResult>;
   pushQueue: PushQueueHandle;
   // Ordering matters: callback runs before reindex so findById resolves.
-  onChangedPaths?: (paths: string[]) => void;
+  onChangedPaths?: (paths: string[]) => void | Promise<void>;
 }
 
 export async function runSessionStart(
@@ -137,7 +137,7 @@ export async function runSessionStart(
       break;
     case "ok":
       if (pull.changedPaths.length > 0) {
-        cfg.onChangedPaths?.(pull.changedPaths);
+        await cfg.onChangedPaths?.(pull.changedPaths);
         const result = await diffReindex({
           paths: pull.changedPaths,
           root: cfg.root,
