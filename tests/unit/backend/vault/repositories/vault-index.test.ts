@@ -255,4 +255,52 @@ describe("VaultIndex", () => {
       expect(allEntries).toHaveLength(2);
     });
   });
+
+  describe("unindexable tracking", () => {
+    it("tracks files with broken YAML", async () => {
+      await mkdir(join(root, "workspaces/ws1/memories"), { recursive: true });
+      await writeFile(
+        join(root, "workspaces/ws1/memories/bad.md"),
+        "---\n[invalid yaml\n---\nBody",
+      );
+      const idx = await VaultIndex.create(root);
+      expect(idx.unindexable).toHaveLength(1);
+      expect(idx.unindexable[0]!.path).toBe("workspaces/ws1/memories/bad.md");
+      expect(idx.unindexable[0]!.reason).toMatch(/parse|frontmatter/i);
+    });
+
+    it("tracks files without frontmatter id", async () => {
+      await mkdir(join(root, "workspaces/ws1/memories"), { recursive: true });
+      await writeFile(
+        join(root, "workspaces/ws1/memories/no-id.md"),
+        "---\ntitle: oops\n---\nBody\n",
+      );
+      const idx = await VaultIndex.create(root);
+      expect(idx.unindexable).toHaveLength(1);
+      expect(idx.unindexable[0]!.reason).toMatch(/id/i);
+    });
+
+    it("indexes valid files alongside unindexable ones", async () => {
+      await writeMemoryFile(root, "workspaces/ws1/memories/good.md", "mem-1");
+      await mkdir(join(root, "workspaces/ws1/memories"), { recursive: true });
+      await writeFile(
+        join(root, "workspaces/ws1/memories/bad.md"),
+        "---\n[broken yaml\n---\nBody",
+      );
+      const idx = await VaultIndex.create(root);
+      expect(idx.size).toBe(1);
+      expect(idx.unindexable).toHaveLength(1);
+    });
+
+    it("does not track non-memory files as unindexable", async () => {
+      // _workspace.md is skipped by inferScopeFromPath returning null
+      await mkdir(join(root, "workspaces/ws1"), { recursive: true });
+      await writeFile(
+        join(root, "workspaces/ws1/_workspace.md"),
+        "not a memory",
+      );
+      const idx = await VaultIndex.create(root);
+      expect(idx.unindexable).toHaveLength(0);
+    });
+  });
 });

@@ -15,6 +15,11 @@ export interface IndexEntry {
   userId: string | null;
 }
 
+export interface UnindexableEntry {
+  path: string;
+  reason: string;
+}
+
 /**
  * Shared id→path index built from frontmatter at startup.
  * Provides O(1) lookup by memory id, slug generation with collision
@@ -22,8 +27,13 @@ export interface IndexEntry {
  */
 export class VaultIndex {
   private readonly map = new Map<string, IndexEntry>();
+  private _unindexable: UnindexableEntry[] = [];
 
   private constructor() {}
+
+  get unindexable(): ReadonlyArray<UnindexableEntry> {
+    return this._unindexable;
+  }
 
   /**
    * Build the index by scanning all .md files under `root` and
@@ -57,6 +67,10 @@ export class VaultIndex {
           logger.warn("vault index: skipping file without frontmatter id", {
             path: rel,
           });
+          index._unindexable.push({ 
+            path: rel, 
+            reason: "Missing frontmatter id" 
+          });
           continue;
         }
         if (index.map.has(id)) {
@@ -72,6 +86,10 @@ export class VaultIndex {
         logger.warn("vault index: failed to parse frontmatter", {
           path: rel,
           err,
+        });
+        index._unindexable.push({ 
+          path: rel, 
+          reason: `Failed to parse frontmatter: ${err instanceof Error ? err.message : String(err)}` 
         });
       }
     }
