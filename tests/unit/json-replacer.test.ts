@@ -35,7 +35,9 @@ describe("stripNullsReplacer", () => {
     // array item serializes as the JSON `null` token. Pinning this behavior
     // so a future "fix" that emits a sentinel (e.g. empty object) is caught.
     expect(round({ xs: [1, null, 2] })).toEqual({ xs: [1, null, 2] });
-    expect(JSON.stringify([null, null], stripNullsReplacer)).toBe("[null,null]");
+    expect(JSON.stringify([null, null], stripNullsReplacer)).toBe(
+      "[null,null]",
+    );
   });
 
   it("preserves falsy non-null values", () => {
