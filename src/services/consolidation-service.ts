@@ -13,6 +13,13 @@ interface ConsolidationConfig {
   verifyAfterDays: number;
 }
 
+// Backend-agnostic interface for checking path consistency.
+// Vault backend implements this using VaultIndex; pg backend has no path concept.
+export interface PathConsistencyChecker {
+  // Returns mismatch descriptions. Empty array = all paths consistent.
+  check(): Promise<Array<{ memoryId: string; reason: string }>>;
+}
+
 export type ClassificationResult =
   | "auto_archive"
   | "flag_duplicate"
@@ -60,6 +67,7 @@ export class ConsolidationService {
     private readonly projectId: string,
     private readonly config: ConsolidationConfig,
     private readonly relationshipService?: RelationshipService,
+    private readonly pathChecker?: PathConsistencyChecker,
   ) {}
 
   private async tryArchiveRelationships(memoryId: string): Promise<void> {
@@ -179,6 +187,19 @@ export class ConsolidationService {
           `Consolidation Layer 2 (workspace ${workspaceId}) failed:`,
           error,
         );
+        result.errors++;
+      }
+    }
+
+    // Layer 3: Path-consistency check (vault backend only)
+    if (this.pathChecker) {
+      try {
+        const pathResult = await this.checkPathConsistency();
+        result.flagged += pathResult.flagged;
+        result.errors += pathResult.errors;
+        result.flags.push(...pathResult.flags);
+      } catch (error) {
+        logger.error("Consolidation Layer 3 (path consistency) failed:", error);
         result.errors++;
       }
     }
@@ -564,6 +585,47 @@ export class ConsolidationService {
         subResult.flagged++;
       } catch (error) {
         logger.warn(`Verify flag failed for memory ${memory.id}:`, error);
+        subResult.errors++;
+      }
+    }
+
+    return subResult;
+  }
+
+  private async checkPathConsistency(): Promise<SubResult> {
+    const subResult: SubResult = { flagged: 0, errors: 0, flags: [] };
+    if (!this.pathChecker) return subResult;
+
+    const mismatches = await this.pathChecker.check();
+    for (const { memoryId, reason } of mismatches) {
+      try {
+        const alreadyFlagged = await this.flagService.hasOpenFlag(
+          memoryId,
+          "path_mismatch",
+        );
+        if (alreadyFlagged) continue;
+
+        const flag = await this.flagService.createFlag({
+          memoryId,
+          flagType: "path_mismatch",
+          severity: "needs_review",
+          details: { reason },
+        });
+        subResult.flags.push({
+          flag_id: flag.id,
+          flag_type: flag.flag_type,
+          memory: {
+            id: memoryId,
+            title: "",
+            content: "",
+            scope: "workspace",
+          },
+          related_memory: null,
+          reason,
+        });
+        subResult.flagged++;
+      } catch (error) {
+        logger.warn(`Path consistency flag failed for ${memoryId}:`, error);
         subResult.errors++;
       }
     }

@@ -2,6 +2,7 @@ import type { FlagRepository } from "../../../repositories/types.js";
 import type { Flag, FlagResolution, FlagType } from "../../../types/flag.js";
 import type { GitOps } from "../git/types.js";
 import { NotFoundError } from "../../../utils/errors.js";
+import type { VaultIndex } from "./vault-index.js";
 import { VaultMemoryFiles } from "./memory-files.js";
 import {
   commitSubject,
@@ -13,6 +14,7 @@ export interface VaultFlagConfig {
   root: string;
   gitOps: GitOps;
   trackUsersInGit?: boolean;
+  vaultIndex: VaultIndex;
 }
 
 // Flags are raised by the consolidation engine, not by a named user,
@@ -27,6 +29,7 @@ export class VaultFlagRepository implements FlagRepository {
       root: cfg.root,
       gitOps: cfg.gitOps,
       trackUsersInGit: cfg.trackUsersInGit ?? false,
+      vaultIndex: cfg.vaultIndex,
     });
   }
 

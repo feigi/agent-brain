@@ -11,6 +11,7 @@ import { VaultSessionRepository } from "../../../src/backend/vault/repositories/
 import { VaultCommentRepository } from "../../../src/backend/vault/repositories/comment-repository.js";
 import { VaultFlagRepository } from "../../../src/backend/vault/repositories/flag-repository.js";
 import { VaultRelationshipRepository } from "../../../src/backend/vault/repositories/relationship-repository.js";
+import { VaultIndex } from "../../../src/backend/vault/repositories/vault-index.js";
 import { ensureVaultGit } from "../../../src/backend/vault/git/bootstrap.js";
 import { GitOpsImpl } from "../../../src/backend/vault/git/git-ops.js";
 import { scrubGitEnv } from "../../../src/backend/vault/git/env.js";
@@ -95,12 +96,14 @@ export const vaultFactory: Factory = {
     const root = await mkdtemp(join(tmpdir(), "contract-vault-"));
     const { VaultVectorIndex } =
       await import("../../../src/backend/vault/vector/lance-index.js");
-    const index = await VaultVectorIndex.create({ root, dims: 768 });
+    const vectorIndex = await VaultVectorIndex.create({ root, dims: 768 });
+    const vaultIndex = await VaultIndex.create(root);
     const gitOps = NOOP_GIT_OPS;
-    const memoryRepo = await VaultMemoryRepository.create({
+    const memoryRepo = VaultMemoryRepository.create({
       root,
-      index,
+      vectorIndex,
       gitOps,
+      vaultIndex,
     });
     const workspaceRepo = new VaultWorkspaceRepository({ root, gitOps });
     // VaultAuditRepository reads git log, so it needs an actual git repo
@@ -116,9 +119,17 @@ export const vaultFactory: Factory = {
     const schedulerStateRepo = new VaultSchedulerStateRepository({ root });
     const sessionTrackingRepo = new VaultSessionTrackingRepository({ root });
     const sessionRepo = new VaultSessionRepository({ root });
-    const commentRepo = new VaultCommentRepository({ root, gitOps });
-    const flagRepo = new VaultFlagRepository({ root, gitOps });
-    const relationshipRepo = new VaultRelationshipRepository({ root, gitOps });
+    const commentRepo = new VaultCommentRepository({
+      root,
+      gitOps,
+      vaultIndex,
+    });
+    const flagRepo = new VaultFlagRepository({ root, gitOps, vaultIndex });
+    const relationshipRepo = new VaultRelationshipRepository({
+      root,
+      gitOps,
+      vaultIndex,
+    });
     return {
       name: "vault",
       memoryRepo,
@@ -131,7 +142,7 @@ export const vaultFactory: Factory = {
       flagRepo,
       relationshipRepo,
       close: async () => {
-        await index.close();
+        await vectorIndex.close();
         await rm(root, { recursive: true, force: true });
       },
     };
@@ -159,12 +170,14 @@ export function makeVaultGitFactory(
       const gitOps = new GitOpsImpl({ root });
       const { VaultVectorIndex } =
         await import("../../../src/backend/vault/vector/lance-index.js");
-      const index = await VaultVectorIndex.create({ root, dims: 768 });
-      const memoryRepo = await VaultMemoryRepository.create({
+      const vectorIndex = await VaultVectorIndex.create({ root, dims: 768 });
+      const vaultIndex = await VaultIndex.create(root);
+      const memoryRepo = VaultMemoryRepository.create({
         root,
-        index,
+        vectorIndex,
         gitOps,
         trackUsersInGit,
+        vaultIndex,
       });
       const workspaceRepo = new VaultWorkspaceRepository({ root, gitOps });
       const auditRepo = new VaultAuditRepository({
@@ -178,16 +191,19 @@ export function makeVaultGitFactory(
         root,
         gitOps,
         trackUsersInGit,
+        vaultIndex,
       });
       const flagRepo = new VaultFlagRepository({
         root,
         gitOps,
         trackUsersInGit,
+        vaultIndex,
       });
       const relationshipRepo = new VaultRelationshipRepository({
         root,
         gitOps,
         trackUsersInGit,
+        vaultIndex,
       });
       return {
         name: "vault",
@@ -202,7 +218,7 @@ export function makeVaultGitFactory(
         relationshipRepo,
         gitRoot: root,
         close: async () => {
-          await index.close();
+          await vectorIndex.close();
           await rm(root, { recursive: true, force: true });
         },
       };

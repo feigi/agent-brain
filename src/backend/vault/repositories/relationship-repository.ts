@@ -2,6 +2,7 @@ import type { RelationshipRepository } from "../../../repositories/types.js";
 import type { Relationship } from "../../../types/relationship.js";
 import type { GitOps } from "../git/types.js";
 import { NotFoundError } from "../../../utils/errors.js";
+import type { VaultIndex } from "./vault-index.js";
 import { VaultMemoryFiles } from "./memory-files.js";
 import { commitSubject, compareByCreatedAsc } from "./util.js";
 
@@ -9,6 +10,7 @@ export interface VaultRelationshipConfig {
   root: string;
   gitOps: GitOps;
   trackUsersInGit?: boolean;
+  vaultIndex: VaultIndex;
 }
 
 // Relationships live in the source memory's file under `## Relationships`.
@@ -22,6 +24,7 @@ export class VaultRelationshipRepository implements RelationshipRepository {
       root: cfg.root,
       gitOps: cfg.gitOps,
       trackUsersInGit: cfg.trackUsersInGit ?? false,
+      vaultIndex: cfg.vaultIndex,
     });
   }
 

@@ -3,46 +3,47 @@ import {
   memoryPath,
   workspaceMetaPath,
   inferScopeFromPath,
+  slugify,
 } from "../../../../../src/backend/vault/io/paths.js";
 
 describe("vault paths", () => {
-  it("workspace-scope memory: workspaces/<ws>/memories/<id>.md", () => {
+  it("workspace-scope memory: workspaces/<ws>/memories/<slug>.md", () => {
     expect(
       memoryPath({
-        id: "m1",
+        slug: "my-title",
         scope: "workspace",
         workspaceId: "agent-brain",
         userId: null,
       }),
-    ).toBe("workspaces/agent-brain/memories/m1.md");
+    ).toBe("workspaces/agent-brain/memories/my-title.md");
   });
 
-  it("project-scope memory: project/memories/<id>.md", () => {
+  it("project-scope memory: project/memories/<slug>.md", () => {
     expect(
       memoryPath({
-        id: "m1",
+        slug: "my-title",
         scope: "project",
         workspaceId: null,
         userId: null,
       }),
-    ).toBe("project/memories/m1.md");
+    ).toBe("project/memories/my-title.md");
   });
 
-  it("user-scope memory: users/<user>/<ws>/<id>.md", () => {
+  it("user-scope memory: users/<user>/<ws>/<slug>.md", () => {
     expect(
       memoryPath({
-        id: "m1",
+        slug: "my-title",
         scope: "user",
         workspaceId: "agent-brain",
         userId: "chris",
       }),
-    ).toBe("users/chris/agent-brain/m1.md");
+    ).toBe("users/chris/agent-brain/my-title.md");
   });
 
   it("workspace-scope requires workspaceId", () => {
     expect(() =>
       memoryPath({
-        id: "m1",
+        slug: "my-title",
         scope: "workspace",
         workspaceId: null,
         userId: null,
@@ -53,7 +54,7 @@ describe("vault paths", () => {
   it("user-scope requires userId and workspaceId", () => {
     expect(() =>
       memoryPath({
-        id: "m1",
+        slug: "my-title",
         scope: "user",
         workspaceId: null,
         userId: "chris",
@@ -61,7 +62,7 @@ describe("vault paths", () => {
     ).toThrow(/user scope requires workspaceId/);
     expect(() =>
       memoryPath({
-        id: "m1",
+        slug: "my-title",
         scope: "user",
         workspaceId: "ws",
         userId: null,
@@ -75,26 +76,24 @@ describe("vault paths", () => {
     );
   });
 
-  it("inferScopeFromPath: round-trips memoryPath output", () => {
-    const cases = [
-      {
-        scope: "workspace" as const,
-        workspaceId: "ws",
-        userId: null,
-        id: "m1",
-      },
-      { scope: "project" as const, workspaceId: null, userId: null, id: "m1" },
-      { scope: "user" as const, workspaceId: "ws", userId: "u", id: "m1" },
-    ];
-    for (const c of cases) {
-      const p = memoryPath(c);
-      expect(inferScopeFromPath(p)).toEqual({
-        scope: c.scope,
-        workspaceId: c.workspaceId,
-        userId: c.userId,
-        id: c.id,
-      });
-    }
+  it("inferScopeFromPath: extracts scope location (no id)", () => {
+    expect(inferScopeFromPath("workspaces/ws/memories/some-title.md")).toEqual({
+      scope: "workspace",
+      workspaceId: "ws",
+      userId: null,
+    });
+
+    expect(inferScopeFromPath("project/memories/some-title.md")).toEqual({
+      scope: "project",
+      workspaceId: null,
+      userId: null,
+    });
+
+    expect(inferScopeFromPath("users/u/ws/some-title.md")).toEqual({
+      scope: "user",
+      workspaceId: "ws",
+      userId: "u",
+    });
   });
 
   it("inferScopeFromPath rejects paths outside the known layout", () => {
@@ -102,16 +101,16 @@ describe("vault paths", () => {
     expect(inferScopeFromPath("workspaces/ws/m1.md")).toBeNull(); // missing memories/
   });
 
-  it("memoryPath rejects traversal tokens and path separators in id", () => {
+  it("memoryPath rejects traversal tokens and path separators in slug", () => {
     for (const bad of ["..", ".", "a/b", "a\\b", "", "a\0b"]) {
       expect(() =>
         memoryPath({
-          id: bad,
+          slug: bad,
           scope: "workspace",
           workspaceId: "ws",
           userId: null,
         }),
-      ).toThrow(/invalid id/);
+      ).toThrow(/invalid slug/);
     }
   });
 
@@ -120,7 +119,7 @@ describe("vault paths", () => {
     for (const bad of ["..", ".", "a/b", "a\\b", "a\0b"]) {
       expect(() =>
         memoryPath({
-          id: "m1",
+          slug: "ok",
           scope: "workspace",
           workspaceId: bad,
           userId: null,
@@ -128,7 +127,7 @@ describe("vault paths", () => {
       ).toThrow(/invalid workspaceId/);
       expect(() =>
         memoryPath({
-          id: "m1",
+          slug: "ok",
           scope: "user",
           workspaceId: "ws",
           userId: bad,
@@ -141,5 +140,28 @@ describe("vault paths", () => {
     for (const bad of ["..", ".", "a/b", "a\\b", "", "a\0b"]) {
       expect(() => workspaceMetaPath(bad)).toThrow(/invalid slug/);
     }
+  });
+});
+
+describe("slugify", () => {
+  it("lowercases and hyphenates", () => {
+    expect(slugify("My Title")).toBe("my-title");
+  });
+
+  it("strips diacritical marks", () => {
+    expect(slugify("café résumé")).toBe("cafe-resume");
+  });
+
+  it("collapses non-alphanumeric runs", () => {
+    expect(slugify("a---b___c")).toBe("a-b-c");
+  });
+
+  it("trims leading and trailing hyphens", () => {
+    expect(slugify("---hello---")).toBe("hello");
+  });
+
+  it("returns 'untitled' for empty slugs", () => {
+    expect(slugify("")).toBe("untitled");
+    expect(slugify("---")).toBe("untitled");
   });
 });

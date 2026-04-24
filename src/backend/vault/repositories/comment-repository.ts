@@ -1,6 +1,7 @@
 import type { CommentRepository } from "../../../repositories/types.js";
 import type { Comment } from "../../../types/memory.js";
 import type { GitOps } from "../git/types.js";
+import type { VaultIndex } from "./vault-index.js";
 import { VaultMemoryFiles } from "./memory-files.js";
 import { commitSubject, compareByCreatedAsc } from "./util.js";
 
@@ -8,6 +9,7 @@ export interface VaultCommentConfig {
   root: string;
   gitOps: GitOps;
   trackUsersInGit?: boolean;
+  vaultIndex: VaultIndex;
 }
 
 export class VaultCommentRepository implements CommentRepository {
@@ -18,6 +20,7 @@ export class VaultCommentRepository implements CommentRepository {
       root: cfg.root,
       gitOps: cfg.gitOps,
       trackUsersInGit: cfg.trackUsersInGit ?? false,
+      vaultIndex: cfg.vaultIndex,
     });
   }
 
