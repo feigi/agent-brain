@@ -19,7 +19,7 @@ export interface BackendSessionStartMeta {
   offline?: true;
   unpushed_commits?: number;
   pull_conflict?: true;
-  parse_errors?: number;
+  parse_errors?: string[];
   // Last push failure message; set while push-queue is in backoff so
   // users can tell "not pushed yet" from "broken auth / bad remote".
   last_push_error?: string;

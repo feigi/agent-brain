@@ -259,6 +259,7 @@ export class VaultBackend implements StorageBackend {
         // Pulled files need path-index refresh or findById misses until restart.
         await this.vaultMemoryRepo.syncPaths(paths);
       },
+      unindexablePaths: this.vaultIdx.unindexable.map(u => u.path),
     });
     // Boot-time meta (remote_mismatch, reconcile_failed) is sticky for
     // the life of the backend — clients should see it on every session

@@ -18,13 +18,13 @@ export interface DiffReindexConfig {
 }
 
 export interface DiffReindexResult {
-  parseErrors: number;
+  parseErrorPaths: string[];
 }
 
 export async function diffReindex(
   cfg: DiffReindexConfig,
 ): Promise<DiffReindexResult> {
-  let parseErrors = 0;
+  const parseErrorPaths: string[] = [];
   for (const rel of cfg.paths) {
     if (inferScopeFromPath(rel) === null) continue;
     const abs = join(cfg.root, rel);
@@ -48,7 +48,7 @@ export async function diffReindex(
       logger.warn(
         `diffReindex: parse failed for ${rel}: ${err instanceof Error ? err.message : String(err)}`,
       );
-      parseErrors += 1;
+      parseErrorPaths.push(rel);
       continue;
     }
     const { memory } = parsed;
@@ -71,7 +71,7 @@ export async function diffReindex(
     const embedding = await cfg.embed(memory.content);
     await cfg.vectorIndex.upsert([buildRow(memory, newHash, embedding)]);
   }
-  return { parseErrors };
+  return { parseErrorPaths };
 }
 
 function sha256(s: string): string {
@@ -118,6 +118,7 @@ export interface RunSessionStartConfig {
   pushQueue: PushQueueHandle;
   // Ordering matters: callback runs before reindex so findById resolves.
   onChangedPaths?: (paths: string[]) => void | Promise<void>;
+  unindexablePaths?: string[];
 }
 
 export async function runSessionStart(
@@ -126,7 +127,7 @@ export async function runSessionStart(
   const meta: BackendSessionStartMeta = {};
   const pull = await cfg.syncFromRemote();
 
-  let parseErrors = 0;
+  let parseErrorPaths: string[] = [];
   switch (pull.kind) {
     case "offline":
       meta.offline = true;
@@ -144,11 +145,16 @@ export async function runSessionStart(
           vectorIndex: cfg.vectorIndex,
           embed: cfg.embed,
         });
-        parseErrors = result.parseErrors;
+        parseErrorPaths = result.parseErrorPaths;
       }
       break;
   }
-  if (parseErrors > 0) meta.parse_errors = parseErrors;
+
+  const allParseErrors = [
+    ...(cfg.unindexablePaths ?? []),
+    ...parseErrorPaths,
+  ];
+  if (allParseErrors.length > 0) meta.parse_errors = allParseErrors;
 
   const unpushed = await cfg.pushQueue.unpushedCommits();
   if (unpushed > 0) meta.unpushed_commits = unpushed;

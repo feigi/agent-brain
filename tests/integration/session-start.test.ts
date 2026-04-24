@@ -631,7 +631,7 @@ describe("memory_session_start integration tests", () => {
     stubBackend.sessionStartMeta = {
       offline: true,
       unpushed_commits: 2,
-      parse_errors: 1,
+      parse_errors: ["workspaces/ws1/memories/broken.md"],
     };
     const svc = createTestServiceWith({
       backend: stubBackend as unknown as StorageBackend,
@@ -662,7 +662,7 @@ describe("memory_session_start integration tests", () => {
 
   it("zero-value unpushed_commits and parse_errors are not merged into meta", async () => {
     const stubBackend = new StubBackend();
-    stubBackend.sessionStartMeta = { unpushed_commits: 0, parse_errors: 0 };
+    stubBackend.sessionStartMeta = { unpushed_commits: 0 };
     const svc = createTestServiceWith({
       backend: stubBackend as unknown as StorageBackend,
     });

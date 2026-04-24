@@ -95,7 +95,7 @@ describe("diffReindex", () => {
         vectorIndex: index,
         embed,
       });
-      expect(r1.parseErrors).toBe(0);
+      expect(r1.parseErrorPaths).toEqual([]);
       expect(calls).toBe(1);
 
       await writeMemory(root, "workspaces/ws1/memories/m1.md", "m1", "body-v2");
@@ -105,7 +105,7 @@ describe("diffReindex", () => {
         vectorIndex: index,
         embed,
       });
-      expect(r2.parseErrors).toBe(0);
+      expect(r2.parseErrorPaths).toEqual([]);
       expect(calls).toBe(2);
     } finally {
       await cleanup();
@@ -164,7 +164,7 @@ describe("diffReindex", () => {
         vectorIndex: index,
         embed,
       });
-      expect(r.parseErrors).toBe(1);
+      expect(r.parseErrorPaths).toEqual(["workspaces/ws1/memories/bad.md"]);
     } finally {
       await cleanup();
     }
@@ -184,7 +184,7 @@ describe("diffReindex", () => {
         vectorIndex: index,
         embed,
       });
-      expect(r.parseErrors).toBe(0);
+      expect(r.parseErrorPaths).toEqual([]);
       expect(calls).toBe(0);
     } finally {
       await cleanup();
@@ -299,7 +299,7 @@ describe("runSessionStart", () => {
         }),
         pushQueue: fakePushQueue(0),
       });
-      expect(meta.parse_errors).toBe(1);
+      expect(meta.parse_errors).toEqual(["workspaces/ws1/memories/bad.md"]);
     } finally {
       await cleanup();
     }
@@ -366,6 +366,40 @@ describe("runSessionStart", () => {
         },
       });
       expect(callCount).toBe(0);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("merges unindexable paths into meta.parse_errors", async () => {
+    const { root, index, cleanup } = await setup();
+    try {
+      const meta = await runSessionStart({
+        root,
+        vectorIndex: index,
+        embed: async () => new Array(DIMS).fill(0.1),
+        syncFromRemote: fakeSync({}),
+        pushQueue: fakePushQueue(0),
+        unindexablePaths: ["workspaces/ws1/memories/broken.md"],
+      });
+      expect(meta.parse_errors).toEqual(["workspaces/ws1/memories/broken.md"]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("omits parse_errors when no errors", async () => {
+    const { root, index, cleanup } = await setup();
+    try {
+      const meta = await runSessionStart({
+        root,
+        vectorIndex: index,
+        embed: async () => new Array(DIMS).fill(0.1),
+        syncFromRemote: fakeSync({}),
+        pushQueue: fakePushQueue(0),
+        unindexablePaths: [],
+      });
+      expect(meta.parse_errors).toBeUndefined();
     } finally {
       await cleanup();
     }
