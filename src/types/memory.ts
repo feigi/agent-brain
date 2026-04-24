@@ -138,7 +138,7 @@ export interface FlagSummary {
     title: string;
     content: string;
     scope: MemoryScope;
-  } | null;
+  };
   reason: string;
 }
 

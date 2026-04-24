@@ -60,6 +60,6 @@ export interface FlagResponse {
     title: string;
     content: string;
     scope: MemoryScope;
-  } | null;
+  };
   reason: string;
 }

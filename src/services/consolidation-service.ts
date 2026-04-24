@@ -396,14 +396,14 @@ export class ConsolidationService {
                 content: mem.content,
                 scope: mem.scope,
               },
-              related_memory: rel
-                ? {
-                    id: rel.id,
-                    title: rel.title,
-                    content: rel.content,
-                    scope: rel.scope,
-                  }
-                : null,
+              ...(rel && {
+                related_memory: {
+                  id: rel.id,
+                  title: rel.title,
+                  content: rel.content,
+                  scope: rel.scope,
+                },
+              }),
               reason: flag.details.reason,
             });
           }
@@ -617,7 +617,6 @@ export class ConsolidationService {
             content: memory.content,
             scope: memory.scope,
           },
-          related_memory: null,
           reason: flag.details.reason,
         });
         subResult.flagged++;
@@ -658,7 +657,6 @@ export class ConsolidationService {
             content: "",
             scope: "workspace",
           },
-          related_memory: null,
           reason,
         });
         subResult.flagged++;

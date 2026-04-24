@@ -488,11 +488,15 @@ export class MemoryService {
     const map = new Map<string, FlagSummary[]>();
     for (const f of allFlags) {
       if (f.resolved_at) continue;
-      let relatedMem = null;
+      const entry: FlagSummary = {
+        flag_id: f.id,
+        flag_type: f.flag_type,
+        reason: f.details.reason,
+      };
       if (f.details.related_memory_id) {
         const related = relatedMap.get(f.details.related_memory_id);
         if (related) {
-          relatedMem = {
+          entry.related_memory = {
             id: related.id,
             title: related.title,
             content: related.content,
@@ -500,12 +504,6 @@ export class MemoryService {
           };
         }
       }
-      const entry = {
-        flag_id: f.id,
-        flag_type: f.flag_type,
-        related_memory: relatedMem,
-        reason: f.details.reason,
-      };
       const arr = map.get(f.memory_id);
       if (arr) {
         arr.push(entry);
@@ -1020,21 +1018,7 @@ export class MemoryService {
         for (const f of openFlags) {
           const mem = await this.memoryRepo.findById(f.memory_id);
           if (!mem) continue; // Memory was archived/deleted since flag was created
-          let relatedMem = null;
-          if (f.details.related_memory_id) {
-            const related = await this.memoryRepo.findById(
-              f.details.related_memory_id,
-            );
-            if (related) {
-              relatedMem = {
-                id: related.id,
-                title: related.title,
-                content: related.content,
-                scope: related.scope,
-              };
-            }
-          }
-          enriched.push({
+          const entry: FlagResponse = {
             flag_id: f.id,
             flag_type: f.flag_type,
             memory: {
@@ -1043,9 +1027,22 @@ export class MemoryService {
               content: mem.content,
               scope: mem.scope,
             },
-            related_memory: relatedMem,
             reason: f.details.reason,
-          });
+          };
+          if (f.details.related_memory_id) {
+            const related = await this.memoryRepo.findById(
+              f.details.related_memory_id,
+            );
+            if (related) {
+              entry.related_memory = {
+                id: related.id,
+                title: related.title,
+                content: related.content,
+                scope: related.scope,
+              };
+            }
+          }
+          enriched.push(entry);
         }
         if (enriched.length > 0) flagsData = enriched;
       }

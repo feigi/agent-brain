@@ -400,7 +400,7 @@ describe("end-to-end: create → consolidate → session start → resolve", () 
     expect(verifyFlag!.memory.id).toBe(created.data.id);
     expect(verifyFlag!.memory.content).toContain("stale memory");
     expect(verifyFlag!.reason).toContain("verified");
-    expect(verifyFlag!.related_memory).toBeNull();
+    expect(verifyFlag!.related_memory).toBeUndefined();
   });
 
   it("memory_get returns open flags for the memory", async () => {

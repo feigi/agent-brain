@@ -206,11 +206,18 @@ async function main() {
     } catch (error) {
       logger.error("MCP request error:", error);
       if (!res.headersSent) {
-        res.status(500).json({
-          jsonrpc: "2.0",
-          error: { code: -32603, message: "Internal server error" },
-          id: null,
-        });
+        // Bypass app-level `json replacer` (which strips nulls); JSON-RPC 2.0
+        // requires `id: null` in error responses when the request id is unknown.
+        res
+          .status(500)
+          .type("application/json")
+          .send(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              error: { code: -32603, message: "Internal server error" },
+              id: null,
+            }),
+          );
       }
     }
   });
