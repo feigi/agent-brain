@@ -631,7 +631,12 @@ describe("memory_session_start integration tests", () => {
     stubBackend.sessionStartMeta = {
       offline: true,
       unpushed_commits: 2,
-      parse_errors: 1,
+      parse_errors: [
+        {
+          path: "workspaces/ws1/memories/broken.md",
+          reason: "Missing frontmatter id",
+        },
+      ],
     };
     const svc = createTestServiceWith({
       backend: stubBackend as unknown as StorageBackend,
@@ -641,7 +646,12 @@ describe("memory_session_start integration tests", () => {
 
     expect(result.meta.offline).toBe(true);
     expect(result.meta.unpushed_commits).toBe(2);
-    expect(result.meta.parse_errors).toBe(1);
+    expect(result.meta.parse_errors).toEqual([
+      {
+        path: "workspaces/ws1/memories/broken.md",
+        reason: "Missing frontmatter id",
+      },
+    ]);
     expect(result.meta.pull_conflict).toBeUndefined();
   });
 
@@ -662,7 +672,7 @@ describe("memory_session_start integration tests", () => {
 
   it("zero-value unpushed_commits and parse_errors are not merged into meta", async () => {
     const stubBackend = new StubBackend();
-    stubBackend.sessionStartMeta = { unpushed_commits: 0, parse_errors: 0 };
+    stubBackend.sessionStartMeta = { unpushed_commits: 0 };
     const svc = createTestServiceWith({
       backend: stubBackend as unknown as StorageBackend,
     });

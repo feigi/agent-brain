@@ -29,6 +29,9 @@ import type {
   BackendSessionStartMeta,
 } from "../types.js";
 import type { PathConsistencyChecker } from "../../services/consolidation-service.js";
+import type { ParseErrorChecker } from "../../services/consolidation-service.js";
+import { VaultParseErrorChecker } from "./parse-error-checker.js";
+import type { FlagService } from "../../services/flag-service.js";
 import type {
   AuditRepository,
   CommentRepository,
@@ -205,6 +208,10 @@ export class VaultBackend implements StorageBackend {
     };
   }
 
+  createParseErrorChecker(flagService: FlagService): ParseErrorChecker {
+    return new VaultParseErrorChecker(this.vaultIdx, this.root, flagService);
+  }
+
   /**
    * Waits until all pending pushes have landed on the remote.
    * Polls git until `@{u}..HEAD` is empty (no unpushed commits).
@@ -259,6 +266,7 @@ export class VaultBackend implements StorageBackend {
         // Pulled files need path-index refresh or findById misses until restart.
         await this.vaultMemoryRepo.syncPaths(paths);
       },
+      unindexableEntries: this.vaultIdx.unindexable,
     });
     // Boot-time meta (remote_mismatch, reconcile_failed) is sticky for
     // the life of the backend — clients should see it on every session

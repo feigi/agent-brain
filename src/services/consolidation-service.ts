@@ -20,6 +20,17 @@ export interface PathConsistencyChecker {
   check(): Promise<Array<{ memoryId: string; reason: string }>>;
 }
 
+export interface ParseErrorChecker {
+  check(): Promise<ParseErrorCheckResult>;
+}
+
+export interface ParseErrorCheckResult {
+  errors: Array<{ memoryId: string; path: string; reason: string }>;
+  // Open parse_error flags whose files now parse. Resolution is performed
+  // by ConsolidationService so flag-write side effects stay in one place.
+  resolvable: Array<{ memoryId: string; flagId: string }>;
+}
+
 export type ClassificationResult =
   | "auto_archive"
   | "flag_duplicate"
@@ -53,11 +64,21 @@ export function classifyPair(
 export interface ConsolidationResult {
   archived: number;
   flagged: number;
+  resolved: number;
   errors: number;
   flags: FlagResponse[];
 }
 
-type SubResult = { flagged: number; errors: number; flags: FlagResponse[] };
+type SubResult = {
+  flagged: number;
+  resolved: number;
+  errors: number;
+  flags: FlagResponse[];
+};
+
+function emptySubResult(): SubResult {
+  return { flagged: 0, resolved: 0, errors: 0, flags: [] };
+}
 
 export class ConsolidationService {
   constructor(
@@ -68,6 +89,7 @@ export class ConsolidationService {
     private readonly config: ConsolidationConfig,
     private readonly relationshipService?: RelationshipService,
     private readonly pathChecker?: PathConsistencyChecker,
+    private readonly parseErrorChecker?: ParseErrorChecker,
   ) {}
 
   private async tryArchiveRelationships(memoryId: string): Promise<void> {
@@ -137,6 +159,7 @@ export class ConsolidationService {
     const result: ConsolidationResult = {
       archived: 0,
       flagged: 0,
+      resolved: 0,
       errors: 0,
       flags: [],
     };
@@ -204,6 +227,20 @@ export class ConsolidationService {
       }
     }
 
+    // Layer 4: Parse-error check (vault backend only)
+    if (this.parseErrorChecker) {
+      try {
+        const parseResult = await this.checkParseErrors();
+        result.flagged += parseResult.flagged;
+        result.resolved += parseResult.resolved;
+        result.errors += parseResult.errors;
+        result.flags.push(...parseResult.flags);
+      } catch (error) {
+        logger.error("Consolidation Layer 4 (parse errors) failed:", error);
+        result.errors++;
+      }
+    }
+
     return result;
   }
 
@@ -214,6 +251,7 @@ export class ConsolidationService {
     const result: ConsolidationResult = {
       archived: 0,
       flagged: 0,
+      resolved: 0,
       errors: 0,
       flags: [],
     };
@@ -388,7 +426,7 @@ export class ConsolidationService {
   }
 
   private async crossScopeCheck(workspaceId: string): Promise<SubResult> {
-    const subResult: SubResult = { flagged: 0, errors: 0, flags: [] };
+    const subResult: SubResult = emptySubResult();
 
     const wsMemories = await this.memoryRepo.listWithEmbeddings({
       projectId: this.projectId,
@@ -461,7 +499,7 @@ export class ConsolidationService {
   }
 
   private async userScopeCheck(workspaceId: string): Promise<SubResult> {
-    const subResult: SubResult = { flagged: 0, errors: 0, flags: [] };
+    const subResult: SubResult = emptySubResult();
 
     const userMemories = await this.memoryRepo.listWithEmbeddings({
       projectId: this.projectId,
@@ -544,7 +582,7 @@ export class ConsolidationService {
   private async flagVerificationCandidates(
     workspaceId: string,
   ): Promise<SubResult> {
-    const subResult: SubResult = { flagged: 0, errors: 0, flags: [] };
+    const subResult: SubResult = emptySubResult();
 
     const threshold = this.config.verifyAfterDays;
     const staleResult = await this.memoryRepo.findStale({
@@ -593,7 +631,7 @@ export class ConsolidationService {
   }
 
   private async checkPathConsistency(): Promise<SubResult> {
-    const subResult: SubResult = { flagged: 0, errors: 0, flags: [] };
+    const subResult: SubResult = emptySubResult();
     if (!this.pathChecker) return subResult;
 
     const mismatches = await this.pathChecker.check();
@@ -626,6 +664,68 @@ export class ConsolidationService {
         subResult.flagged++;
       } catch (error) {
         logger.warn(`Path consistency flag failed for ${memoryId}:`, error);
+        subResult.errors++;
+      }
+    }
+
+    return subResult;
+  }
+
+  private async checkParseErrors(): Promise<SubResult> {
+    const subResult: SubResult = emptySubResult();
+    if (!this.parseErrorChecker) return subResult;
+
+    const result = await this.parseErrorChecker.check();
+
+    for (const { memoryId, flagId } of result.resolvable) {
+      try {
+        await this.flagService.resolveFlag(flagId, SYSTEM_ACTOR, "accepted");
+        subResult.resolved++;
+      } catch (error) {
+        logger.error(
+          `parse_error flag auto-resolve failed (memory=${memoryId}, flag=${flagId}):`,
+          error,
+        );
+        subResult.errors++;
+      }
+    }
+
+    for (const { memoryId, path, reason } of result.errors) {
+      const reasonText = `Parse error in ${path}: ${reason}`;
+      try {
+        const memory =
+          await this.memoryRepo.findByIdIncludingArchived(memoryId);
+        if (!memory) {
+          // Memory vanished between check() and flag write — path-consistency
+          // checker owns the orphan surface.
+          logger.warn(
+            `parse_error flag skipped: memory ${memoryId} not found (path=${path})`,
+          );
+          continue;
+        }
+        const flag = await this.flagService.createFlag({
+          memoryId,
+          flagType: "parse_error",
+          severity: "needs_review",
+          details: { reason: reasonText },
+        });
+        subResult.flags.push({
+          flag_id: flag.id,
+          flag_type: flag.flag_type,
+          memory: {
+            id: memory.id,
+            title: memory.title,
+            content: memory.content,
+            scope: memory.scope,
+          },
+          reason: reasonText,
+        });
+        subResult.flagged++;
+      } catch (error) {
+        logger.error(
+          `parse_error flag write failed (memory=${memoryId}, path=${path}):`,
+          error,
+        );
         subResult.errors++;
       }
     }

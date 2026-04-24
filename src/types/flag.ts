@@ -6,7 +6,8 @@ export type FlagType =
   | "override"
   | "superseded"
   | "verify"
-  | "path_mismatch";
+  | "path_mismatch"
+  | "parse_error";
 
 export type FlagSeverity = "auto_resolved" | "needs_review";
 

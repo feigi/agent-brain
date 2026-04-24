@@ -19,7 +19,11 @@ export interface BackendSessionStartMeta {
   offline?: true;
   unpushed_commits?: number;
   pull_conflict?: true;
-  parse_errors?: number;
+  // Files whose frontmatter or body can't be parsed into a valid Memory.
+  // Each entry carries the vault-relative path and a human-readable reason
+  // so the UI can surface *why* without forcing the user to open logs.
+  // Absent when everything parses.
+  parse_errors?: Array<{ path: string; reason: string }>;
   // Last push failure message; set while push-queue is in backoff so
   // users can tell "not pushed yet" from "broken auth / bad remote".
   last_push_error?: string;

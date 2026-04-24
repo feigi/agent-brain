@@ -10,6 +10,11 @@ import { logger } from "../../utils/logger.js";
 
 export type Embedder = (text: string) => Promise<number[]>;
 
+export interface ParseErrorEntry {
+  path: string;
+  reason: string;
+}
+
 export interface DiffReindexConfig {
   paths: string[];
   root: string;
@@ -18,13 +23,13 @@ export interface DiffReindexConfig {
 }
 
 export interface DiffReindexResult {
-  parseErrors: number;
+  parseErrors: ParseErrorEntry[];
 }
 
 export async function diffReindex(
   cfg: DiffReindexConfig,
 ): Promise<DiffReindexResult> {
-  let parseErrors = 0;
+  const parseErrors: ParseErrorEntry[] = [];
   for (const rel of cfg.paths) {
     if (inferScopeFromPath(rel) === null) continue;
     const abs = join(cfg.root, rel);
@@ -45,10 +50,9 @@ export async function diffReindex(
     try {
       parsed = parseMemoryFile(raw);
     } catch (err) {
-      logger.warn(
-        `diffReindex: parse failed for ${rel}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      parseErrors += 1;
+      const reason = err instanceof Error ? err.message : String(err);
+      logger.warn(`diffReindex: parse failed for ${rel}: ${reason}`);
+      parseErrors.push({ path: rel, reason });
       continue;
     }
     const { memory } = parsed;
@@ -118,6 +122,9 @@ export interface RunSessionStartConfig {
   pushQueue: PushQueueHandle;
   // Ordering matters: callback runs before reindex so findById resolves.
   onChangedPaths?: (paths: string[]) => void | Promise<void>;
+  // Files the boot-time index scan couldn't parse (missing id, bad YAML,
+  // etc.). Merged with this-session parse errors, deduped by path.
+  unindexableEntries?: ReadonlyArray<ParseErrorEntry>;
 }
 
 export async function runSessionStart(
@@ -126,7 +133,7 @@ export async function runSessionStart(
   const meta: BackendSessionStartMeta = {};
   const pull = await cfg.syncFromRemote();
 
-  let parseErrors = 0;
+  let parseErrors: ParseErrorEntry[] = [];
   switch (pull.kind) {
     case "offline":
       meta.offline = true;
@@ -148,7 +155,9 @@ export async function runSessionStart(
       }
       break;
   }
-  if (parseErrors > 0) meta.parse_errors = parseErrors;
+
+  const merged = mergeUniqueByPath(cfg.unindexableEntries ?? [], parseErrors);
+  if (merged.length > 0) meta.parse_errors = merged;
 
   const unpushed = await cfg.pushQueue.unpushedCommits();
   if (unpushed > 0) meta.unpushed_commits = unpushed;
@@ -159,4 +168,25 @@ export async function runSessionStart(
   cfg.pushQueue.request(); // kick drain
 
   return meta;
+}
+
+function mergeUniqueByPath(
+  boot: ReadonlyArray<ParseErrorEntry>,
+  live: ReadonlyArray<ParseErrorEntry>,
+): ParseErrorEntry[] {
+  const seen = new Set<string>();
+  const out: ParseErrorEntry[] = [];
+  // Live entries win: diffReindex saw the file more recently than the
+  // boot-time scan, so its reason is fresher.
+  for (const e of live) {
+    if (seen.has(e.path)) continue;
+    seen.add(e.path);
+    out.push(e);
+  }
+  for (const e of boot) {
+    if (seen.has(e.path)) continue;
+    seen.add(e.path);
+    out.push(e);
+  }
+  return out;
 }

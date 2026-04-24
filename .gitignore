@@ -16,3 +16,4 @@ ralph.yml
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
+.worktrees/
