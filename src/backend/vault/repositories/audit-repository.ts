@@ -126,7 +126,15 @@ export class VaultAuditRepository implements AuditRepository {
       if (afterRaw === null) continue;
 
       // Verify this blob belongs to the requested memory
-      const after = parseMemoryFile(afterRaw).memory;
+      let after;
+      try {
+        after = parseMemoryFile(afterRaw).memory;
+      } catch {
+        logger.warn(
+          `vault audit: failed to parse after-blob for ${sha}:${path}`,
+        );
+        continue;
+      }
       if (after.id !== memoryId) continue;
 
       const beforeRaw = await this.safeShow(`${sha}^:${path}`);
@@ -135,7 +143,15 @@ export class VaultAuditRepository implements AuditRepository {
       // lineage); skip the before/after reconstruction.
       if (beforeRaw === null) return null;
 
-      const before = parseMemoryFile(beforeRaw).memory;
+      let before;
+      try {
+        before = parseMemoryFile(beforeRaw).memory;
+      } catch {
+        logger.warn(
+          `vault audit: failed to parse before-blob for ${sha}^:${path}`,
+        );
+        continue;
+      }
       return {
         diffFields: {
           before: pickFields(before),
