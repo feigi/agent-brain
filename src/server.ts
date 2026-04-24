@@ -19,6 +19,7 @@ import { registerAllTools } from "./tools/index.js";
 import { registerMemoryGuidance } from "./prompts/memory-guidance.js";
 import { registerRoutes } from "./routes/index.js";
 import { logger } from "./utils/logger.js";
+import { stripNullsReplacer } from "./utils/json-replacer.js";
 
 async function main() {
   process.on("unhandledRejection", (reason, promise) => {
@@ -178,6 +179,9 @@ async function main() {
 
   // Express app with DNS rebinding protection
   const app = createMcpExpressApp();
+
+  // Strip null properties from all res.json() responses across REST routes
+  app.set("json replacer", stripNullsReplacer);
 
   // No auth — return 404 for OAuth discovery so clients don't think auth is required
   app.get("/.well-known/oauth-protected-resource", (_req, res) =>

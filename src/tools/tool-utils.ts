@@ -1,12 +1,15 @@
 import type { Envelope } from "../types/envelope.js";
 import { DomainError } from "../utils/errors.js";
+import { stripNullsReplacer } from "../utils/json-replacer.js";
 
 /** Wrap an Envelope as MCP CallToolResult content */
 export function toolResponse<T>(envelope: Envelope<T>): {
   content: { type: "text"; text: string }[];
 } {
   return {
-    content: [{ type: "text", text: JSON.stringify(envelope) }],
+    content: [
+      { type: "text", text: JSON.stringify(envelope, stripNullsReplacer) },
+    ],
   };
 }
 
@@ -19,7 +22,10 @@ export function toolError(error: DomainError): {
     content: [
       {
         type: "text",
-        text: JSON.stringify({ error: error.message, code: error.code }),
+        text: JSON.stringify(
+          { error: error.message, code: error.code },
+          stripNullsReplacer,
+        ),
       },
     ],
     isError: true,
