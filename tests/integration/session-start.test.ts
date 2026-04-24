@@ -641,7 +641,7 @@ describe("memory_session_start integration tests", () => {
 
     expect(result.meta.offline).toBe(true);
     expect(result.meta.unpushed_commits).toBe(2);
-    expect(result.meta.parse_errors).toBe(1);
+    expect(result.meta.parse_errors).toEqual(["workspaces/ws1/memories/broken.md"]);
     expect(result.meta.pull_conflict).toBeUndefined();
   });
 

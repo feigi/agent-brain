@@ -29,6 +29,9 @@ import type {
   BackendSessionStartMeta,
 } from "../types.js";
 import type { PathConsistencyChecker } from "../../services/consolidation-service.js";
+import type { ParseErrorChecker } from "../../services/consolidation-service.js";
+import { VaultParseErrorChecker } from "./parse-error-checker.js";
+import type { FlagService } from "../../services/flag-service.js";
 import type {
   AuditRepository,
   CommentRepository,
@@ -203,6 +206,10 @@ export class VaultBackend implements StorageBackend {
     return {
       check: async () => vaultIdx.checkPathConsistency(),
     };
+  }
+
+  createParseErrorChecker(flagService: FlagService): ParseErrorChecker {
+    return new VaultParseErrorChecker(this.vaultIdx, this.root, flagService);
   }
 
   /**

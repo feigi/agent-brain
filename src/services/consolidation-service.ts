@@ -77,6 +77,7 @@ export class ConsolidationService {
     private readonly config: ConsolidationConfig,
     private readonly relationshipService?: RelationshipService,
     private readonly pathChecker?: PathConsistencyChecker,
+    private readonly parseErrorChecker?: ParseErrorChecker,
   ) {}
 
   private async tryArchiveRelationships(memoryId: string): Promise<void> {
@@ -209,6 +210,19 @@ export class ConsolidationService {
         result.flags.push(...pathResult.flags);
       } catch (error) {
         logger.error("Consolidation Layer 3 (path consistency) failed:", error);
+        result.errors++;
+      }
+    }
+
+    // Layer 4: Parse-error check (vault backend only)
+    if (this.parseErrorChecker) {
+      try {
+        const parseResult = await this.checkParseErrors();
+        result.flagged += parseResult.flagged;
+        result.errors += parseResult.errors;
+        result.flags.push(...parseResult.flags);
+      } catch (error) {
+        logger.error("Consolidation Layer 4 (parse errors) failed:", error);
         result.errors++;
       }
     }
@@ -635,6 +649,42 @@ export class ConsolidationService {
         subResult.flagged++;
       } catch (error) {
         logger.warn(`Path consistency flag failed for ${memoryId}:`, error);
+        subResult.errors++;
+      }
+    }
+
+    return subResult;
+  }
+
+  private async checkParseErrors(): Promise<SubResult> {
+    const subResult: SubResult = { flagged: 0, errors: 0, flags: [] };
+    if (!this.parseErrorChecker) return subResult;
+
+    const result = await this.parseErrorChecker.check();
+
+    for (const { memoryId, path, reason } of result.errors) {
+      try {
+        const flag = await this.flagService.createFlag({
+          memoryId,
+          flagType: "parse_error",
+          severity: "needs_review",
+          details: { reason: `Parse error in ${path}: ${reason}` },
+        });
+        subResult.flags.push({
+          flag_id: flag.id,
+          flag_type: flag.flag_type,
+          memory: {
+            id: memoryId,
+            title: "",
+            content: "",
+            scope: "workspace",
+          },
+          related_memory: null,
+          reason: `Parse error in ${path}: ${reason}`,
+        });
+        subResult.flagged++;
+      } catch (error) {
+        logger.warn(`Parse error flag failed for ${memoryId}:`, error);
         subResult.errors++;
       }
     }

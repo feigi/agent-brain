@@ -6,6 +6,7 @@ import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js
 import { config } from "./config.js";
 import { createBackend } from "./backend/factory.js";
 import { PostgresBackend } from "./backend/postgres/index.js";
+import { VaultBackend } from "./backend/vault/index.js";
 import { createEmbeddingProvider } from "./providers/embedding/index.js";
 import { MemoryService } from "./services/memory-service.js";
 import { RelationshipService } from "./services/relationship-service.js";
@@ -123,6 +124,8 @@ async function main() {
       verifyAfterDays: config.consolidationVerifyAfterDays,
     },
     relationshipService,
+    backend instanceof VaultBackend ? backend.pathConsistencyChecker : undefined,
+    backend instanceof VaultBackend ? backend.createParseErrorChecker(flagService) : undefined,
   );
 
   // Initialize consolidation scheduler (opt-in via config)
