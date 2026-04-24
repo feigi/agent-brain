@@ -272,10 +272,13 @@ export class VaultMemoryRepository implements MemoryRepository {
       }
 
       if (newRel !== entry.path) {
-        // Rename: write to new path, delete old, stage both
+        // Rename: write new, update index, then delete old.
+        // Index before delete so a crash leaves a harmless orphan
+        // rather than an ambiguous duplicate.
+        const oldAbs = join(this.cfg.root, entry.path);
         await writeMarkdownAtomic(this.cfg.root, newRel, md);
-        await rm(join(this.cfg.root, entry.path));
         this.vaultIndex.move(id, newRel);
+        await rm(oldAbs);
       } else {
         await writeMarkdownAtomic(this.cfg.root, entry.path, md);
       }
