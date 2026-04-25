@@ -69,7 +69,8 @@ class StubFlagService {
   async getFlagsByMemoryId(memoryId: string) {
     return this.openFlags.get(memoryId) ?? [];
   }
-  async resolveFlag(flagId: string) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async resolveFlag(flagId: string, ..._args: unknown[]) {
     this.resolveCalls.push(flagId);
     return { id: flagId };
   }
@@ -242,6 +243,54 @@ describe("reconciler.reconcileFile change (existing row)", () => {
       expect(result.memoryId).toBe("mem-1");
       expect(vectorIndex.upsertCalls).toHaveLength(1);
       expect(vectorIndex.upsertCalls[0].id).toBe("mem-1");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("reconciler.reconcileFile unlink", () => {
+  it("known path → markArchived lance + unregister vault index + resolve open parse_error flags", async () => {
+    const { root, vaultIndex, vectorIndex, flagService, reconciler } =
+      await setup();
+    try {
+      const abs = join(root, "workspaces/ws/memories/mem-1.md");
+      vaultIndex.register("mem-1", {
+        path: "workspaces/ws/memories/mem-1.md",
+        scope: "workspace",
+        workspaceId: "ws",
+        userId: null,
+      });
+      vectorIndex.rows.set("mem-1", {
+        content_hash: "h",
+        archived: false,
+        vector: [1, 1, 1, 1],
+      });
+      flagService.openFlags.set("mem-1", [
+        { id: "f1", flag_type: "parse_error" },
+        { id: "f2", flag_type: "duplicate" },
+      ]);
+
+      const result = await reconciler.reconcileFile(abs, "unlink");
+
+      expect(result.action).toBe("archived");
+      expect(result.memoryId).toBe("mem-1");
+      expect(vectorIndex.markArchivedCalls).toEqual(["mem-1"]);
+      expect(vaultIndex.has("mem-1")).toBe(false);
+      expect(flagService.resolveCalls).toEqual(["f1"]); // only the parse_error flag
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("unknown path (orphan unlink) → no-op skipped", async () => {
+    const { root, vectorIndex, flagService, reconciler } = await setup();
+    try {
+      const abs = join(root, "workspaces/ws/memories/missing.md");
+      const result = await reconciler.reconcileFile(abs, "unlink");
+      expect(result.action).toBe("skipped");
+      expect(vectorIndex.markArchivedCalls).toHaveLength(0);
+      expect(flagService.resolveCalls).toHaveLength(0);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

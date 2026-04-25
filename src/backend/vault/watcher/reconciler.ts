@@ -2,6 +2,7 @@
 import { readFile } from "node:fs/promises";
 import { relative } from "node:path";
 import { createHash } from "node:crypto";
+import { logger } from "../../../utils/logger.js";
 import type { VaultIndex } from "../repositories/vault-index.js";
 import type { VaultVectorIndex } from "../vector/lance-index.js";
 import type { FlagService } from "../../../services/flag-service.js";
@@ -40,7 +41,23 @@ class ReconcilerImpl implements Reconciler {
     signal: ReconcileSignal,
   ): Promise<ReconcileResult> {
     if (signal === "unlink") {
-      return { action: "skipped", reason: "unlink-not-yet-implemented" };
+      const relPath = relative(this.deps.vaultRoot, absPath);
+      const memoryId = this.findIdByPath(relPath);
+      if (memoryId === null) {
+        // Path was never registered (or already cleaned up). Task 9 may add
+        // unindexable cleanup here once VaultIndex exposes a public API.
+        return { action: "skipped", reason: "unknown-path" };
+      }
+      try {
+        await this.deps.vectorIndex.markArchived(memoryId);
+      } catch (err) {
+        logger.error(`reconciler: markArchived failed for ${memoryId}`, {
+          err,
+        });
+      }
+      this.deps.vaultIndex.unregister(memoryId);
+      await this.resolveOpenParseErrorFlags(memoryId);
+      return { action: "archived", memoryId };
     }
 
     const raw = await readFile(absPath, "utf8");
@@ -139,6 +156,33 @@ class ReconcilerImpl implements Reconciler {
       title: m.title,
     });
     return { action: "reembedded", memoryId: m.id };
+  }
+
+  private findIdByPath(relPath: string): string | null {
+    for (const [id, entry] of this.deps.vaultIndex.entries()) {
+      if (entry.path === relPath) return id;
+    }
+    return null;
+  }
+
+  private async resolveOpenParseErrorFlags(memoryId: string): Promise<void> {
+    const flags = await this.deps.flagService.getFlagsByMemoryId(memoryId);
+    for (const f of flags) {
+      if (f.flag_type !== "parse_error") continue;
+      if (f.resolved_at != null) continue;
+      try {
+        await this.deps.flagService.resolveFlag(
+          f.id,
+          "agent-brain",
+          "accepted",
+        );
+      } catch (err) {
+        logger.warn(
+          `reconciler: failed to resolve parse_error flag ${f.id} for ${memoryId}`,
+          { err },
+        );
+      }
+    }
   }
 
   async archiveOrphans(
