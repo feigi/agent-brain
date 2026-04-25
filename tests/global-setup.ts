@@ -2,8 +2,9 @@ import { spawn } from "child_process";
 import postgres from "postgres";
 
 const TEST_DB = "agent_brain_test";
-const MAINTENANCE_URL = "postgresql://agentic:agentic@localhost:5432/postgres";
-export const TEST_DB_URL = `postgresql://agentic:agentic@localhost:5432/${TEST_DB}`;
+const PG_PORT = process.env.POSTGRES_PORT ?? "5432";
+const MAINTENANCE_URL = `postgresql://agentic:agentic@localhost:${PG_PORT}/postgres`;
+export const TEST_DB_URL = `postgresql://agentic:agentic@localhost:${PG_PORT}/${TEST_DB}`;
 
 export async function setup() {
   // Ensure Postgres container is running
