@@ -4,9 +4,13 @@ Project use [agent-brain](https://github.com/feigi/agent-brain) (MCP server) for
 
 ## Session Start
 
-If `memory-session-start.sh` hook (Copilot CLI v1.0.11+) installed, recent memories inject as `additionalContext` at session start — no manual call needed.
+If `memory-session-start.sh` hook (Copilot CLI v1.0.24+) installed, SessionStart delivers a TITLE-ONLY index of available memories plus a forced read of `<workspace>/.agent-brain/session.md` for full bodies. Read that file before answering the first user message.
 
 If unsure hook active AND no memories appeared by first response, call `memory_session_start` yourself.
+
+## Working with Loaded Memories
+
+`<workspace>/.agent-brain/session.md` contains the full bodies of the memories indexed in the SessionStart preview. The preview lists `<id> [<scope>] <type> — <title>` per memory; full bodies are in the file. Read it once at session start; use it as your in-context reference until the next session.
 
 ## Identity Parameters
 
@@ -17,13 +21,17 @@ When `memory-pretool.sh` installed, auto-filled on every `mcp__agent-brain__*` c
 
 ## When to Call `memory_search`
 
-**Call `memory_search` before actions affecting shared systems.** Includes:
+Call `memory_search` whenever:
 
-1. **User asks about notes, context, team knowledge** — e.g. "any notes?", "what should I know?"
-2. **Before actions affecting shared infrastructure** — deploys, DB migrations, credential rotation, etc.
-3. **Before shared/integration tests** (e.g. E2E, load tests) — NOT local unit tests or builds
+1. **The user's task touches a topic that overlaps an index title** — the title alone may not be enough; pull the full memory or related ones.
+2. **You are reasoning about an unfamiliar area of the codebase or domain** — even if no index entry obviously matches.
+3. **You are about to take an action affecting shared systems** — deploys, DB migrations, credential rotation, integration tests, etc.
 
-**Do NOT search for purely local actions** like editing files, installing deps, local builds, linting, formatting.
+Prefer false positives over misses. Searches are cheap; missing a load-bearing memory is expensive.
+
+For a specific entry by id, use `memory_get`.
+
+**Do NOT search for purely local actions** (file edits, dependency installs, local builds, linting, formatting) UNLESS the index suggests a relevant memory.
 
 ## Saving Memories
 
