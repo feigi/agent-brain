@@ -9,7 +9,7 @@ export interface RenderPreviewResult {
 const DEFAULT_INDEX_BUDGET_BYTES = 1500;
 
 const HEADER = `IMPORTANT — full memories are NOT in this preview.
-Index below shows %COUNT% memories. Full bodies at:
+%LOADED% memories loaded; %SHOWN% shown in index below. Full bodies at:
 {{PATH}}
 
 You MUST Read this file before responding to the user's
@@ -58,10 +58,15 @@ export function renderPreview(
   }
 
   const indexBlock = [...projectLines, ...keptNonProject].join("\n");
-  const totalCount =
-    projectRows.length + keptNonProject.length + truncatedCount;
+  const shownCount = projectLines.length + keptNonProject.length;
+  const loadedCount = shownCount + truncatedCount;
   const text =
-    HEADER.replace("%COUNT%", String(totalCount)) + indexBlock + FOOTER;
+    HEADER.replace("%LOADED%", String(loadedCount)).replace(
+      "%SHOWN%",
+      String(shownCount),
+    ) +
+    indexBlock +
+    FOOTER;
   return { text, truncatedCount };
 }
 

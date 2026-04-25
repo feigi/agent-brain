@@ -88,6 +88,44 @@ describe("renderPreview", () => {
     expect(result.text).toContain("ws0 [workspace]");
     expect(result.text).not.toContain("ws44 [workspace]");
   });
+
+  it("handles empty memory list without throwing", () => {
+    const result = renderPreview([]);
+    expect(result.truncatedCount).toBe(0);
+    expect(result.text).toContain("0 memories loaded");
+    expect(result.text).toContain("0 shown");
+    expect(result.text).toContain("{{PATH}}");
+    expect(result.text).toContain("MUST Read");
+  });
+
+  it("does not truncate when total bytes equal the budget exactly", () => {
+    const memories = [
+      mem({
+        id: "a",
+        title: "alpha",
+        scope: "workspace",
+        type: "fact",
+        relevance: 0.9,
+      }),
+      mem({
+        id: "b",
+        title: "beta",
+        scope: "workspace",
+        type: "fact",
+        relevance: 0.8,
+      }),
+    ];
+    // Compute exact byte cost of the two rows joined by one newline
+    const row1 = "- a [workspace] fact — alpha";
+    const row2 = "- b [workspace] fact — beta";
+    const exactBudget = row1.length + 1 + row2.length;
+
+    const result = renderPreview(memories, exactBudget);
+
+    expect(result.truncatedCount).toBe(0);
+    expect(result.text).toContain(row1);
+    expect(result.text).toContain(row2);
+  });
 });
 
 describe("renderFull", () => {
@@ -162,5 +200,9 @@ describe("renderFull", () => {
     expect(withFlags).toContain("f1");
     expect(withFlags).toContain("verify");
     expect(withFlags).toContain("stale claim");
+  });
+
+  it("returns empty string for an empty memory list with no flags", () => {
+    expect(renderFull([])).toBe("");
   });
 });

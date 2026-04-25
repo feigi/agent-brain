@@ -69,8 +69,11 @@ mkdir -p "$DEST_DIR" 2>/dev/null || emit_fallback "could not create ${DEST_DIR}"
 printf "%s" "$FULL" > "$DEST_FILE" 2>/dev/null || emit_fallback "could not write ${DEST_FILE}"
 ensure_gitignore "$CWD"
 
-# Substitute {{PATH}} placeholder with the absolute file path
-SUBSTITUTED_PREVIEW=$(printf "%s" "$PREVIEW" | sed "s|{{PATH}}|${DEST_FILE}|g")
+# Substitute {{PATH}} placeholder with the absolute file path.
+# Escape sed-special chars (&, \, |) in the path so workspaces with
+# unusual names (e.g. "foo&bar") don't silently corrupt the substitution.
+ESCAPED_DEST=$(printf '%s' "$DEST_FILE" | sed 's/[&\\|]/\\&/g')
+SUBSTITUTED_PREVIEW=$(printf "%s" "$PREVIEW" | sed "s|{{PATH}}|${ESCAPED_DEST}|g")
 CTX_ESCAPED=$(printf "%s" "$SUBSTITUTED_PREVIEW" | jq -Rs '.')
 
 cat <<EOF
