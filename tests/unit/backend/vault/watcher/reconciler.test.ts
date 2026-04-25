@@ -249,6 +249,130 @@ describe("reconciler.reconcileFile change (existing row)", () => {
   });
 });
 
+const BROKEN_FRONTMATTER_MD = `---
+this is not yaml: at all: ":
+title:
+---
+
+body
+`;
+
+// Reuse VALID_MD's working frontmatter, then corrupt only the body (no H1).
+const VALID_FM_BROKEN_BODY_MD = VALID_MD.replace(
+  "# Test memory\n\nBody content.\n",
+  "(no body heading — splitBody throws)\n",
+);
+
+describe("reconciler.reconcileFile parse failures", () => {
+  it("frontmatter broken + path NOT in index → vaultIndex.setUnindexable", async () => {
+    const { root, vaultIndex, flagService, reconciler } = await setup();
+    try {
+      const dir = join(root, "workspaces/ws/memories");
+      await mkdir(dir, { recursive: true });
+      const abs = join(dir, "broken.md");
+      await writeFile(abs, BROKEN_FRONTMATTER_MD);
+
+      const result = await reconciler.reconcileFile(abs, "add");
+
+      expect(result.action).toBe("parse-error");
+      expect(flagService.createCalls).toHaveLength(0);
+      expect(
+        vaultIndex.unindexable.find(
+          (u) => u.path === "workspaces/ws/memories/broken.md",
+        ),
+      ).toBeDefined();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("body broken + id resolvable + no existing flag → flagService.createFlag", async () => {
+    const { root, vaultIndex, flagService, reconciler } = await setup();
+    try {
+      const dir = join(root, "workspaces/ws/memories");
+      await mkdir(dir, { recursive: true });
+      const abs = join(dir, "mem-1.md");
+      await writeFile(abs, VALID_FM_BROKEN_BODY_MD);
+
+      // Pre-register the path so the id-by-path lookup works.
+      vaultIndex.register("mem-1", {
+        path: "workspaces/ws/memories/mem-1.md",
+        scope: "workspace",
+        workspaceId: "ws",
+        userId: null,
+      });
+
+      const result = await reconciler.reconcileFile(abs, "change");
+
+      expect(result.action).toBe("parse-error");
+      expect(result.memoryId).toBe("mem-1");
+      expect(flagService.createCalls).toHaveLength(1);
+      expect(flagService.createCalls[0].memoryId).toBe("mem-1");
+      expect(flagService.createCalls[0].flagType).toBe("parse_error");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("parse failure + id resolvable + flag already open → no duplicate flag", async () => {
+    const { root, vaultIndex, flagService, reconciler } = await setup();
+    try {
+      const dir = join(root, "workspaces/ws/memories");
+      await mkdir(dir, { recursive: true });
+      const abs = join(dir, "mem-1.md");
+      await writeFile(abs, VALID_FM_BROKEN_BODY_MD);
+      vaultIndex.register("mem-1", {
+        path: "workspaces/ws/memories/mem-1.md",
+        scope: "workspace",
+        workspaceId: "ws",
+        userId: null,
+      });
+      flagService.openFlags.set("mem-1", [
+        { id: "existing", flag_type: "parse_error" },
+      ]);
+
+      const result = await reconciler.reconcileFile(abs, "change");
+
+      expect(result.action).toBe("parse-error");
+      expect(flagService.createCalls).toHaveLength(0);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("parse passes after prior unindexable entry → clearUnindexable + auto-resolve flags", async () => {
+    const { root, vaultIndex, flagService, reconciler } = await setup();
+    try {
+      const dir = join(root, "workspaces/ws/memories");
+      await mkdir(dir, { recursive: true });
+      const abs = join(dir, "mem-1.md");
+      await writeFile(abs, VALID_MD);
+
+      // Seed a stale unindexable entry that should be cleared on success.
+      vaultIndex.setUnindexable(
+        "workspaces/ws/memories/mem-1.md",
+        "previously broken",
+      );
+      // Seed an open parse_error flag that should auto-resolve.
+      flagService.openFlags.set("mem-1", [
+        { id: "old-pe", flag_type: "parse_error" },
+      ]);
+
+      const result = await reconciler.reconcileFile(abs, "add");
+
+      expect(result.action).toBe("indexed");
+      expect(
+        vaultIndex.unindexable.find(
+          (u) => u.path === "workspaces/ws/memories/mem-1.md",
+        ),
+      ).toBeUndefined();
+      expect(flagService.resolveCalls).toEqual(["old-pe"]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("reconciler.reconcileFile unlink", () => {
   it("known path → markArchived lance + unregister vault index + resolve open parse_error flags", async () => {
     const { root, vaultIndex, vectorIndex, flagService, reconciler } =

@@ -61,12 +61,59 @@ class ReconcilerImpl implements Reconciler {
     }
 
     const raw = await readFile(absPath, "utf8");
-    const parsed = parseMemoryFile(raw);
-    const m = parsed.memory;
-    const hash = sha256Hex(m.content);
     const relPath = relative(this.deps.vaultRoot, absPath);
 
+    let parsed: ReturnType<typeof parseMemoryFile>;
+    try {
+      parsed = parseMemoryFile(raw);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      const memoryId = this.findIdByPath(relPath);
+      if (memoryId === null) {
+        this.deps.vaultIndex.setUnindexable(relPath, reason);
+        return { action: "parse-error", reason };
+      }
+      const already = await this.deps.flagService.hasOpenFlag(
+        memoryId,
+        "parse_error",
+      );
+      if (!already) {
+        try {
+          await this.deps.flagService.createFlag({
+            memoryId,
+            flagType: "parse_error",
+            severity: "needs_review",
+            details: { reason: `Parse error in ${relPath}: ${reason}` },
+          });
+        } catch (writeErr) {
+          logger.warn(
+            `reconciler: createFlag(parse_error) failed for ${memoryId}`,
+            { err: writeErr },
+          );
+        }
+      }
+      return { action: "parse-error", memoryId, reason };
+    }
+
+    // Parse succeeded — clear any stale unindexable entry.
+    this.deps.vaultIndex.clearUnindexable(relPath);
+
+    const result = await this.applySuccessfulParse(parsed, relPath);
+
+    // Auto-resolve any open parse_error flag now that the file parses cleanly.
+    await this.resolveOpenParseErrorFlags(parsed.memory.id);
+
+    return result;
+  }
+
+  private async applySuccessfulParse(
+    parsed: ReturnType<typeof parseMemoryFile>,
+    relPath: string,
+  ): Promise<ReconcileResult> {
+    const m = parsed.memory;
+    const hash = sha256Hex(m.content);
     const scopeLoc = inferScopeFromPath(relPath);
+
     const existingHash = await this.deps.vectorIndex.getContentHash(m.id);
     if (existingHash === null) {
       const vector = await this.deps.embed(m.content);
