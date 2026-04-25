@@ -17,3 +17,5 @@ ralph.yml
 *.tfvars
 !*.tfvars.example
 .worktrees/
+
+.agent-brain/
