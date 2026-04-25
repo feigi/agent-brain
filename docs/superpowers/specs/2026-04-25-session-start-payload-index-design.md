@@ -21,8 +21,8 @@ This spec replaces the verbatim-in-preview model with a two-layer design: a comp
 
 **In scope:**
 
-- New response shape for `memory_session_start`: `{ preview: string, full: string, meta }`.
-- Server-side rendering of both the preview index and the full markdown body.
+- New wire shape for `memory_session_start` tool: `{ preview: string, full: string, meta }`.
+- Pure renderers (`renderPreview`, `renderFull`) at the tool boundary; service layer unchanged.
 - Hook-script changes (Claude Code + Copilot CLI): write `full` to a workspace-local file, substitute the path into `preview`, emit `preview` as `additionalContext`.
 - CLAUDE.md / instructions snippet update to reframe `memory_search` as a liberal, task-driven primary lookup.
 - Index-byte budget enforcement with project-scope priority.
@@ -48,7 +48,7 @@ interface SessionStartResponse {
 }
 ```
 
-The legacy `data: MemorySummaryWithRelevance[]` field is removed. This is a breaking change to the `memory_session_start` API. No remote consumers exist; both shipped hooks update in the same PR.
+The legacy `data: MemorySummaryWithRelevance[]` field is removed from the wire response. This is a breaking change to the `memory_session_start` tool/REST API. No remote consumers exist; both shipped hooks update in the same PR. The service layer (`MemoryService.sessionStart`) keeps its existing return type for internal callers and tests.
 
 ### Preview format
 
@@ -163,20 +163,44 @@ Per memory `n86khHlXf88S8Fq4i1NwT`, both `claude-md-snippet.md` and `instruction
 
 ### Server changes
 
-**`src/services/memory-service.ts` — `sessionStart`:**
+Rendering happens at the **tool boundary** (the wire layer), not inside the service. The service's internal `Envelope<MemorySummaryWithRelevance[]>` shape is preserved so existing service-level integration tests and other internal callers stay intact. The wire shape `{ preview, full, meta }` is produced by the tool wrapper.
 
-After existing assembly of `result.data` (ranked + project-scoped, deduped, sorted), call two new pure renderers:
+**New module: `src/utils/session-start-render.ts`** — houses two pure renderers and the byte-budget logic. Pure functions, fully unit-testable without a backend.
 
-- `renderPreview(memories, indexBudget=1500): { text: string; truncatedCount: number }`
-- `renderFull(memories, flags): string`
+```ts
+export interface RenderPreviewResult {
+  text: string; // markdown, ≤ 2KB target
+  truncatedCount: number; // index rows dropped to fit budget
+}
 
-Return `{ preview, full, meta }` instead of `{ data, meta }`. Set `meta.index_truncated_count` from the preview renderer.
+export function renderPreview(
+  memories: MemorySummaryWithRelevance[],
+  indexBudget?: number, // bytes; default 1500
+): RenderPreviewResult;
 
-**New module: `src/utils/session-start-render.ts`** — houses both renderers and the byte-budget logic. Pure functions, fully unit-testable without a backend.
+export function renderFull(
+  memories: MemorySummaryWithRelevance[],
+  flags?: FlagResponse[],
+): string;
+```
+
+**`src/services/memory-service.ts`** — unchanged. `sessionStart()` continues to return `Envelope<MemorySummaryWithRelevance[]>` populated as today (ranked + project-scoped, deduped, sorted), with flags + team_activity in meta.
+
+**`src/tools/memory-session-start.ts`** — after calling `memoryService.sessionStart(...)`, calls `renderPreview` + `renderFull` and constructs the wire-shape response:
+
+```ts
+const envelope = await memoryService.sessionStart(...);
+const previewResult = renderPreview(envelope.data);
+const full = renderFull(envelope.data, envelope.meta.flags);
+const meta = { ...envelope.meta, index_truncated_count: previewResult.truncatedCount };
+return toolResponse({ preview: previewResult.text, full, meta });
+```
+
+**`src/routes/api-tools.ts`** — the REST hook endpoint for `memory_session_start` mirrors the same wrapping (the hook scripts hit the REST endpoint, not MCP). Both paths must produce identical wire shape.
 
 **`src/types/envelope.ts`** — add `index_truncated_count?: number` to `EnvelopeCoreMeta`.
 
-**`src/tools/memory-session-start.ts`** — output schema documentation updated; no logic change beyond field-name plumbing.
+**No new top-level type for `SessionStartResponse`** — the wire shape lives only in the tool wrapper. If consumers need a TypeScript type, export it from `src/utils/session-start-render.ts`.
 
 ### Reliability and fallbacks
 
