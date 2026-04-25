@@ -218,7 +218,11 @@ export class VaultIndex {
     }
   }
 
-  private setUnindexable(path: string, reason: string): void {
+  /**
+   * Mark a path as unparseable so it surfaces in BackendSessionStartMeta.parse_errors.
+   * Upserts by path — a second call with the same path updates the reason in-place.
+   */
+  setUnindexable(path: string, reason: string): void {
     const existingIdx = this._unindexable.findIndex((u) => u.path === path);
     if (existingIdx >= 0) {
       this._unindexable[existingIdx] = { path, reason };
@@ -227,7 +231,10 @@ export class VaultIndex {
     }
   }
 
-  private clearUnindexable(path: string): void {
+  /**
+   * Remove an unindexable entry, e.g. after a successful re-parse.
+   */
+  clearUnindexable(path: string): void {
     const idx = this._unindexable.findIndex((u) => u.path === path);
     if (idx >= 0) this._unindexable.splice(idx, 1);
   }
