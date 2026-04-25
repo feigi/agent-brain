@@ -8,6 +8,7 @@ import {
 } from "../helpers.js";
 import { config } from "../../src/config.js";
 import type { MemoryService } from "../../src/services/memory-service.js";
+import { toolResponse } from "../../src/tools/tool-utils.js";
 import { ConflictError, NotFoundError } from "../../src/utils/errors.js";
 
 describe("Memory CRUD integration tests", () => {
@@ -39,8 +40,6 @@ describe("Memory CRUD integration tests", () => {
     expect(result.data.author).toBe("alice");
     expect(result.data.version).toBe(1);
     expect(result.data.scope).toBe("workspace"); // default
-    expect(result.data.embedding_model).toBe("mock-deterministic");
-    expect(result.data.embedding_dimensions).toBe(config.embeddingDimensions);
     expect(result.meta.timing).toBeTypeOf("number");
   });
 
@@ -142,9 +141,6 @@ describe("Memory CRUD integration tests", () => {
       "alice",
     );
 
-    // The embedding model should still be set (re-embedding happened)
-    expect(updated.data.embedding_model).toBe("mock-deterministic");
-    expect(updated.data.embedding_dimensions).toBe(config.embeddingDimensions);
     expect(updated.data.version).toBe(2);
   });
 
@@ -236,7 +232,7 @@ describe("Memory CRUD integration tests", () => {
     });
     assertMemory(created.data);
 
-    expect(created.data.verified_at).toBeNull();
+    expect(created.data.verified_at).toBeUndefined();
 
     const verified = await service.verify(created.data.id, "alice");
     expect(verified.data.verified_at).toBeInstanceOf(Date);
@@ -662,5 +658,71 @@ describe("Memory CRUD integration tests", () => {
     expect(getResult.data[0]).toHaveProperty("can_edit");
     expect(getResult.data[0]).toHaveProperty("relationships");
     expect(getResult.data[0]).toHaveProperty("flag_count");
+  });
+
+  describe("wire format: null keys stripped via toolResponse", () => {
+    it("memory_create wire payload omits unset nullable fields", async () => {
+      const result = await service.create({
+        workspace_id: "test-ws",
+        content: "fresh memory with null defaults",
+        type: "fact",
+        author: "alice",
+      });
+      assertMemory(result.data);
+
+      const wrapped = toolResponse(result as never);
+      const parsed = JSON.parse(wrapped.content[0].text);
+      expect(parsed.data).toMatchObject({
+        id: result.data.id,
+        content: "fresh memory with null defaults",
+        author: "alice",
+      });
+      for (const absent of [
+        "verified_at",
+        "archived_at",
+        "verified_by",
+        "last_comment_at",
+        "session_id",
+        "metadata",
+        "tags",
+        "source",
+      ]) {
+        expect(absent in parsed.data).toBe(false);
+      }
+    });
+
+    it("memory_get on project-scoped memory omits workspace_id on wire", async () => {
+      const created = await service.create({
+        content: "project memory",
+        type: "decision",
+        scope: "project",
+        author: "alice",
+        user_confirmed_project_scope: true,
+      });
+      assertMemory(created.data);
+
+      const fetched = await service.get(created.data.id, "alice");
+      const wrapped = toolResponse(fetched as never);
+      const parsed = JSON.parse(wrapped.content[0].text);
+      expect(parsed.data.scope).toBe("project");
+      expect("workspace_id" in parsed.data).toBe(false);
+    });
+
+    it("memory_verify wire payload includes verified_at after verification", async () => {
+      const created = await service.create({
+        workspace_id: "test-ws",
+        content: "will be verified",
+        type: "fact",
+        author: "alice",
+      });
+      assertMemory(created.data);
+
+      const verified = await service.verify(created.data.id, "alice");
+      const wrapped = toolResponse(verified as never);
+      const parsed = JSON.parse(wrapped.content[0].text);
+      expect(parsed.data.verified_by).toBe("alice");
+      expect(typeof parsed.data.verified_at).toBe("string");
+      expect("archived_at" in parsed.data).toBe(false);
+    });
   });
 });

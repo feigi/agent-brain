@@ -31,9 +31,6 @@ describe("stripNullsReplacer", () => {
   });
 
   it("preserves literal null array items (documented caveat)", () => {
-    // Array slots cannot be omitted; a replacer returning `undefined` for an
-    // array item serializes as the JSON `null` token. Pinning this behavior
-    // so a future "fix" that emits a sentinel (e.g. empty object) is caught.
     expect(round({ xs: [1, null, 2] })).toEqual({ xs: [1, null, 2] });
     expect(JSON.stringify([null, null], stripNullsReplacer)).toBe(
       "[null,null]",
@@ -91,18 +88,12 @@ describe("toolResponse integration", () => {
 
 describe("toolError integration", () => {
   it("strips nulls from error envelope JSON", () => {
-    // Guards against a future change that stops passing the replacer to
-    // toolError's JSON.stringify call — or extends DomainError with nullable
-    // context fields (e.g. `details: null`) that should be omitted on the wire.
     const err = new DomainError("bad input", "VALIDATION_ERROR");
-    // Inject a nullable context field via prototype assignment so the test
-    // doesn't rely on DomainError's current shape.
     const payload = toolError(err);
     const parsed = JSON.parse(payload.content[0].text);
     expect(parsed).toEqual({ error: "bad input", code: "VALIDATION_ERROR" });
     expect(payload.isError).toBe(true);
 
-    // Direct check: stripNullsReplacer is wired at this call site.
     const withNullField = JSON.stringify(
       { error: "x", code: "Y", details: null },
       stripNullsReplacer,
@@ -137,10 +128,7 @@ describe("Express json replacer integration", () => {
     }
   });
 
-  it("replacer survives app.use(router) registration (simulates server.ts wiring)", async () => {
-    // Regression guard: if app.set('json replacer', ...) is ever moved after
-    // registerRoutes(), or if a router installs middleware that stringifies
-    // responses before res.json runs, this test catches it.
+  it("replacer survives app.use(router) registration", async () => {
     const app = express();
     app.set("json replacer", stripNullsReplacer);
 
@@ -162,6 +150,49 @@ describe("Express json replacer integration", () => {
       const res = await fetch(`http://127.0.0.1:${addr.port}/probe-router`);
       const body = await res.json();
       expect(body).toEqual({ data: { id: "r" }, meta: {} });
+    } finally {
+      server.close();
+    }
+  });
+
+  // JSON-RPC 2.0 mandates literal `id: null` in error responses when the
+  // request id is unknown. The replacer strips nulls, so the server.ts
+  // catch handler bypasses it via res.send(JSON.stringify(...)).
+  it("JSON-RPC error path preserves literal `id: null` despite replacer", async () => {
+    const app = express();
+    app.set("json replacer", stripNullsReplacer);
+    app.post("/mcp", (_req, res) => {
+      res
+        .status(500)
+        .type("application/json")
+        .send(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            error: { code: -32603, message: "Internal server error" },
+            id: null,
+          }),
+        );
+    });
+
+    const server = app.listen(0);
+    const addr = server.address();
+    if (!addr || typeof addr !== "object") {
+      server.close();
+      throw new Error("failed to bind ephemeral port");
+    }
+    try {
+      const res = await fetch(`http://127.0.0.1:${addr.port}/mcp`, {
+        method: "POST",
+      });
+      expect(res.status).toBe(500);
+      expect(res.headers.get("content-type")).toMatch(/application\/json/);
+      const text = await res.text();
+      expect(text).toContain('"id":null');
+      expect(JSON.parse(text)).toEqual({
+        jsonrpc: "2.0",
+        error: { code: -32603, message: "Internal server error" },
+        id: null,
+      });
     } finally {
       server.close();
     }

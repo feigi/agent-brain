@@ -180,7 +180,6 @@ async function main() {
   // Express app with DNS rebinding protection
   const app = createMcpExpressApp();
 
-  // Strip null properties from all res.json() responses across REST routes
   app.set("json replacer", stripNullsReplacer);
 
   // No auth — return 404 for OAuth discovery so clients don't think auth is required
@@ -206,8 +205,7 @@ async function main() {
     } catch (error) {
       logger.error("MCP request error:", error);
       if (!res.headersSent) {
-        // Bypass app-level `json replacer` (which strips nulls); JSON-RPC 2.0
-        // requires `id: null` in error responses when the request id is unknown.
+        // Bypass `json replacer` — JSON-RPC 2.0 requires literal `id: null` here.
         res
           .status(500)
           .type("application/json")

@@ -30,21 +30,6 @@ export interface Flag {
   created_at: Date;
 }
 
-export interface FlagWithMemory extends Flag {
-  memory: {
-    id: string;
-    title: string;
-    content: string;
-    scope: MemoryScope;
-  };
-  related_memory?: {
-    id: string;
-    title: string;
-    content: string;
-    scope: MemoryScope;
-  } | null;
-}
-
 /** Enriched flag for API responses (session_start, consolidate, memory_get). */
 export interface FlagResponse {
   flag_id: string;

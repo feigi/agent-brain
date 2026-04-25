@@ -48,17 +48,27 @@ export interface RelatedMemorySummary {
   scope: MemoryScope;
 }
 
-/** Subset of Relationship fields for lightweight API responses (e.g. session_start meta) */
-export type RelationshipSummary = Pick<
-  Relationship,
-  "id" | "type" | "description" | "confidence" | "source_id" | "target_id"
->;
+// Wire-facing subset; nullable DB fields become optional to match the
+// null-stripping JSON replacer at the response boundary.
+export interface RelationshipSummary {
+  id: string;
+  type: RelationshipType;
+  description?: string;
+  confidence: number;
+  source_id: string;
+  target_id: string;
+}
 
-/** Relationship enriched with related memory summary for API responses */
-export interface RelationshipWithMemory extends Omit<
-  Relationship,
-  "project_id" | "archived_at"
-> {
+export interface RelationshipWithMemory {
+  id: string;
+  source_id: string;
+  target_id: string;
+  type: RelationshipType;
+  description?: string;
+  confidence: number;
+  created_by: string;
+  created_via?: string;
+  created_at: Date;
   direction: "outgoing" | "incoming";
   /** In listForMemory: the memory on the opposite end from the queried one.
    *  In listBetweenMemories: always the target memory (source→target canonical direction). */

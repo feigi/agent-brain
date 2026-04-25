@@ -187,7 +187,7 @@ describe("Access Control", () => {
       });
       assertMemory(memory);
       const verified = await service.verify(memory.id, "bob");
-      expect(verified.data.verified_at).not.toBeNull();
+      expect(verified.data.verified_at).toBeDefined();
       expect(verified.data.verified_by).toBe("bob");
     });
 

@@ -9,6 +9,7 @@ import type {
   MemoryGetManyItem,
   FlagSummary,
   CreateSkipResult,
+  MemoryDetail,
   MemorySummary,
   MemorySummaryWithRelevance,
   MemorySummaryWithChangeType,
@@ -86,7 +87,7 @@ export class MemoryService {
   // Phase 4: Three-stage pre-save guard chain (session validation, budget, dedup)
   async create(
     input: MemoryCreate,
-  ): Promise<Envelope<Memory | CreateSkipResult>> {
+  ): Promise<Envelope<MemoryDetail | CreateSkipResult>> {
     const start = Date.now();
 
     // Guard 0a -- Require workspace_id for workspace/user scope
@@ -273,7 +274,7 @@ export class MemoryService {
     }
 
     return {
-      data: memory,
+      data: toDetail(memory),
       meta: {
         timing,
         ...(budgetResult
@@ -289,7 +290,7 @@ export class MemoryService {
     };
   }
 
-  async get(id: string, userId: string): Promise<Envelope<Memory>> {
+  async get(id: string, userId: string): Promise<Envelope<MemoryDetail>> {
     const start = Date.now();
 
     const memory = await this.memoryRepo.findById(id);
@@ -306,7 +307,7 @@ export class MemoryService {
     }
 
     const timing = Date.now() - start;
-    return { data: memory, meta: { timing } };
+    return { data: toDetail(memory), meta: { timing } };
   }
 
   // D-63: Enhanced get with full comments array and capability booleans
@@ -652,7 +653,7 @@ export class MemoryService {
     expectedVersion: number,
     updates: MemoryUpdate,
     userId: string,
-  ): Promise<Envelope<Memory>> {
+  ): Promise<Envelope<MemoryDetail>> {
     const start = Date.now();
 
     // Fetch first for access control check (also needed for re-embedding)
@@ -719,7 +720,7 @@ export class MemoryService {
     await this.auditService?.logUpdate(id, userId, { before, after });
 
     const timing = Date.now() - start;
-    return { data: memory, meta: { timing } };
+    return { data: toDetail(memory), meta: { timing } };
   }
 
   // D-06: Accepts single ID or array
@@ -1119,7 +1120,7 @@ export class MemoryService {
     };
   }
 
-  async verify(id: string, userId: string): Promise<Envelope<Memory>> {
+  async verify(id: string, userId: string): Promise<Envelope<MemoryDetail>> {
     const start = Date.now();
 
     const existing = await this.memoryRepo.findById(id);
@@ -1143,7 +1144,7 @@ export class MemoryService {
     }
 
     const timing = Date.now() - start;
-    return { data: memory, meta: { timing } };
+    return { data: toDetail(memory), meta: { timing } };
   }
 
   async listStale(

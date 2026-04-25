@@ -154,10 +154,10 @@ export class RelationshipService {
       source_id: rel.source_id,
       target_id: rel.target_id,
       type: rel.type,
-      description: rel.description,
+      ...(rel.description !== null && { description: rel.description }),
       confidence: rel.confidence,
       created_by: rel.created_by,
-      created_via: rel.created_via,
+      ...(rel.created_via !== null && { created_via: rel.created_via }),
       direction,
       related_memory: {
         id: related.id,

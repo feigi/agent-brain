@@ -44,37 +44,42 @@ export interface Memory {
   verified_by: string | null; // D-19: who verified
 }
 
-// Slim projection for list endpoints — omits internal/DB-only fields
+// Slim projection for list endpoints — omits internal/DB-only fields.
+// Wire shape: nullable DB fields become optional (`?:`) to match the
+// null-stripping JSON replacer at the response boundary.
 export interface MemorySummary {
   id: string;
   title: string;
   content: string;
   type: MemoryType;
   scope: MemoryScope;
-  tags: string[] | null;
+  tags?: string[];
   author: string;
-  source: string | null;
+  source?: string;
   created_at: Date;
   updated_at: Date;
-  verified_at: Date | null;
-  verified_by: string | null;
+  verified_at?: Date;
+  verified_by?: string;
   comment_count: number;
   flag_count: number;
   relationship_count: number;
-  last_comment_at: Date | null;
+  last_comment_at?: Date;
 }
 
 // Full projection for detail endpoints — everything except embedding internals
 export interface MemoryDetail extends MemorySummary {
   project_id: string;
-  workspace_id: string | null;
+  workspace_id?: string;
   version: number;
-  session_id: string | null;
-  metadata: Record<string, unknown> | null;
-  archived_at: Date | null;
+  session_id?: string;
+  metadata?: Record<string, unknown>;
+  archived_at?: Date;
 }
 
-/** Project a full Memory to the slim list representation */
+function nullToUndef<T>(value: T | null | undefined): T | undefined {
+  return value ?? undefined;
+}
+
 export function toSummary(memory: Memory): MemorySummary {
   return {
     id: memory.id,
@@ -82,30 +87,29 @@ export function toSummary(memory: Memory): MemorySummary {
     content: memory.content,
     type: memory.type,
     scope: memory.scope,
-    tags: memory.tags,
+    tags: nullToUndef(memory.tags),
     author: memory.author,
-    source: memory.source,
+    source: nullToUndef(memory.source),
     created_at: memory.created_at,
     updated_at: memory.updated_at,
-    verified_at: memory.verified_at,
-    verified_by: memory.verified_by,
+    verified_at: nullToUndef(memory.verified_at),
+    verified_by: nullToUndef(memory.verified_by),
     comment_count: memory.comment_count,
     flag_count: memory.flag_count,
     relationship_count: memory.relationship_count,
-    last_comment_at: memory.last_comment_at,
+    last_comment_at: nullToUndef(memory.last_comment_at),
   };
 }
 
-/** Project a full Memory to the detail representation (strips embedding internals) */
 export function toDetail(memory: Memory): MemoryDetail {
   return {
     ...toSummary(memory),
     project_id: memory.project_id,
-    workspace_id: memory.workspace_id,
+    workspace_id: nullToUndef(memory.workspace_id),
     version: memory.version,
-    session_id: memory.session_id,
-    metadata: memory.metadata,
-    archived_at: memory.archived_at,
+    session_id: nullToUndef(memory.session_id),
+    metadata: nullToUndef(memory.metadata),
+    archived_at: nullToUndef(memory.archived_at),
   };
 }
 
