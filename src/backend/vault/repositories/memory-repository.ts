@@ -1,5 +1,5 @@
 import { dirname, join } from "node:path";
-import { mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdir, stat, writeFile, rm } from "node:fs/promises";
 import type {
   Memory,
   MemoryScope,
@@ -39,6 +39,8 @@ import {
 import { assertUsersIgnored } from "../git/users-gitignore-invariant.js";
 import { commitSubject } from "./util.js";
 import { VaultIndex } from "./vault-index.js";
+import { NoopIgnoreSet } from "../watcher/ignore-set.js";
+import type { IgnoreSet } from "../watcher/types.js";
 
 export interface VaultMemoryConfig {
   root: string;
@@ -51,17 +53,23 @@ export interface VaultMemoryConfig {
   // by .gitignore so `git add` would no-op and stageAndCommit would
   // throw VaultGitNothingToCommitError).
   trackUsersInGit?: boolean;
+  ignoreSet?: IgnoreSet;
+  graceMs?: number; // default 500
 }
 
 export class VaultMemoryRepository implements MemoryRepository {
   private readonly vaultIndex: VaultIndex;
   private readonly gitOps: GitOps;
   private readonly trackUsersInGit: boolean;
+  private readonly ignoreSet: IgnoreSet;
+  private readonly graceMs: number;
 
   private constructor(private readonly cfg: VaultMemoryConfig) {
     this.vaultIndex = cfg.vaultIndex;
     this.gitOps = cfg.gitOps;
     this.trackUsersInGit = cfg.trackUsersInGit ?? false;
+    this.ignoreSet = cfg.ignoreSet ?? new NoopIgnoreSet();
+    this.graceMs = cfg.graceMs ?? 500;
   }
 
   static create(cfg: VaultMemoryConfig): VaultMemoryRepository {
@@ -115,6 +123,13 @@ export class VaultMemoryRepository implements MemoryRepository {
         throw new ConflictError(`memory already exists: ${memory.id}`);
       }
       await writeMarkdownAtomic(this.cfg.root, rel, md);
+      try {
+        const s = await stat(abs);
+        this.ignoreSet.add(abs, Number(s.mtime));
+      } catch {
+        // best-effort — file should exist since we just wrote it
+      }
+      this.ignoreSet.releaseAfter(abs, this.graceMs);
     });
     this.vaultIndex.register(memory.id, { ...scopeLoc, path: rel });
     // Markdown is source of truth; lance is a derived cache. A lance
@@ -266,11 +281,27 @@ export class VaultMemoryRepository implements MemoryRepository {
         // Index before delete so a crash leaves a harmless orphan
         // rather than an ambiguous duplicate.
         const oldAbs = join(this.cfg.root, oldRel);
+        const newAbs = join(this.cfg.root, newRel);
         await writeMarkdownAtomic(this.cfg.root, newRel, md);
+        try {
+          const s = await stat(newAbs);
+          this.ignoreSet.add(newAbs, Number(s.mtime));
+        } catch {
+          // best-effort
+        }
+        this.ignoreSet.releaseAfter(newAbs, this.graceMs);
         this.vaultIndex.move(id, newRel);
         await rm(oldAbs);
       } else {
+        const writeAbs = join(this.cfg.root, oldRel);
         await writeMarkdownAtomic(this.cfg.root, oldRel, md);
+        try {
+          const s = await stat(writeAbs);
+          this.ignoreSet.add(writeAbs, Number(s.mtime));
+        } catch {
+          // best-effort
+        }
+        this.ignoreSet.releaseAfter(writeAbs, this.graceMs);
       }
 
       try {
@@ -358,6 +389,13 @@ export class VaultMemoryRepository implements MemoryRepository {
           flags: parsed.flags,
         });
         await writeMarkdownAtomic(this.cfg.root, entry.path, md);
+        try {
+          const s = await stat(abs);
+          this.ignoreSet.add(abs, Number(s.mtime));
+        } catch {
+          // best-effort
+        }
+        this.ignoreSet.releaseAfter(abs, this.graceMs);
         count += 1;
         archived.push({
           id,
@@ -427,6 +465,13 @@ export class VaultMemoryRepository implements MemoryRepository {
         flags: parsed.flags,
       });
       await writeMarkdownAtomic(this.cfg.root, entry.path, md);
+      try {
+        const s = await stat(abs);
+        this.ignoreSet.add(abs, Number(s.mtime));
+      } catch {
+        // best-effort
+      }
+      this.ignoreSet.releaseAfter(abs, this.graceMs);
       await this.#commit(
         entry.path,
         next.scope,
