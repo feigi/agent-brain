@@ -7,6 +7,7 @@ import {
   projectLimitSchema,
 } from "../utils/session-limits.js";
 import { toolResponse, withErrorHandling } from "./tool-utils.js";
+import { renderPreview, renderFull } from "../utils/session-start-render.js";
 
 export function registerMemorySessionStart(
   server: McpServer,
@@ -47,14 +48,23 @@ export function registerMemorySessionStart(
     },
     async (params) => {
       return withErrorHandling(async () => {
-        const result = await memoryService.sessionStart(
+        const envelope = await memoryService.sessionStart(
           params.workspace_id,
           params.user_id,
           params.context,
           params.limit,
           params.project_limit,
         );
-        return toolResponse(result);
+        const previewResult = renderPreview(envelope.data);
+        const full = renderFull(envelope.data, envelope.meta.flags);
+        return toolResponse({
+          preview: previewResult.text,
+          full,
+          meta: {
+            ...envelope.meta,
+            index_truncated_count: previewResult.truncatedCount,
+          },
+        } as unknown as import("../types/envelope.js").Envelope<never>);
       });
     },
   );
