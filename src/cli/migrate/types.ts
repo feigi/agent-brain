@@ -21,13 +21,7 @@ export interface MigrationOptions {
   trackUsersInGit: boolean;
 }
 
-export interface CountsByKind {
-  workspaces: number;
-  memories: number;
-  comments: number;
-  flags: number;
-  relationships: number;
-}
+export type CountsByKind = Record<EntityKind, number>;
 
 export interface MigrationReport {
   source: CountsByKind;
