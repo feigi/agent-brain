@@ -1,9 +1,6 @@
 // Phase 6 — preflight checks shared by both migration directions.
 
-export interface PreflightResult {
-  ok: boolean;
-  reason?: string;
-}
+export type PreflightResult = { ok: true } | { ok: false; reason: string };
 
 export interface DimCheckInput {
   sourceDim: number;
