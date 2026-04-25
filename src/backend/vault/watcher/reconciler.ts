@@ -1,6 +1,6 @@
 // src/backend/vault/watcher/reconciler.ts
 import { readFile } from "node:fs/promises";
-import { relative } from "node:path";
+import { join, relative } from "node:path";
 import { createHash } from "node:crypto";
 import { logger } from "../../../utils/logger.js";
 import type { VaultIndex } from "../repositories/vault-index.js";
@@ -233,10 +233,26 @@ class ReconcilerImpl implements Reconciler {
   }
 
   async archiveOrphans(
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _diskPaths: ReadonlySet<string>,
+    diskPaths: ReadonlySet<string>,
   ): Promise<{ archived: string[] }> {
-    return { archived: [] };
+    const archived: string[] = [];
+    // Snapshot the entries to avoid mutating during iteration.
+    const entries = Array.from(this.deps.vaultIndex.entries());
+    for (const [id, entry] of entries) {
+      const abs = join(this.deps.vaultRoot, entry.path);
+      if (diskPaths.has(abs)) continue;
+      try {
+        await this.deps.vectorIndex.markArchived(id);
+        this.deps.vaultIndex.unregister(id);
+        archived.push(id);
+      } catch (err) {
+        logger.error(
+          `reconciler: archiveOrphans failed for ${id} (path=${entry.path})`,
+          { err },
+        );
+      }
+    }
+    return { archived };
   }
 }
 
