@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
 import { createReconciler } from "../../../../../src/backend/vault/watcher/reconciler.js";
 import { VaultIndex } from "../../../../../src/backend/vault/repositories/vault-index.js";
 import type { IndexRow } from "../../../../../src/backend/vault/vector/lance-index.js";
@@ -73,6 +74,9 @@ class StubFlagService {
     return { id: flagId };
   }
 }
+
+const sha256Hex = (s: string) =>
+  createHash("sha256").update(s, "utf8").digest("hex");
 
 const stubEmbed = async (text: string): Promise<number[]> => {
   const seed = [...text].reduce((a, c) => a + c.charCodeAt(0), 0);
@@ -147,6 +151,97 @@ describe("reconciler.reconcileFile add (new row)", () => {
         "workspaces/ws/memories/mem-1.md",
       );
       expect(flagService.createCalls).toHaveLength(0);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+// sha256Hex is defined above; suppress unused warning via reference in test
+void sha256Hex;
+
+describe("reconciler.reconcileFile change (existing row)", () => {
+  it("hash matches + frontmatter unchanged → skipped", async () => {
+    const { root, vaultIndex, vectorIndex, reconciler } = await setup();
+    try {
+      const dir = join(root, "workspaces/ws/memories");
+      await mkdir(dir, { recursive: true });
+      const abs = join(dir, "mem-1.md");
+      await writeFile(abs, VALID_MD);
+
+      // First call: indexes the file (this populates VaultIndex with the canonical entry).
+      await reconciler.reconcileFile(abs, "add");
+      vectorIndex.upsertCalls = []; // reset so we only count change-branch calls
+
+      // Now the change event with body unchanged.
+      const result = await reconciler.reconcileFile(abs, "change");
+
+      expect(result.action).toBe("skipped");
+      expect(result.memoryId).toBe("mem-1");
+      expect(vectorIndex.upsertCalls).toHaveLength(0);
+      expect(vectorIndex.upsertMetaOnlyCalls).toHaveLength(0);
+      expect(vaultIndex.has("mem-1")).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("hash matches but frontmatter changed → upsertMetaOnly", async () => {
+    const { root, vaultIndex, vectorIndex, reconciler } = await setup();
+    try {
+      const dir = join(root, "workspaces/ws/memories");
+      await mkdir(dir, { recursive: true });
+      const abs = join(dir, "mem-1.md");
+
+      // Seed the index by indexing the original file.
+      await writeFile(abs, VALID_MD);
+      await reconciler.reconcileFile(abs, "add");
+      vectorIndex.upsertCalls = [];
+
+      // Rewrite file with a changed title (frontmatter + H1 must both flip — parser
+      // requires title-in-frontmatter to equal H1 in body).
+      const renamed = VALID_MD.replace(
+        "title: Test memory",
+        "title: Renamed memory",
+      ).replace("# Test memory", "# Renamed memory");
+      await writeFile(abs, renamed);
+
+      const result = await reconciler.reconcileFile(abs, "change");
+
+      expect(result.action).toBe("meta-updated");
+      expect(result.memoryId).toBe("mem-1");
+      expect(vectorIndex.upsertCalls).toHaveLength(0);
+      expect(vectorIndex.upsertMetaOnlyCalls).toEqual(["mem-1"]);
+      expect(vaultIndex.has("mem-1")).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("hash differs → re-embed + upsert", async () => {
+    const { root, vectorIndex, reconciler } = await setup();
+    try {
+      const dir = join(root, "workspaces/ws/memories");
+      await mkdir(dir, { recursive: true });
+      const abs = join(dir, "mem-1.md");
+
+      await writeFile(abs, VALID_MD);
+      await reconciler.reconcileFile(abs, "add");
+      vectorIndex.upsertCalls = [];
+
+      // Rewrite body content (and re-render H1 to keep parser happy).
+      const newBody = VALID_MD.replace(
+        "Body content.",
+        "Brand new body text here.",
+      );
+      await writeFile(abs, newBody);
+
+      const result = await reconciler.reconcileFile(abs, "change");
+
+      expect(result.action).toBe("reembedded");
+      expect(result.memoryId).toBe("mem-1");
+      expect(vectorIndex.upsertCalls).toHaveLength(1);
+      expect(vectorIndex.upsertCalls[0].id).toBe("mem-1");
     } finally {
       await rm(root, { recursive: true, force: true });
     }

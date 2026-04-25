@@ -13,6 +13,8 @@ export interface IndexEntry {
   scope: MemoryScope;
   workspaceId: string | null;
   userId: string | null;
+  /** Cached from last reconcile; used to detect title-only frontmatter changes. */
+  title?: string;
 }
 
 export interface UnindexableEntry {
