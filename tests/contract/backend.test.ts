@@ -92,6 +92,7 @@ const cases: BackendCase[] = [
         databaseUrl: TEST_DB_URL,
         vaultRoot: "",
         embeddingDimensions: 768,
+        projectId: "test-project",
       });
       return {
         backend,
@@ -110,6 +111,7 @@ const cases: BackendCase[] = [
         databaseUrl: "",
         vaultRoot: root,
         embeddingDimensions: 768,
+        projectId: "test-project",
       });
       return {
         backend,

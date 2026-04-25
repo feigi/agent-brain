@@ -45,6 +45,7 @@ async function createBackend(
 ): Promise<VaultBackend> {
   return VaultBackend.create({
     root,
+    projectId: "test-project",
     embeddingDimensions: DIMS,
     remoteUrl,
     pushDebounceMs: 10,
@@ -173,6 +174,7 @@ describe("vault two-clone sync", () => {
       // B commits an unpushed local memory.
       const bLocalOnly = await VaultBackend.create({
         root: vaultB,
+        projectId: "test-project",
         embeddingDimensions: DIMS,
         pushDebounceMs: 10,
         pushBackoffMs: [50, 200],

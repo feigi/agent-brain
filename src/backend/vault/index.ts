@@ -32,6 +32,8 @@ import type { PathConsistencyChecker } from "../../services/consolidation-servic
 import type { ParseErrorChecker } from "../../services/consolidation-service.js";
 import { VaultParseErrorChecker } from "./parse-error-checker.js";
 import type { FlagService } from "../../services/flag-service.js";
+import { AuditService } from "../../services/audit-service.js";
+import { FlagService as FlagServiceImpl } from "../../services/flag-service.js";
 import type {
   AuditRepository,
   CommentRepository,
@@ -43,9 +45,14 @@ import type {
   SessionTrackingRepository,
   WorkspaceRepository,
 } from "../../repositories/types.js";
+import { IgnoreSetImpl } from "./watcher/ignore-set.js";
+import { createReconciler } from "./watcher/reconciler.js";
+import { runBootScan } from "./watcher/boot-scan.js";
+import { createVaultWatcher, type VaultWatcher } from "./watcher/watcher.js";
 
 export interface VaultBackendConfig {
   root: string;
+  projectId: string;
   embeddingDimensions: number;
   // When true, user-scope memories are committed to git alongside
   // workspace/project ones. Default false — `users/` stays gitignored
@@ -86,6 +93,7 @@ export class VaultBackend implements StorageBackend {
     private readonly pushQueue: PushQueue,
     private readonly embed: Embedder,
     private readonly bootMeta: Partial<BackendSessionStartMeta>,
+    private readonly watcher: VaultWatcher,
   ) {
     this.memoryRepo = memoryRepo;
     this.vaultMemoryRepo = memoryRepo;
@@ -171,15 +179,66 @@ export class VaultBackend implements StorageBackend {
 
     const vaultIdx = await VaultIndex.create(cfg.root);
 
+    const ignoreSet = new IgnoreSetImpl();
+
     const memoryRepo = VaultMemoryRepository.create({
       root: cfg.root,
       vectorIndex: vectorIndex,
       gitOps,
       trackUsersInGit,
       vaultIndex: vaultIdx,
+      ignoreSet,
     });
 
     const embed = cfg.embed ?? defaultEmbedder(cfg.embeddingDimensions);
+
+    // Build flagService for the reconciler. AuditService + FlagService are
+    // stateless wrappers — building separate instances here mirrors what
+    // server.ts does at the top level. The backend's own this.flagRepo /
+    // this.auditRepo are constructed in the constructor and kept distinct
+    // so the StorageBackend interface stays self-contained.
+    const auditRepoForReconciler = new VaultAuditRepository({
+      root: cfg.root,
+      git,
+    });
+    const flagRepoForReconciler = new VaultFlagRepository({
+      root: cfg.root,
+      gitOps,
+      trackUsersInGit,
+      vaultIndex: vaultIdx,
+    });
+    const auditService = new AuditService(
+      auditRepoForReconciler,
+      cfg.projectId,
+    );
+    const flagService = new FlagServiceImpl(
+      flagRepoForReconciler,
+      auditService,
+      cfg.projectId,
+    );
+
+    const reconciler = createReconciler({
+      vaultIndex: vaultIdx,
+      vectorIndex,
+      flagService,
+      embed,
+      vaultRoot: cfg.root,
+    });
+
+    const bootResult = await runBootScan({ vaultRoot: cfg.root, reconciler });
+    if (bootResult.parseErrors > 0) {
+      bootMeta.parse_errors = vaultIdx.unindexable.map((u) => ({
+        path: u.path,
+        reason: u.reason,
+      }));
+    }
+
+    const watcher = createVaultWatcher({
+      vaultRoot: cfg.root,
+      reconciler,
+      ignoreSet,
+    });
+    await watcher.start();
 
     return new VaultBackend(
       memoryRepo,
@@ -192,10 +251,12 @@ export class VaultBackend implements StorageBackend {
       pushQueue,
       embed,
       bootMeta,
+      watcher,
     );
   }
 
   async close(): Promise<void> {
+    await this.watcher.stop();
     await this.pushQueue.close();
     await this.vectorIndex.close();
   }
@@ -274,6 +335,9 @@ export class VaultBackend implements StorageBackend {
     if (this.bootMeta.remote_mismatch)
       meta.remote_mismatch = this.bootMeta.remote_mismatch;
     if (this.bootMeta.reconcile_failed) meta.reconcile_failed = true;
+    if (this.bootMeta.parse_errors)
+      meta.parse_errors = this.bootMeta.parse_errors;
+    if (this.watcher.hadError()) meta.watcher_error = true;
     return meta;
   }
 }

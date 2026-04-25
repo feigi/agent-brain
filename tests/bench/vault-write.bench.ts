@@ -82,6 +82,7 @@ describe("vault write path", () => {
     root = await initVaultDir();
     backend = await VaultBackend.create({
       root,
+      projectId: "test-project",
       embeddingDimensions: DIMS,
       embed: fakeEmbed,
     });
@@ -115,6 +116,7 @@ describe("vault write path (1k existing)", () => {
     await seedVault(root, 1000);
     backend = await VaultBackend.create({
       root,
+      projectId: "test-project",
       embeddingDimensions: DIMS,
       embed: fakeEmbed,
     });
@@ -161,6 +163,7 @@ describe("vault cold start", () => {
     async () => {
       const b = await VaultBackend.create({
         root: root1k,
+        projectId: "test-project",
         embeddingDimensions: DIMS,
         embed: fakeEmbed,
       });
@@ -174,6 +177,7 @@ describe("vault cold start", () => {
     async () => {
       const b = await VaultBackend.create({
         root: root10k,
+        projectId: "test-project",
         embeddingDimensions: DIMS,
         embed: fakeEmbed,
       });

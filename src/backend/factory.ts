@@ -9,6 +9,7 @@ export interface BackendConfig {
   vaultRoot: string;
   vaultTrackUsersInGit?: boolean;
   embeddingDimensions: number;
+  projectId: string;
 }
 
 export async function createBackend(
@@ -25,6 +26,7 @@ export async function createBackend(
       }
       return VaultBackend.create({
         root: config.vaultRoot,
+        projectId: config.projectId,
         embeddingDimensions: config.embeddingDimensions,
         trackUsersInGit: config.vaultTrackUsersInGit ?? false,
         remoteUrl: process.env.AGENT_BRAIN_VAULT_REMOTE_URL,
