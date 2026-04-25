@@ -18,3 +18,21 @@ export function checkDims(input: DimCheckInput): PreflightResult {
       `Re-run with --reembed to regenerate vectors via the current EmbeddingProvider.`,
   };
 }
+
+export interface TargetEmptyCheckInput {
+  countMemories: () => Promise<number>;
+}
+
+export async function checkTargetEmpty(
+  input: TargetEmptyCheckInput,
+): Promise<PreflightResult> {
+  const n = await input.countMemories();
+  if (n === 0) return { ok: true };
+  return {
+    ok: false,
+    reason:
+      `Target database not empty (memories table has ${n} rows). ` +
+      `To proceed: TRUNCATE the agent-brain tables in the target schema, or ` +
+      `point AGENT_BRAIN_DATABASE_URL at a fresh database, then re-run.`,
+  };
+}

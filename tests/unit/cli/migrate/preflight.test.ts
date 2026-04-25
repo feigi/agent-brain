@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { checkDims } from "../../../../src/cli/migrate/preflight.js";
+import {
+  checkDims,
+  checkTargetEmpty,
+} from "../../../../src/cli/migrate/preflight.js";
 
 describe("preflight.checkDims", () => {
   it("ok when source and destination dims match", () => {
@@ -19,5 +22,32 @@ describe("preflight.checkDims", () => {
   it("ok when dims mismatch but reembed is true (vectors regenerated)", () => {
     const res = checkDims({ sourceDim: 768, destDim: 1024, reembed: true });
     expect(res.ok).toBe(true);
+  });
+});
+
+describe("preflight.checkTargetEmpty", () => {
+  it("ok when count is 0", async () => {
+    const res = await checkTargetEmpty({ countMemories: async () => 0 });
+    expect(res.ok).toBe(true);
+  });
+
+  it("fails when count > 0 with TRUNCATE remediation hint", async () => {
+    const res = await checkTargetEmpty({ countMemories: async () => 42 });
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.reason).toMatch(/not empty/i);
+      expect(res.reason).toMatch(/TRUNCATE/);
+      expect(res.reason).toMatch(/42/);
+    }
+  });
+
+  it("propagates underlying connection error", async () => {
+    await expect(
+      checkTargetEmpty({
+        countMemories: async () => {
+          throw new Error("ECONNREFUSED");
+        },
+      }),
+    ).rejects.toThrow(/ECONNREFUSED/);
   });
 });
