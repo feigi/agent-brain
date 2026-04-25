@@ -2,7 +2,7 @@ services:
   postgres:
     image: pgvector/pgvector:pg17
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     environment:
       POSTGRES_USER: agentic
       POSTGRES_PASSWORD: agentic
@@ -19,7 +19,7 @@ services:
   ollama:
     image: ollama/ollama:latest
     ports:
-      - "11434:11434"
+      - "${OLLAMA_PORT:-11434}:11434"
     volumes:
       - ollama_data:/root/.ollama
     healthcheck:
