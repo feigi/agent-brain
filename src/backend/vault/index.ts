@@ -20,6 +20,7 @@ import { syncFromRemote } from "./git/pull.js";
 import { PushQueue } from "./git/push-queue.js";
 import { alignWithRemote } from "./git/align.js";
 import type { GitOps } from "./git/types.js";
+import { NOOP_GIT_OPS } from "./git/types.js";
 import { runSessionStart } from "./session-start.js";
 import type { Embedder } from "./session-start.js";
 import { createEmbeddingProvider } from "../../providers/embedding/index.js";
@@ -62,6 +63,14 @@ export interface VaultBackendConfig {
   pushDebounceMs?: number;
   pushBackoffMs?: readonly number[];
   embed?: Embedder;
+  // Phase 6 — migration CLI mode. When true:
+  //   - ensureVaultGit / reconcileDirty / alignWithRemote are skipped
+  //   - NOOP_GIT_OPS replaces GitOpsImpl (no commits land on writes)
+  //   - PushQueue is wired to a no-op closure (no pushes, no backoff)
+  //   - watcher is not started
+  //   - boot scan is not run
+  // The CLI is responsible for staging + committing + pushing once at end.
+  migrationMode?: true;
 }
 
 // Markdown-vault backend. Composes the nine Vault* repositories backed
@@ -128,6 +137,9 @@ export class VaultBackend implements StorageBackend {
   static async create(cfg: VaultBackendConfig): Promise<VaultBackend> {
     await mkdir(cfg.root, { recursive: true });
     const trackUsersInGit = cfg.trackUsersInGit ?? false;
+    if (cfg.migrationMode) {
+      return VaultBackend.#createMigrationMode(cfg, trackUsersInGit);
+    }
     await ensureVaultGit({
       root: cfg.root,
       trackUsers: trackUsersInGit,
@@ -251,6 +263,59 @@ export class VaultBackend implements StorageBackend {
       pushQueue,
       embed,
       bootMeta,
+      watcher,
+    );
+  }
+
+  static async #createMigrationMode(
+    cfg: VaultBackendConfig,
+    trackUsersInGit: boolean,
+  ): Promise<VaultBackend> {
+    const git = simpleGit({ baseDir: cfg.root }).env(scrubGitEnv());
+    const gitOps: GitOps = NOOP_GIT_OPS;
+    const vectorIndex = await VaultVectorIndex.create({
+      root: cfg.root,
+      dims: cfg.embeddingDimensions,
+    });
+    // No-op push queue: every request() is a noop; close() resolves immediately.
+    const pushQueue = new PushQueue({
+      debounceMs: 0,
+      backoffMs: [],
+      push: async () => {
+        /* no-op in migration mode; CLI pushes manually at end */
+      },
+      countUnpushed: async () => 0,
+    });
+    const vaultIdx = await VaultIndex.create(cfg.root);
+    const ignoreSet = new IgnoreSetImpl();
+    const memoryRepo = VaultMemoryRepository.create({
+      root: cfg.root,
+      vectorIndex,
+      gitOps,
+      trackUsersInGit,
+      vaultIndex: vaultIdx,
+      ignoreSet,
+    });
+    const embed = cfg.embed ?? defaultEmbedder(cfg.embeddingDimensions);
+    // Watcher + boot scan deliberately skipped — vault is being constructed
+    // by the CLI; live edits and pre-existing-state reconcile are out of scope.
+    const watcher: VaultWatcher = {
+      start: async () => {},
+      stop: async () => {},
+      ignoreSet,
+      lastError: () => null,
+    };
+    return new VaultBackend(
+      memoryRepo,
+      vectorIndex,
+      vaultIdx,
+      cfg.root,
+      gitOps,
+      trackUsersInGit,
+      git,
+      pushQueue,
+      embed,
+      {},
       watcher,
     );
   }
