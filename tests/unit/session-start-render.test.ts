@@ -52,4 +52,40 @@ describe("renderPreview", () => {
     expect(result.text).toContain("Search guidance");
     expect(result.truncatedCount).toBe(0);
   });
+
+  it("drops lowest-relevance non-project rows when index exceeds budget; never drops project rows", () => {
+    const longTitle = "x".repeat(60);
+    const memories: MemorySummaryWithRelevance[] = [];
+    for (let i = 0; i < 5; i++) {
+      memories.push(
+        mem({
+          id: `proj${i}`,
+          title: `${longTitle} project ${i}`,
+          scope: "project",
+          type: "pattern",
+          relevance: 0.1,
+        }),
+      );
+    }
+    for (let i = 0; i < 45; i++) {
+      memories.push(
+        mem({
+          id: `ws${i}`,
+          title: `${longTitle} workspace ${i}`,
+          scope: "workspace",
+          type: "fact",
+          relevance: 0.9 - i * 0.01,
+        }),
+      );
+    }
+
+    const result = renderPreview(memories, 1500);
+
+    for (let i = 0; i < 5; i++) {
+      expect(result.text).toContain(`proj${i} [project]`);
+    }
+    expect(result.truncatedCount).toBeGreaterThan(0);
+    expect(result.text).toContain("ws0 [workspace]");
+    expect(result.text).not.toContain("ws44 [workspace]");
+  });
 });

@@ -29,13 +29,45 @@ function indexRow(m: MemorySummaryWithRelevance): string {
 
 export function renderPreview(
   memories: MemorySummaryWithRelevance[],
-  _indexBudget: number = DEFAULT_INDEX_BUDGET_BYTES, // eslint-disable-line @typescript-eslint/no-unused-vars
+  indexBudget: number = DEFAULT_INDEX_BUDGET_BYTES,
 ): RenderPreviewResult {
-  const rows = memories.map(indexRow);
-  const indexBlock = rows.join("\n");
+  const projectRows = memories.filter((m) => m.scope === "project");
+  const nonProjectRows = memories
+    .filter((m) => m.scope !== "project")
+    .slice()
+    .sort((a, b) => b.relevance - a.relevance);
+
+  const projectLines = projectRows.map(indexRow);
+  const projectBytes = byteLengthOfLines(projectLines);
+
+  let remaining = indexBudget - projectBytes;
+  const keptNonProject: string[] = [];
+  let truncatedCount = 0;
+  for (const m of nonProjectRows) {
+    const line = indexRow(m);
+    const cost =
+      keptNonProject.length === 0 && projectLines.length === 0
+        ? line.length
+        : line.length + 1; // +1 for joining newline
+    if (cost <= remaining) {
+      keptNonProject.push(line);
+      remaining -= cost;
+    } else {
+      truncatedCount++;
+    }
+  }
+
+  const indexBlock = [...projectLines, ...keptNonProject].join("\n");
+  const totalCount =
+    projectRows.length + keptNonProject.length + truncatedCount;
   const text =
-    HEADER.replace("%COUNT%", String(memories.length)) + indexBlock + FOOTER;
-  return { text, truncatedCount: 0 };
+    HEADER.replace("%COUNT%", String(totalCount)) + indexBlock + FOOTER;
+  return { text, truncatedCount };
+}
+
+function byteLengthOfLines(lines: string[]): number {
+  if (lines.length === 0) return 0;
+  return lines.reduce((acc, l) => acc + l.length, 0) + (lines.length - 1);
 }
 
 export function renderFull(
