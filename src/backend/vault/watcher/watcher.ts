@@ -68,9 +68,13 @@ export function createVaultWatcher(opts: CreateVaultWatcherOpts): VaultWatcher {
     ignoreSet,
     hadError: () => _hadError,
     async start() {
-      watcher = chokidarWatch(`${opts.vaultRoot}/**/*.md`, {
+      // chokidar v4+ removed glob support. Watch the vault root directory
+      // directly and use the `ignored` filter to restrict events to .md files.
+      watcher = chokidarWatch(opts.vaultRoot, {
         ignoreInitial: true,
         awaitWriteFinish,
+        ignored: (_path: string, stats?: import("node:fs").Stats) =>
+          stats?.isFile() === true && !_path.endsWith(".md"),
       });
       watcher.on("add", (p: string) => void dispatch(p, "add"));
       watcher.on("change", (p: string) => void dispatch(p, "change"));

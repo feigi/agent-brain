@@ -180,8 +180,23 @@ export class VaultMemoryRepository implements MemoryRepository {
   async findById(id: string): Promise<Memory | null> {
     const entry = this.vaultIndex.get(id);
     if (!entry) return null;
-    const { memory } = await this.#read(id);
-    return memory.archived_at === null ? memory : null;
+    let parsed: ParsedMemoryFile;
+    try {
+      parsed = await this.#read(id);
+    } catch (err) {
+      // File deleted between index lookup and read (e.g. concurrent unlink
+      // while watcher event is in flight). Treat as not found.
+      if (
+        typeof err === "object" &&
+        err !== null &&
+        "code" in err &&
+        (err as NodeJS.ErrnoException).code === "ENOENT"
+      ) {
+        return null;
+      }
+      throw err;
+    }
+    return parsed.memory.archived_at === null ? parsed.memory : null;
   }
 
   async findByIdIncludingArchived(id: string): Promise<Memory | null> {
