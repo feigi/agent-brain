@@ -57,7 +57,7 @@ describe("preflight.checkDrizzleCurrent", () => {
   it("ok when latest applied hash matches expected", async () => {
     const res = await checkDrizzleCurrent({
       latestApplied: async () => "deadbeef",
-      expectedLatest: "deadbeef",
+      expectedHash: "deadbeef",
     });
     expect(res.ok).toBe(true);
   });
@@ -65,7 +65,7 @@ describe("preflight.checkDrizzleCurrent", () => {
   it("fails with db:migrate hint when stale", async () => {
     const res = await checkDrizzleCurrent({
       latestApplied: async () => "old",
-      expectedLatest: "new",
+      expectedHash: "new",
     });
     expect(res.ok).toBe(false);
     if (!res.ok) {
@@ -77,7 +77,7 @@ describe("preflight.checkDrizzleCurrent", () => {
   it("fails when no migrations have been applied yet", async () => {
     const res = await checkDrizzleCurrent({
       latestApplied: async () => null,
-      expectedLatest: "any",
+      expectedHash: "any",
     });
     expect(res.ok).toBe(false);
     if (!res.ok) {

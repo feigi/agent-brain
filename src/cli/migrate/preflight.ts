@@ -40,7 +40,7 @@ export async function checkTargetEmpty(
 export interface DrizzleCurrentCheckInput {
   // Returns the hash of the latest applied migration, or null if none.
   latestApplied: () => Promise<string | null>;
-  expectedLatest: string;
+  expectedHash: string;
 }
 
 export async function checkDrizzleCurrent(
@@ -55,11 +55,11 @@ export async function checkDrizzleCurrent(
         `database before retrying.`,
     };
   }
-  if (applied === input.expectedLatest) return { ok: true };
+  if (applied === input.expectedHash) return { ok: true };
   return {
     ok: false,
     reason:
-      `Drizzle migrations are stale (applied=${applied}, expected=${input.expectedLatest}). ` +
+      `Drizzle migrations are stale (applied=${applied}, expected=${input.expectedHash}). ` +
       `Run \`npm run db:migrate\` against the target database before retrying.`,
   };
 }
