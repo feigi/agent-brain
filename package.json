@@ -7,7 +7,7 @@
     "agent-brain-merge-memory": "./dist/src/cli/merge-memory.js"
   },
   "scripts": {
-    "dev": "docker compose up -d --wait && npx drizzle-kit migrate && EMBEDDING_PROVIDER=ollama EMBEDDING_DIMENSIONS=768 OLLAMA_BASE_URL=http://localhost:11434 tsx watch src/server.ts",
+    "dev": "docker compose up -d --wait && npx drizzle-kit migrate && EMBEDDING_PROVIDER=ollama EMBEDDING_DIMENSIONS=768 OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://localhost:11434} tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
