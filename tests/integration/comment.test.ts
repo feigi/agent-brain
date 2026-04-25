@@ -102,7 +102,7 @@ describe("Comments", () => {
       expect(fetched.data.updated_at.getTime()).toBeGreaterThan(
         createdAt.getTime(),
       );
-      expect(fetched.data.last_comment_at).not.toBeNull();
+      expect(fetched.data.last_comment_at).toBeDefined();
     });
   });
 

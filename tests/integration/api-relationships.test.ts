@@ -209,6 +209,7 @@ describe("relationship API response shaping", () => {
       targetId: t.data.id,
       type: "overrides",
       userId: "alice",
+      createdVia: "manual",
     });
 
     const results = await relationshipService.listForMemory(
@@ -219,13 +220,13 @@ describe("relationship API response shaping", () => {
     expect(results).toHaveLength(1);
     expect(results[0]).toMatchObject({
       direction: "outgoing",
+      created_via: "manual",
       related_memory: {
         id: t.data.id,
         type: "fact",
         scope: "workspace",
       },
     });
-    expect(results[0]).toHaveProperty("created_via");
   });
 
   it("memory_unrelate soft-deletes (relationship no longer appears in queries)", async () => {

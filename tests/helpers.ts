@@ -14,7 +14,7 @@ import { DrizzleRelationshipRepository } from "../src/repositories/relationship-
 import { MockEmbeddingProvider } from "../src/providers/embedding/mock.js";
 import { config } from "../src/config.js";
 import { MemoryService } from "../src/services/memory-service.js";
-import type { Memory, CreateSkipResult } from "../src/types/memory.js";
+import type { MemoryDetail, CreateSkipResult } from "../src/types/memory.js";
 import type {
   StorageBackend,
   BackendSessionStartMeta,
@@ -156,13 +156,13 @@ export async function truncateAll(): Promise<void> {
   await testDb.delete(schedulerState);
 }
 
-/** Assert that a create result is a Memory (not a skip). Use after service.create() in tests. */
+/** Assert that a create result is a MemoryDetail (not a skip). Use after service.create() in tests. */
 export function assertMemory(
-  result: Memory | CreateSkipResult,
-): asserts result is Memory {
+  result: MemoryDetail | CreateSkipResult,
+): asserts result is MemoryDetail {
   if ("skipped" in result && result.skipped) {
     throw new Error(
-      `Expected Memory but got CreateSkipResult: ${result.message}`,
+      `Expected MemoryDetail but got CreateSkipResult: ${result.message}`,
     );
   }
 }

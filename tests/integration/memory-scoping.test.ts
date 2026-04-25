@@ -218,7 +218,7 @@ describe("Memory scoping integration tests", () => {
     });
     assertMemory(result.data);
     expect(result.data.scope).toBe("project");
-    expect(result.data.workspace_id).toBeNull();
+    expect(result.data.workspace_id).toBeUndefined();
   });
 
   it("search scope array returns only explicitly requested scopes", async () => {
@@ -376,7 +376,7 @@ describe("Memory scoping integration tests", () => {
       expect("skipped" in okResult.data).toBe(false);
       if (!("skipped" in okResult.data)) {
         expect(okResult.data.scope).toBe("project");
-        expect(okResult.data.workspace_id).toBeNull();
+        expect(okResult.data.workspace_id).toBeUndefined();
 
         const entries = await auditRepo.findByMemoryId(okResult.data.id);
         const created = entries.find((e) => e.action === "created");

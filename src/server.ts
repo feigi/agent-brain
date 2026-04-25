@@ -19,6 +19,7 @@ import { registerAllTools } from "./tools/index.js";
 import { registerMemoryGuidance } from "./prompts/memory-guidance.js";
 import { registerRoutes } from "./routes/index.js";
 import { logger } from "./utils/logger.js";
+import { stripNullsReplacer } from "./utils/json-replacer.js";
 
 async function main() {
   process.on("unhandledRejection", (reason, promise) => {
@@ -179,6 +180,8 @@ async function main() {
   // Express app with DNS rebinding protection
   const app = createMcpExpressApp();
 
+  app.set("json replacer", stripNullsReplacer);
+
   // No auth — return 404 for OAuth discovery so clients don't think auth is required
   app.get("/.well-known/oauth-protected-resource", (_req, res) =>
     res.status(404).end(),
@@ -202,11 +205,17 @@ async function main() {
     } catch (error) {
       logger.error("MCP request error:", error);
       if (!res.headersSent) {
-        res.status(500).json({
-          jsonrpc: "2.0",
-          error: { code: -32603, message: "Internal server error" },
-          id: null,
-        });
+        // Bypass `json replacer` — JSON-RPC 2.0 requires literal `id: null` here.
+        res
+          .status(500)
+          .type("application/json")
+          .send(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              error: { code: -32603, message: "Internal server error" },
+              id: null,
+            }),
+          );
       }
     }
   });

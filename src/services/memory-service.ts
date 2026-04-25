@@ -9,6 +9,7 @@ import type {
   MemoryGetManyItem,
   FlagSummary,
   CreateSkipResult,
+  MemoryDetail,
   MemorySummary,
   MemorySummaryWithRelevance,
   MemorySummaryWithChangeType,
@@ -86,7 +87,7 @@ export class MemoryService {
   // Phase 4: Three-stage pre-save guard chain (session validation, budget, dedup)
   async create(
     input: MemoryCreate,
-  ): Promise<Envelope<Memory | CreateSkipResult>> {
+  ): Promise<Envelope<MemoryDetail | CreateSkipResult>> {
     const start = Date.now();
 
     // Guard 0a -- Require workspace_id for workspace/user scope
@@ -273,7 +274,7 @@ export class MemoryService {
     }
 
     return {
-      data: memory,
+      data: toDetail(memory),
       meta: {
         timing,
         ...(budgetResult
@@ -289,7 +290,7 @@ export class MemoryService {
     };
   }
 
-  async get(id: string, userId: string): Promise<Envelope<Memory>> {
+  async get(id: string, userId: string): Promise<Envelope<MemoryDetail>> {
     const start = Date.now();
 
     const memory = await this.memoryRepo.findById(id);
@@ -306,7 +307,7 @@ export class MemoryService {
     }
 
     const timing = Date.now() - start;
-    return { data: memory, meta: { timing } };
+    return { data: toDetail(memory), meta: { timing } };
   }
 
   // D-63: Enhanced get with full comments array and capability booleans
@@ -488,11 +489,15 @@ export class MemoryService {
     const map = new Map<string, FlagSummary[]>();
     for (const f of allFlags) {
       if (f.resolved_at) continue;
-      let relatedMem = null;
+      const entry: FlagSummary = {
+        flag_id: f.id,
+        flag_type: f.flag_type,
+        reason: f.details.reason,
+      };
       if (f.details.related_memory_id) {
         const related = relatedMap.get(f.details.related_memory_id);
         if (related) {
-          relatedMem = {
+          entry.related_memory = {
             id: related.id,
             title: related.title,
             content: related.content,
@@ -500,12 +505,6 @@ export class MemoryService {
           };
         }
       }
-      const entry = {
-        flag_id: f.id,
-        flag_type: f.flag_type,
-        related_memory: relatedMem,
-        reason: f.details.reason,
-      };
       const arr = map.get(f.memory_id);
       if (arr) {
         arr.push(entry);
@@ -654,7 +653,7 @@ export class MemoryService {
     expectedVersion: number,
     updates: MemoryUpdate,
     userId: string,
-  ): Promise<Envelope<Memory>> {
+  ): Promise<Envelope<MemoryDetail>> {
     const start = Date.now();
 
     // Fetch first for access control check (also needed for re-embedding)
@@ -721,7 +720,7 @@ export class MemoryService {
     await this.auditService?.logUpdate(id, userId, { before, after });
 
     const timing = Date.now() - start;
-    return { data: memory, meta: { timing } };
+    return { data: toDetail(memory), meta: { timing } };
   }
 
   // D-06: Accepts single ID or array
@@ -1020,21 +1019,7 @@ export class MemoryService {
         for (const f of openFlags) {
           const mem = await this.memoryRepo.findById(f.memory_id);
           if (!mem) continue; // Memory was archived/deleted since flag was created
-          let relatedMem = null;
-          if (f.details.related_memory_id) {
-            const related = await this.memoryRepo.findById(
-              f.details.related_memory_id,
-            );
-            if (related) {
-              relatedMem = {
-                id: related.id,
-                title: related.title,
-                content: related.content,
-                scope: related.scope,
-              };
-            }
-          }
-          enriched.push({
+          const entry: FlagResponse = {
             flag_id: f.id,
             flag_type: f.flag_type,
             memory: {
@@ -1043,9 +1028,22 @@ export class MemoryService {
               content: mem.content,
               scope: mem.scope,
             },
-            related_memory: relatedMem,
             reason: f.details.reason,
-          });
+          };
+          if (f.details.related_memory_id) {
+            const related = await this.memoryRepo.findById(
+              f.details.related_memory_id,
+            );
+            if (related) {
+              entry.related_memory = {
+                id: related.id,
+                title: related.title,
+                content: related.content,
+                scope: related.scope,
+              };
+            }
+          }
+          enriched.push(entry);
         }
         if (enriched.length > 0) flagsData = enriched;
       }
@@ -1122,7 +1120,7 @@ export class MemoryService {
     };
   }
 
-  async verify(id: string, userId: string): Promise<Envelope<Memory>> {
+  async verify(id: string, userId: string): Promise<Envelope<MemoryDetail>> {
     const start = Date.now();
 
     const existing = await this.memoryRepo.findById(id);
@@ -1146,7 +1144,7 @@ export class MemoryService {
     }
 
     const timing = Date.now() - start;
-    return { data: memory, meta: { timing } };
+    return { data: toDetail(memory), meta: { timing } };
   }
 
   async listStale(
