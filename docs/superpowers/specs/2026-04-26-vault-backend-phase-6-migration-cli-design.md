@@ -74,7 +74,7 @@ No state file, no resume cursor. Justified by expected scale (low thousands of m
 
 **vault → pg:** symmetric. Source = lance dim, dest = pgvector column dim.
 
-Implementation note: `MemoryRepository.create` currently embeds inside the call. Migration mode must accept a pre-computed embedding to avoid re-embedding when carrying over. Either expose an embedder-bypass on the repo (`{ embedding: number[] }` option) or have the CLI take a private fast-path that calls the underlying writers directly with the embedding. See D8 for the resolution.
+Implementation note: `MemoryRepository.create` already takes `Memory & { embedding: number[] }`. The CLI computes the embedding (carry-over from source vector store, or `--reembed` via current `EmbeddingProvider`) and passes it in. No new repo method required.
 
 ### D5. Git commit shape on pg→vault = single bulk commit (Q5 / A)
 
@@ -157,14 +157,7 @@ When present:
 
 PostgresBackend has no equivalent flag because per-row inserts are the whole point of its write path; nothing to disable.
 
-For the embedding-carry-over fast path, expose an internal write method on `VaultMemoryRepository` (and `PostgresMemoryRepository`) that takes a pre-computed embedding instead of running the embedder:
-
-```ts
-// internal — not on the public MemoryRepository interface
-createWithEmbedding(memory: NewMemory, embedding: number[]): Promise<Memory>;
-```
-
-CLI calls this when not in `--reembed` mode. Normal path (`MemoryRepository.create`) is unchanged.
+No new repo method needed for embedding carry-over: the public `MemoryRepository.create(memory: Memory & { embedding: number[] })` already accepts a pre-computed vector. The CLI sources the embedding from the source side's vector store (pgvector column or lance row) — or recomputes via `EmbeddingProvider.embed(content)` under `--reembed` — and passes it through unchanged.
 
 ## Architecture
 
