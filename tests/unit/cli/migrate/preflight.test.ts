@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   checkDims,
   checkTargetEmpty,
+  checkDrizzleCurrent,
 } from "../../../../src/cli/migrate/preflight.js";
 
 describe("preflight.checkDims", () => {
@@ -49,5 +50,38 @@ describe("preflight.checkTargetEmpty", () => {
         },
       }),
     ).rejects.toThrow(/ECONNREFUSED/);
+  });
+});
+
+describe("preflight.checkDrizzleCurrent", () => {
+  it("ok when latest applied hash matches expected", async () => {
+    const res = await checkDrizzleCurrent({
+      latestApplied: async () => "deadbeef",
+      expectedLatest: "deadbeef",
+    });
+    expect(res.ok).toBe(true);
+  });
+
+  it("fails with db:migrate hint when stale", async () => {
+    const res = await checkDrizzleCurrent({
+      latestApplied: async () => "old",
+      expectedLatest: "new",
+    });
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.reason).toMatch(/stale|out of date/i);
+      expect(res.reason).toMatch(/db:migrate/);
+    }
+  });
+
+  it("fails when no migrations have been applied yet", async () => {
+    const res = await checkDrizzleCurrent({
+      latestApplied: async () => null,
+      expectedLatest: "any",
+    });
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.reason).toMatch(/no migrations/i);
+    }
   });
 });

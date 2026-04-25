@@ -36,3 +36,30 @@ export async function checkTargetEmpty(
       `point AGENT_BRAIN_DATABASE_URL at a fresh database, then re-run.`,
   };
 }
+
+export interface DrizzleCurrentCheckInput {
+  // Returns the hash of the latest applied migration, or null if none.
+  latestApplied: () => Promise<string | null>;
+  expectedLatest: string;
+}
+
+export async function checkDrizzleCurrent(
+  input: DrizzleCurrentCheckInput,
+): Promise<PreflightResult> {
+  const applied = await input.latestApplied();
+  if (applied === null) {
+    return {
+      ok: false,
+      reason:
+        `No migrations applied. Run \`npm run db:migrate\` against the target ` +
+        `database before retrying.`,
+    };
+  }
+  if (applied === input.expectedLatest) return { ok: true };
+  return {
+    ok: false,
+    reason:
+      `Drizzle migrations are stale (applied=${applied}, expected=${input.expectedLatest}). ` +
+      `Run \`npm run db:migrate\` against the target database before retrying.`,
+  };
+}
