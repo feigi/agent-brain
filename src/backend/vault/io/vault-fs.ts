@@ -61,11 +61,15 @@ export async function ensureFileExists(abs: string): Promise<void> {
 
 // Recursively list all *.md files under root, returning POSIX-style
 // relative paths so callers can concatenate with `/` portably.
+// Skips dot-prefix directories (.git, .agent-brain, .obsidian) — those
+// hold tool state, never user memories, and the chokidar watcher
+// excludes them too so the boot scan stays in agreement.
 export async function listMarkdownFiles(root: string): Promise<string[]> {
   const out: string[] = [];
   async function walk(dir: string): Promise<void> {
     const entries = await readdir(dir, { withFileTypes: true });
     for (const e of entries) {
+      if (e.name.startsWith(".")) continue;
       const abs = join(dir, e.name);
       if (e.isDirectory()) {
         await walk(abs);

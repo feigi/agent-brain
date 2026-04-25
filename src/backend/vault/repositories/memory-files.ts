@@ -104,6 +104,7 @@ export class VaultMemoryFiles {
         try {
           const s = await stat(abs);
           this.ignoreSet.add(abs, Number(s.mtime));
+          this.ignoreSet.releaseAfter(abs, this.graceMs);
         } catch {
           // best-effort — file should exist since we just wrote it
         }
@@ -137,7 +138,6 @@ export class VaultMemoryFiles {
           }
         }
       }
-      this.ignoreSet.releaseAfter(abs, this.graceMs);
       return result;
     });
   }

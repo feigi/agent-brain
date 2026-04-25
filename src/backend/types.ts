@@ -38,8 +38,14 @@ export interface BackendSessionStartMeta {
   // Chokidar watcher emitted an 'error' event during this process's
   // lifetime. Sticky from first occurrence to process restart. Surfaces
   // here so clients can show a degraded-mode banner — watcher does NOT
-  // auto-restart (silent-failure risk).
-  watcher_error?: true;
+  // auto-restart (silent-failure risk). `code` is the errno where
+  // available; `at` is the ISO timestamp of the first occurrence.
+  watcher_error?: { message: string; code?: string; at: string };
+  // Boot scan reconciled the vault but at least one file failed to
+  // reconcile (embed/lance/read error). Each entry carries the absolute
+  // path and the failure reason so operators can see which files are
+  // out of sync with the index without grepping logs.
+  boot_scan_errors?: Array<{ path: string; reason: string }>;
 }
 
 export interface StorageBackend {

@@ -10,10 +10,7 @@ export interface RunBootScanOpts {
   reconciler: Reconciler;
 }
 
-// Walks every markdown file under <vaultRoot>, calls
-// reconciler.reconcileFile(abs, "add") per file, then archiveOrphans(diskPaths).
-// Blocks until consistent so HTTP listen only happens after the vault is in
-// agreement with lance + vaultIndex.
+// Blocks pre-listen so HTTP only opens once vault is in sync with lance + vaultIndex.
 export async function runBootScan(
   opts: RunBootScanOpts,
 ): Promise<BootScanResult> {
@@ -22,7 +19,7 @@ export async function runBootScan(
 
   let reconciled = 0;
   let parseErrors = 0;
-  let embedErrors = 0;
+  const embedErrorEntries: Array<{ path: string; reason: string }> = [];
   const diskPaths = new Set<string>();
 
   for (const rel of relPaths) {
@@ -43,7 +40,8 @@ export async function runBootScan(
           break;
       }
     } catch (err) {
-      embedErrors++;
+      const reason = err instanceof Error ? err.message : String(err);
+      embedErrorEntries.push({ path: abs, reason });
       logger.error(`runBootScan: reconcile failed for ${abs}`, { err });
     }
   }
@@ -55,6 +53,7 @@ export async function runBootScan(
     reconciled,
     orphaned: orphan.archived.length,
     parseErrors,
-    embedErrors,
+    embedErrors: embedErrorEntries.length,
+    embedErrorEntries,
   };
 }
