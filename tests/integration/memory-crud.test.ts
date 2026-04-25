@@ -6,7 +6,6 @@ import {
   closeDb,
   assertMemory,
 } from "../helpers.js";
-import { config } from "../../src/config.js";
 import type { MemoryService } from "../../src/services/memory-service.js";
 import { toolResponse } from "../../src/tools/tool-utils.js";
 import { ConflictError, NotFoundError } from "../../src/utils/errors.js";
