@@ -16,7 +16,6 @@ import type {
 // and can use synchronous require() to pull in Node built-ins.
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { mockWatcher } = vi.hoisted(() => {
-   
   const { EventEmitter: EE } =
     require("node:events") as typeof import("node:events");
   class MockFSWatcher extends EE {
