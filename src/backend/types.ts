@@ -35,6 +35,11 @@ export interface BackendSessionStartMeta {
   // `AGENT_BRAIN_VAULT_REMOTE_URL` disagrees with configured `origin`;
   // operator intent wins but surface it so the mismatch is visible.
   remote_mismatch?: { configured: string; actual: string };
+  // Chokidar watcher emitted an 'error' event during this process's
+  // lifetime. Sticky from first occurrence to process restart. Surfaces
+  // here so clients can show a degraded-mode banner — watcher does NOT
+  // auto-restart (silent-failure risk).
+  watcher_error?: true;
 }
 
 export interface StorageBackend {
