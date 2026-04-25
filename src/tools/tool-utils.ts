@@ -1,14 +1,15 @@
-import type { Envelope } from "../types/envelope.js";
 import { DomainError } from "../utils/errors.js";
 import { stripNullsReplacer } from "../utils/json-replacer.js";
 
-/** Wrap an Envelope as MCP CallToolResult content */
-export function toolResponse<T>(envelope: Envelope<T>): {
+/** Wrap a serializable payload as MCP CallToolResult content. Accepts any
+ * object, not just Envelope<T> — memory_session_start's wire shape is
+ * { preview, full, meta } and is not envelope-shaped. */
+export function toolResponse<T>(payload: T): {
   content: { type: "text"; text: string }[];
 } {
   return {
     content: [
-      { type: "text", text: JSON.stringify(envelope, stripNullsReplacer) },
+      { type: "text", text: JSON.stringify(payload, stripNullsReplacer) },
     ],
   };
 }

@@ -64,7 +64,7 @@ export function registerMemorySessionStart(
             ...envelope.meta,
             index_truncated_count: previewResult.truncatedCount,
           },
-        } as unknown as import("../types/envelope.js").Envelope<never>);
+        });
       });
     },
   );
