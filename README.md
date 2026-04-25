@@ -420,7 +420,7 @@ npm run migrate:flag-relationships
 The default docker-compose stack binds `localhost:5432` (Postgres) and `localhost:11434` (Ollama). To run a worktree's docker stack alongside the parent's, override the host ports + project name in your worktree shell before `docker compose up`:
 
 ```bash
-export COMPOSE_PROJECT_NAME=agent-brain-<worktree-slug>
+export COMPOSE_PROJECT_NAME=agent-brain-phase5
 export POSTGRES_PORT=5433
 export OLLAMA_PORT=11435
 export DATABASE_URL=postgresql://agentic:agentic@localhost:5433/agent_brain
@@ -428,9 +428,14 @@ export OLLAMA_BASE_URL=http://localhost:11435
 
 docker compose up -d
 npm test
+
+# When done with the worktree:
+docker compose down -v
 ```
 
-Pick any free port pair. The parent repo keeps the defaults; the worktree picks alt values. `tests/global-setup.ts` reads `POSTGRES_PORT` so the test suite connects to the worktree's Postgres rather than the parent's.
+Pick any free port pair. The parent repo keeps the defaults; the worktree picks alt values. `POSTGRES_PORT` / `OLLAMA_PORT` only control the host-side port binding in `docker-compose.yml`; application code reads `DATABASE_URL` and `OLLAMA_BASE_URL`, so both sets must be exported. `tests/global-setup.ts` reads `POSTGRES_PORT` so the test suite connects to the worktree's Postgres rather than the parent's.
+
+**Data-loss warning:** if you forget these exports, `npm test` and `npm run seed` fall back to `localhost:5432` and operate on the **parent's** Postgres — `npm test` will drop and recreate `agent_brain_test` there. Verify your shell with `echo $POSTGRES_PORT` before running tests in a worktree.
 
 ### Project structure
 
