@@ -42,7 +42,6 @@ export class IgnoreSetImpl implements IgnoreSet {
   }
 }
 
-// Default for tests / postgres-backend / any path that doesn't run a watcher.
 export class NoopIgnoreSet implements IgnoreSet {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   add(absPath: string, mtimeAfterWrite: number): void {}

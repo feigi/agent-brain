@@ -198,6 +198,22 @@ export class VaultIndex {
           this.clearUnindexable(rel);
           this.register(id, { ...scopeLoc, path: rel });
         } catch (err) {
+          // ENOENT during read → file disappeared between existsSync and
+          // readFile (concurrent unlink). Treat as deletion, not parse error.
+          if (
+            typeof err === "object" &&
+            err !== null &&
+            (err as { code?: string }).code === "ENOENT"
+          ) {
+            this.clearUnindexable(rel);
+            for (const [id, entry] of this.map) {
+              if (entry.path === rel) {
+                this.unregister(id);
+                break;
+              }
+            }
+            continue;
+          }
           const reason = `Failed to parse frontmatter: ${err instanceof Error ? err.message : String(err)}`;
           logger.warn("vault index: syncPaths failed to parse frontmatter", {
             path: rel,

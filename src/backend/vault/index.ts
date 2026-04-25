@@ -192,11 +192,8 @@ export class VaultBackend implements StorageBackend {
 
     const embed = cfg.embed ?? defaultEmbedder(cfg.embeddingDimensions);
 
-    // Build flagService for the reconciler. AuditService + FlagService are
-    // stateless wrappers — building separate instances here mirrors what
-    // server.ts does at the top level. The backend's own this.flagRepo /
-    // this.auditRepo are constructed in the constructor and kept distinct
-    // so the StorageBackend interface stays self-contained.
+    // Separate flagService/auditService instances — both are stateless
+    // wrappers; duplicating avoids leaking the StorageBackend's private repos.
     const auditRepoForReconciler = new VaultAuditRepository({
       root: cfg.root,
       git,
@@ -231,6 +228,9 @@ export class VaultBackend implements StorageBackend {
         path: u.path,
         reason: u.reason,
       }));
+    }
+    if (bootResult.embedErrorEntries.length > 0) {
+      bootMeta.boot_scan_errors = bootResult.embedErrorEntries;
     }
 
     const watcher = createVaultWatcher({
@@ -337,7 +337,10 @@ export class VaultBackend implements StorageBackend {
     if (this.bootMeta.reconcile_failed) meta.reconcile_failed = true;
     if (this.bootMeta.parse_errors)
       meta.parse_errors = this.bootMeta.parse_errors;
-    if (this.watcher.hadError()) meta.watcher_error = true;
+    if (this.bootMeta.boot_scan_errors)
+      meta.boot_scan_errors = this.bootMeta.boot_scan_errors;
+    const watcherErr = this.watcher.lastError();
+    if (watcherErr) meta.watcher_error = watcherErr;
     return meta;
   }
 }

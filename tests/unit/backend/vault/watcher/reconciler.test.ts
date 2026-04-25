@@ -42,11 +42,18 @@ class StubVectorIndex {
   }
 }
 
+interface StubFlag {
+  id: string;
+  flag_type: string;
+  resolved_at?: Date | null;
+  details: { reason: string };
+}
+
 class StubFlagService {
   createCalls: Array<{ memoryId: string; flagType: string; reason: string }> =
     [];
   resolveCalls: string[] = [];
-  openFlags = new Map<string, Array<{ id: string; flag_type: string }>>();
+  openFlags = new Map<string, StubFlag[]>();
 
   async hasOpenFlag(memoryId: string, flagType: string): Promise<boolean> {
     return (this.openFlags.get(memoryId) ?? []).some(
@@ -328,7 +335,11 @@ describe("reconciler.reconcileFile parse failures", () => {
         userId: null,
       });
       flagService.openFlags.set("mem-1", [
-        { id: "existing", flag_type: "parse_error" },
+        {
+          id: "existing",
+          flag_type: "parse_error",
+          details: { reason: "Parse error in workspaces/ws/memories/mem-1.md" },
+        },
       ]);
 
       const result = await reconciler.reconcileFile(abs, "change");
@@ -355,7 +366,11 @@ describe("reconciler.reconcileFile parse failures", () => {
       );
       // Seed an open parse_error flag that should auto-resolve.
       flagService.openFlags.set("mem-1", [
-        { id: "old-pe", flag_type: "parse_error" },
+        {
+          id: "old-pe",
+          flag_type: "parse_error",
+          details: { reason: "Parse error in workspaces/ws/memories/mem-1.md" },
+        },
       ]);
 
       const result = await reconciler.reconcileFile(abs, "add");
@@ -367,6 +382,49 @@ describe("reconciler.reconcileFile parse failures", () => {
         ),
       ).toBeUndefined();
       expect(flagService.resolveCalls).toEqual(["old-pe"]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("auto-resolve does NOT close human-authored parse_error flags", async () => {
+    const { root, flagService, reconciler } = await setup();
+    try {
+      const dir = join(root, "workspaces/ws/memories");
+      await mkdir(dir, { recursive: true });
+      const abs = join(dir, "mem-1.md");
+      await writeFile(abs, VALID_MD);
+
+      // Mix one auto-created flag (matches "Parse error in " prefix)
+      // with one human-created flag that should be left alone.
+      flagService.openFlags.set("mem-1", [
+        {
+          id: "auto-pe",
+          flag_type: "parse_error",
+          details: { reason: "Parse error in workspaces/ws/memories/mem-1.md" },
+        },
+        {
+          id: "human-pe",
+          flag_type: "parse_error",
+          details: { reason: "title typo, please review" },
+        },
+      ]);
+
+      await reconciler.reconcileFile(abs, "add");
+
+      expect(flagService.resolveCalls).toEqual(["auto-pe"]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("readFile ENOENT on add/change → skipped, no throw", async () => {
+    const { root, reconciler } = await setup();
+    try {
+      const abs = join(root, "workspaces/ws/memories/missing.md");
+      const result = await reconciler.reconcileFile(abs, "add");
+      expect(result.action).toBe("skipped");
+      expect(result.reason).toBe("read-enoent");
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -391,8 +449,16 @@ describe("reconciler.reconcileFile unlink", () => {
         vector: [1, 1, 1, 1],
       });
       flagService.openFlags.set("mem-1", [
-        { id: "f1", flag_type: "parse_error" },
-        { id: "f2", flag_type: "duplicate" },
+        {
+          id: "f1",
+          flag_type: "parse_error",
+          details: { reason: "Parse error in workspaces/ws/memories/mem-1.md" },
+        },
+        {
+          id: "f2",
+          flag_type: "duplicate",
+          details: { reason: "duplicate of mem-2" },
+        },
       ]);
 
       const result = await reconciler.reconcileFile(abs, "unlink");
@@ -401,20 +467,33 @@ describe("reconciler.reconcileFile unlink", () => {
       expect(result.memoryId).toBe("mem-1");
       expect(vectorIndex.markArchivedCalls).toEqual(["mem-1"]);
       expect(vaultIndex.has("mem-1")).toBe(false);
-      expect(flagService.resolveCalls).toEqual(["f1"]); // only the parse_error flag
+      expect(flagService.resolveCalls).toEqual(["f1"]); // only the auto parse_error flag
     } finally {
       await rm(root, { recursive: true, force: true });
     }
   });
 
-  it("unknown path (orphan unlink) → no-op skipped", async () => {
-    const { root, vectorIndex, flagService, reconciler } = await setup();
+  it("unknown path (orphan unlink) → no-op skipped + clears stale unindexable", async () => {
+    const { root, vaultIndex, vectorIndex, flagService, reconciler } =
+      await setup();
     try {
       const abs = join(root, "workspaces/ws/memories/missing.md");
+      // Seed unindexable so we can verify it's cleared on the unknown-path branch.
+      vaultIndex.setUnindexable(
+        "workspaces/ws/memories/missing.md",
+        "previously broken",
+      );
+
       const result = await reconciler.reconcileFile(abs, "unlink");
+
       expect(result.action).toBe("skipped");
       expect(vectorIndex.markArchivedCalls).toHaveLength(0);
       expect(flagService.resolveCalls).toHaveLength(0);
+      expect(
+        vaultIndex.unindexable.find(
+          (u) => u.path === "workspaces/ws/memories/missing.md",
+        ),
+      ).toBeUndefined();
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -464,13 +543,40 @@ describe("reconciler.archiveOrphans", () => {
         join(root, "workspaces/ws/memories/a.md"),
         join(root, "workspaces/ws/memories/b.md"),
       ]);
-      const { archived } = await reconciler.archiveOrphans(diskPaths);
+      const { archived, failed } = await reconciler.archiveOrphans(diskPaths);
 
       expect(archived).toEqual(["c"]);
+      expect(failed).toEqual([]);
       expect(vectorIndex.markArchivedCalls).toEqual(["c"]);
       expect(vaultIndex.has("c")).toBe(false);
       expect(vaultIndex.has("a")).toBe(true);
       expect(vaultIndex.has("b")).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("lance failure → entry stays registered, returned in failed[]", async () => {
+    const { root, vaultIndex, vectorIndex, reconciler } = await setup();
+    try {
+      vaultIndex.register("a", {
+        path: "workspaces/ws/memories/a.md",
+        scope: "workspace",
+        workspaceId: "ws",
+        userId: null,
+      });
+      vectorIndex.markArchived = async () => {
+        throw new Error("lance kaboom");
+      };
+
+      const { archived, failed } = await reconciler.archiveOrphans(new Set());
+
+      expect(archived).toEqual([]);
+      expect(failed).toHaveLength(1);
+      expect(failed[0].memoryId).toBe("a");
+      expect(failed[0].reason).toBe("lance kaboom");
+      // Crucially, vaultIndex still has 'a' so a retry can converge.
+      expect(vaultIndex.has("a")).toBe(true);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

@@ -137,7 +137,7 @@ describe("VaultMemoryRepository — lance index sync", () => {
       expect(body).toContain("m1");
 
       expect(warnSpy).toHaveBeenCalledWith(
-        "[agent-brain] WARN:",
+        "[agent-brain] ERROR:",
         "lance upsert failed on create; index stale",
         expect.objectContaining({ id: "m1", op: "create" }),
       );
@@ -157,7 +157,7 @@ describe("VaultMemoryRepository — lance index sync", () => {
       expect(next.version).toBe(2);
 
       expect(warnSpy).toHaveBeenCalledWith(
-        "[agent-brain] WARN:",
+        "[agent-brain] ERROR:",
         "lance upsert failed on update; index stale",
         expect.objectContaining({ id: "m1", op: "update" }),
       );
@@ -174,7 +174,7 @@ describe("VaultMemoryRepository — lance index sync", () => {
       expect(next.title).toBe("Renamed");
 
       expect(warnSpy).toHaveBeenCalledWith(
-        "[agent-brain] WARN:",
+        "[agent-brain] ERROR:",
         "lance meta-only update matched no rows; index drift",
         expect.objectContaining({ id: "m1", op: "update" }),
       );
@@ -198,7 +198,7 @@ describe("VaultMemoryRepository — lance index sync", () => {
       expect(spy).toHaveBeenCalledTimes(3);
 
       expect(warnSpy).toHaveBeenCalledWith(
-        "[agent-brain] WARN:",
+        "[agent-brain] ERROR:",
         "lance markArchived failed; index stale",
         expect.objectContaining({ id: "a", op: "archive" }),
       );
@@ -224,7 +224,7 @@ describe("VaultMemoryRepository — lance index sync", () => {
       const count = await repo.archive(["m1"]);
       expect(count).toBe(1);
       expect(warnSpy).toHaveBeenCalledWith(
-        "[agent-brain] WARN:",
+        "[agent-brain] ERROR:",
         "lance markArchived matched no rows; index drift",
         expect.objectContaining({ id: "m1", op: "archive" }),
       );

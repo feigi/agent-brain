@@ -22,11 +22,12 @@ class StubReconciler implements Reconciler {
     this.reconcileCalls.push({ absPath, signal });
     return this.scriptedResults.get(absPath) ?? { action: "indexed" };
   }
-  async archiveOrphans(
-    diskPaths: ReadonlySet<string>,
-  ): Promise<{ archived: string[] }> {
+  async archiveOrphans(diskPaths: ReadonlySet<string>): Promise<{
+    archived: string[];
+    failed: Array<{ memoryId: string; path: string; reason: string }>;
+  }> {
     this.archiveOrphansCalls.push(diskPaths);
-    return { archived: [] };
+    return { archived: [], failed: [] };
   }
 }
 
@@ -42,6 +43,7 @@ describe("runBootScan", () => {
         orphaned: 0,
         parseErrors: 0,
         embedErrors: 0,
+        embedErrorEntries: [],
       });
       expect(reconciler.reconcileCalls).toHaveLength(0);
       expect(reconciler.archiveOrphansCalls).toHaveLength(1);
@@ -111,6 +113,9 @@ describe("runBootScan", () => {
       expect(result.scanned).toBe(2);
       expect(result.reconciled).toBe(1);
       expect(result.embedErrors).toBe(1);
+      expect(result.embedErrorEntries).toEqual([
+        { path: a, reason: "ollama down" },
+      ]);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

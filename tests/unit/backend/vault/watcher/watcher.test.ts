@@ -48,8 +48,11 @@ class StubReconciler implements Reconciler {
     if (this.blockNext) await this.blockNext;
     return { action: "indexed" };
   }
-  async archiveOrphans(): Promise<{ archived: string[] }> {
-    return { archived: [] };
+  async archiveOrphans(): Promise<{
+    archived: string[];
+    failed: Array<{ memoryId: string; path: string; reason: string }>;
+  }> {
+    return { archived: [], failed: [] };
   }
 }
 
@@ -100,6 +103,22 @@ describe("createVaultWatcher", () => {
     expect(reconciler.calls).toEqual([{ absPath: abs, signal: "change" }]);
   });
 
+  it("dispatch ignores non-.md paths even if chokidar emits them", async () => {
+    const reconciler = new StubReconciler();
+    const w = createVaultWatcher({ vaultRoot: root, reconciler });
+    const mock = await getMockWatcher();
+    const startPromise = w.start();
+    setImmediate(() => mock.emit("ready"));
+    await startPromise;
+
+    const abs = join(root, "workspaces/ws/memories/a.txt");
+    await writeFile(abs, "x");
+    mock.emit("change", abs);
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(reconciler.calls).toHaveLength(0);
+  });
+
   it("change event → reconciler skipped when ignoreSet has matching mtime", async () => {
     const reconciler = new StubReconciler();
     const w = createVaultWatcher({ vaultRoot: root, reconciler });
@@ -137,15 +156,32 @@ describe("createVaultWatcher", () => {
     expect(reconciler.calls).toEqual([{ absPath: abs, signal: "change" }]);
   });
 
-  it("'error' event sets hadError, doesn't throw", async () => {
+  it("'error' event records first error info, doesn't throw", async () => {
     const reconciler = new StubReconciler();
     const w = createVaultWatcher({ vaultRoot: root, reconciler });
     const mock = await getMockWatcher();
     const startPromise = w.start();
     setImmediate(() => mock.emit("ready"));
     await startPromise;
-    expect(() => mock.emit("error", new Error("boom"))).not.toThrow();
-    expect(w.hadError()).toBe(true);
+    const err = Object.assign(new Error("boom"), { code: "EMFILE" });
+    expect(() => mock.emit("error", err)).not.toThrow();
+    const info = w.lastError();
+    expect(info).not.toBeNull();
+    expect(info?.message).toBe("boom");
+    expect(info?.code).toBe("EMFILE");
+    expect(typeof info?.at).toBe("string");
+  });
+
+  it("first error wins; subsequent errors do not overwrite", async () => {
+    const reconciler = new StubReconciler();
+    const w = createVaultWatcher({ vaultRoot: root, reconciler });
+    const mock = await getMockWatcher();
+    const startPromise = w.start();
+    setImmediate(() => mock.emit("ready"));
+    await startPromise;
+    mock.emit("error", new Error("first"));
+    mock.emit("error", new Error("second"));
+    expect(w.lastError()?.message).toBe("first");
   });
 
   it("stop() awaits in-flight reconciles", async () => {

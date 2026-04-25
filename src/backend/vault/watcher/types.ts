@@ -34,4 +34,7 @@ export interface BootScanResult {
   orphaned: number;
   parseErrors: number;
   embedErrors: number;
+  // Per-file failures that bumped `embedErrors`. Path is absolute
+  // (matches reconciler input). Reason is the thrown error message.
+  embedErrorEntries: Array<{ path: string; reason: string }>;
 }

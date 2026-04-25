@@ -126,15 +126,15 @@ export class VaultMemoryRepository implements MemoryRepository {
       try {
         const s = await stat(abs);
         this.ignoreSet.add(abs, Number(s.mtime));
+        this.ignoreSet.releaseAfter(abs, this.graceMs);
       } catch {
         // best-effort — file should exist since we just wrote it
       }
-      this.ignoreSet.releaseAfter(abs, this.graceMs);
     });
     this.vaultIndex.register(memory.id, { ...scopeLoc, path: rel });
     // Markdown is source of truth; lance is a derived cache. A lance
-    // failure here leaves the new memory un-indexed until Phase 5's
-    // watcher-driven reindex picks it up. Log and return success.
+    // failure leaves the memory un-indexed until the watcher picks it
+    // up — log at error so Sentry sees the drift.
     try {
       await this.cfg.vectorIndex.upsert([
         {
@@ -150,7 +150,7 @@ export class VaultMemoryRepository implements MemoryRepository {
         },
       ]);
     } catch (err) {
-      logger.warn("lance upsert failed on create; index stale", {
+      logger.error("lance upsert failed on create; index stale", {
         id: memory.id,
         op: "create",
         err,
@@ -292,7 +292,6 @@ export class VaultMemoryRepository implements MemoryRepository {
       }
 
       if (newRel !== oldRel) {
-        // Rename: write new, update index, then delete old.
         // Index before delete so a crash leaves a harmless orphan
         // rather than an ambiguous duplicate.
         const oldAbs = join(this.cfg.root, oldRel);
@@ -301,10 +300,10 @@ export class VaultMemoryRepository implements MemoryRepository {
         try {
           const s = await stat(newAbs);
           this.ignoreSet.add(newAbs, Number(s.mtime));
+          this.ignoreSet.releaseAfter(newAbs, this.graceMs);
         } catch {
           // best-effort
         }
-        this.ignoreSet.releaseAfter(newAbs, this.graceMs);
         this.vaultIndex.move(id, newRel);
         await rm(oldAbs);
       } else {
@@ -313,10 +312,10 @@ export class VaultMemoryRepository implements MemoryRepository {
         try {
           const s = await stat(writeAbs);
           this.ignoreSet.add(writeAbs, Number(s.mtime));
+          this.ignoreSet.releaseAfter(writeAbs, this.graceMs);
         } catch {
           // best-effort
         }
-        this.ignoreSet.releaseAfter(writeAbs, this.graceMs);
       }
 
       try {
@@ -345,14 +344,14 @@ export class VaultMemoryRepository implements MemoryRepository {
             archived: false,
           });
           if (rowsUpdated === 0) {
-            logger.warn("lance meta-only update matched no rows; index drift", {
-              id: next.id,
-              op: "update",
-            });
+            logger.error(
+              "lance meta-only update matched no rows; index drift",
+              { id: next.id, op: "update" },
+            );
           }
         }
       } catch (err) {
-        logger.warn("lance upsert failed on update; index stale", {
+        logger.error("lance upsert failed on update; index stale", {
           id: next.id,
           op: "update",
           err,
@@ -407,10 +406,10 @@ export class VaultMemoryRepository implements MemoryRepository {
         try {
           const s = await stat(abs);
           this.ignoreSet.add(abs, Number(s.mtime));
+          this.ignoreSet.releaseAfter(abs, this.graceMs);
         } catch {
           // best-effort
         }
-        this.ignoreSet.releaseAfter(abs, this.graceMs);
         count += 1;
         archived.push({
           id,
@@ -429,13 +428,13 @@ export class VaultMemoryRepository implements MemoryRepository {
       try {
         const rowsUpdated = await this.cfg.vectorIndex.markArchived(rec.id);
         if (rowsUpdated === 0) {
-          logger.warn("lance markArchived matched no rows; index drift", {
+          logger.error("lance markArchived matched no rows; index drift", {
             id: rec.id,
             op: "archive",
           });
         }
       } catch (err) {
-        logger.warn("lance markArchived failed; index stale", {
+        logger.error("lance markArchived failed; index stale", {
           id: rec.id,
           op: "archive",
           err,
@@ -483,10 +482,10 @@ export class VaultMemoryRepository implements MemoryRepository {
       try {
         const s = await stat(abs);
         this.ignoreSet.add(abs, Number(s.mtime));
+        this.ignoreSet.releaseAfter(abs, this.graceMs);
       } catch {
         // best-effort
       }
-      this.ignoreSet.releaseAfter(abs, this.graceMs);
       await this.#commit(
         entry.path,
         next.scope,

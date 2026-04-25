@@ -25,10 +25,10 @@ const stubEmbed = (text: string): number[] => {
   return [seed % 100, (seed * 7) % 100, (seed * 13) % 100, (seed * 17) % 100];
 };
 
-function makeMd(id: string, body = "External body."): string {
+function makeMd(id: string, body = "External body.", title = id): string {
   return `---
 id: ${id}
-title: ${id}
+title: ${title}
 type: pattern
 scope: workspace
 workspace_id: ws
@@ -49,7 +49,7 @@ metadata: null
 flags: []
 ---
 
-# ${id}
+# ${title}
 
 ${body}
 `;
@@ -144,6 +144,34 @@ describe("vault watcher E2E", { timeout: 15_000 }, () => {
 
     await until(async () => (embedCalls > callsAfterAdd ? true : undefined));
     expect(embedCalls).toBeGreaterThan(callsAfterAdd);
+  });
+
+  it("frontmatter-only edit → meta-updated, no re-embed", async () => {
+    const dir = join(root, "workspaces/ws/memories");
+    await mkdir(dir, { recursive: true });
+    const path = join(dir, "ext-fm.md");
+    const body = "Body that stays exactly the same.";
+    await writeFile(path, makeMd("ext-fm", body, "Original title"));
+
+    const indexed = await until(async () => {
+      const m = await backend.memoryRepo.findById("ext-fm");
+      return m && m.title === "Original title" ? m : undefined;
+    });
+    expect(indexed.title).toBe("Original title");
+    const callsAfterIndex = embedCalls;
+
+    // Title-only change: rewrite frontmatter title + H1, body identical.
+    // Reconciler hashes the body (post-H1 content), so hash stays equal —
+    // this exercises the meta-updated branch.
+    await writeFile(path, makeMd("ext-fm", body, "Renamed title"));
+
+    const renamed = await until(async () => {
+      const m = await backend.memoryRepo.findById("ext-fm");
+      return m && m.title === "Renamed title" ? m : undefined;
+    });
+    expect(renamed.title).toBe("Renamed title");
+    // Critical assertion: no re-embed fired for an FM-only change.
+    expect(embedCalls).toBe(callsAfterIndex);
   });
 
   it("external rm → memory disappears from findById", async () => {

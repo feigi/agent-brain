@@ -2,16 +2,23 @@
 import { watch as chokidarWatch } from "chokidar";
 import type { FSWatcher } from "chokidar";
 import { stat } from "node:fs/promises";
+import { basename, sep } from "node:path";
 import { logger } from "../../../utils/logger.js";
 import { IgnoreSetImpl } from "./ignore-set.js";
 import type { IgnoreSet, ReconcileSignal } from "./types.js";
 import type { Reconciler } from "./reconciler.js";
 
+export interface WatcherErrorInfo {
+  message: string;
+  code?: string;
+  at: string;
+}
+
 export interface VaultWatcher {
   start(): Promise<void>;
   stop(): Promise<void>;
   readonly ignoreSet: IgnoreSet;
-  hadError(): boolean;
+  lastError(): WatcherErrorInfo | null;
 }
 
 export interface CreateVaultWatcherOpts {
@@ -31,12 +38,13 @@ export function createVaultWatcher(opts: CreateVaultWatcherOpts): VaultWatcher {
   let watcher: FSWatcher | null = null;
   let inFlight = 0;
   let drainResolvers: Array<() => void> = [];
-  let _hadError = false;
+  let _lastError: WatcherErrorInfo | null = null;
 
   const dispatch = async (
     absPath: string,
     signal: ReconcileSignal,
   ): Promise<void> => {
+    if (!absPath.endsWith(".md")) return;
     inFlight++;
     try {
       let currentMtime = 0;
@@ -44,8 +52,11 @@ export function createVaultWatcher(opts: CreateVaultWatcherOpts): VaultWatcher {
         try {
           const s = await stat(absPath);
           currentMtime = Number(s.mtime);
-        } catch {
-          // best-effort — file may have been removed before stat
+        } catch (err: unknown) {
+          const code = errnoCode(err);
+          if (code !== "ENOENT") {
+            logger.warn(`watcher: stat failed for ${absPath}`, { err, code });
+          }
         }
       }
       if (ignoreSet.has(absPath, currentMtime)) return;
@@ -66,21 +77,34 @@ export function createVaultWatcher(opts: CreateVaultWatcherOpts): VaultWatcher {
 
   return {
     ignoreSet,
-    hadError: () => _hadError,
+    lastError: () => _lastError,
     async start() {
-      // chokidar v4+ removed glob support. Watch the vault root directory
-      // directly and use the `ignored` filter to restrict events to .md files.
+      // chokidar v4+ removed glob support. Watch the vault root directly
+      // and use the `ignored` filter to restrict events to .md files
+      // and skip dot-prefix dirs (.git, .agent-brain) which would
+      // otherwise burn inotify watches and emit non-md events.
       watcher = chokidarWatch(opts.vaultRoot, {
         ignoreInitial: true,
         awaitWriteFinish,
-        ignored: (_path: string, stats?: import("node:fs").Stats) =>
-          stats?.isFile() === true && !_path.endsWith(".md"),
+        ignored: (_path: string, stats?: import("node:fs").Stats) => {
+          if (isDotPrefixedSubpath(opts.vaultRoot, _path)) return true;
+          if (stats?.isFile() === true && !_path.endsWith(".md")) return true;
+          return false;
+        },
       });
       watcher.on("add", (p: string) => void dispatch(p, "add"));
       watcher.on("change", (p: string) => void dispatch(p, "change"));
       watcher.on("unlink", (p: string) => void dispatch(p, "unlink"));
       watcher.on("error", (err: unknown) => {
-        _hadError = true;
+        const code = errnoCode(err);
+        const message = err instanceof Error ? err.message : String(err);
+        if (_lastError === null) {
+          _lastError = {
+            message,
+            ...(code ? { code } : {}),
+            at: new Date().toISOString(),
+          };
+        }
         logger.error("watcher: chokidar emitted error", { err });
       });
       await new Promise<void>((resolve) => {
@@ -98,4 +122,24 @@ export function createVaultWatcher(opts: CreateVaultWatcherOpts): VaultWatcher {
       });
     },
   };
+}
+
+function errnoCode(err: unknown): string | undefined {
+  if (typeof err === "object" && err !== null && "code" in err) {
+    const code = (err as { code?: unknown }).code;
+    if (typeof code === "string") return code;
+  }
+  return undefined;
+}
+
+function isDotPrefixedSubpath(root: string, candidate: string): boolean {
+  if (candidate === root) return false;
+  const rel = candidate.startsWith(root + sep)
+    ? candidate.slice(root.length + 1)
+    : candidate;
+  for (const seg of rel.split(sep)) {
+    if (seg.startsWith(".") && seg !== "." && seg !== "..") return true;
+  }
+  if (basename(candidate).startsWith(".")) return true;
+  return false;
 }

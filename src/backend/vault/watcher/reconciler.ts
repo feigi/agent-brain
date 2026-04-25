@@ -16,9 +16,10 @@ export interface Reconciler {
     absPath: string,
     signal: ReconcileSignal,
   ): Promise<ReconcileResult>;
-  archiveOrphans(
-    diskPaths: ReadonlySet<string>,
-  ): Promise<{ archived: string[] }>;
+  archiveOrphans(diskPaths: ReadonlySet<string>): Promise<{
+    archived: string[];
+    failed: Array<{ memoryId: string; path: string; reason: string }>;
+  }>;
 }
 
 export interface ReconcilerDeps {
@@ -44,8 +45,9 @@ class ReconcilerImpl implements Reconciler {
       const relPath = relative(this.deps.vaultRoot, absPath);
       const memoryId = this.findIdByPath(relPath);
       if (memoryId === null) {
-        // Path was never registered (or already cleaned up). Task 9 may add
-        // unindexable cleanup here once VaultIndex exposes a public API.
+        // File was unparseable at boot — drop its parse_errors entry so
+        // meta.parse_errors converges once the bad file is removed.
+        this.deps.vaultIndex.clearUnindexable(relPath);
         return { action: "skipped", reason: "unknown-path" };
       }
       try {
@@ -60,8 +62,19 @@ class ReconcilerImpl implements Reconciler {
       return { action: "archived", memoryId };
     }
 
-    const raw = await readFile(absPath, "utf8");
     const relPath = relative(this.deps.vaultRoot, absPath);
+    let raw: string;
+    try {
+      raw = await readFile(absPath, "utf8");
+    } catch (err: unknown) {
+      // ENOENT race: file removed between event and read (editor temp-
+      // file rename, concurrent unlink). Reconciler-skip; chokidar will
+      // emit the unlink shortly and converge.
+      if (isErrnoCode(err, "ENOENT")) {
+        return { action: "skipped", reason: "read-enoent" };
+      }
+      throw err;
+    }
 
     let parsed: ReturnType<typeof parseMemoryFile>;
     try {
@@ -217,6 +230,11 @@ class ReconcilerImpl implements Reconciler {
     for (const f of flags) {
       if (f.flag_type !== "parse_error") continue;
       if (f.resolved_at != null) continue;
+      // Only auto-resolve flags this reconciler created. The reason
+      // string starts with "Parse error in " (see createFlag above);
+      // a different prefix means a human or other producer raised it
+      // and the operator should resolve it explicitly.
+      if (!f.details.reason?.startsWith("Parse error in ")) continue;
       try {
         await this.deps.flagService.resolveFlag(
           f.id,
@@ -232,11 +250,14 @@ class ReconcilerImpl implements Reconciler {
     }
   }
 
-  async archiveOrphans(
-    diskPaths: ReadonlySet<string>,
-  ): Promise<{ archived: string[] }> {
+  async archiveOrphans(diskPaths: ReadonlySet<string>): Promise<{
+    archived: string[];
+    failed: Array<{ memoryId: string; path: string; reason: string }>;
+  }> {
     const archived: string[] = [];
-    // Snapshot the entries to avoid mutating during iteration.
+    const failed: Array<{ memoryId: string; path: string; reason: string }> =
+      [];
+    // Snapshot to avoid mutating during iteration.
     const entries = Array.from(this.deps.vaultIndex.entries());
     for (const [id, entry] of entries) {
       const abs = join(this.deps.vaultRoot, entry.path);
@@ -246,14 +267,26 @@ class ReconcilerImpl implements Reconciler {
         this.deps.vaultIndex.unregister(id);
         archived.push(id);
       } catch (err) {
+        // Lance write failed — leave vaultIndex untouched so a retry
+        // can converge instead of leaving a stale id→path mapping.
+        const reason = err instanceof Error ? err.message : String(err);
         logger.error(
           `reconciler: archiveOrphans failed for ${id} (path=${entry.path})`,
           { err },
         );
+        failed.push({ memoryId: id, path: entry.path, reason });
       }
     }
-    return { archived };
+    return { archived, failed };
   }
+}
+
+function isErrnoCode(err: unknown, code: string): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    (err as { code?: string }).code === code
+  );
 }
 
 function sha256Hex(s: string): string {
