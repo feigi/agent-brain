@@ -420,3 +420,59 @@ describe("reconciler.reconcileFile unlink", () => {
     }
   });
 });
+
+describe("reconciler.archiveOrphans", () => {
+  it("soft-archives entries whose path is not in diskPaths", async () => {
+    const { root, vaultIndex, vectorIndex, reconciler } = await setup();
+    try {
+      // Three rows registered, two paths on disk.
+      vaultIndex.register("a", {
+        path: "workspaces/ws/memories/a.md",
+        scope: "workspace",
+        workspaceId: "ws",
+        userId: null,
+      });
+      vaultIndex.register("b", {
+        path: "workspaces/ws/memories/b.md",
+        scope: "workspace",
+        workspaceId: "ws",
+        userId: null,
+      });
+      vaultIndex.register("c", {
+        path: "workspaces/ws/memories/c.md",
+        scope: "workspace",
+        workspaceId: "ws",
+        userId: null,
+      });
+      vectorIndex.rows.set("a", {
+        content_hash: "h",
+        archived: false,
+        vector: [],
+      });
+      vectorIndex.rows.set("b", {
+        content_hash: "h",
+        archived: false,
+        vector: [],
+      });
+      vectorIndex.rows.set("c", {
+        content_hash: "h",
+        archived: false,
+        vector: [],
+      });
+
+      const diskPaths = new Set([
+        join(root, "workspaces/ws/memories/a.md"),
+        join(root, "workspaces/ws/memories/b.md"),
+      ]);
+      const { archived } = await reconciler.archiveOrphans(diskPaths);
+
+      expect(archived).toEqual(["c"]);
+      expect(vectorIndex.markArchivedCalls).toEqual(["c"]);
+      expect(vaultIndex.has("c")).toBe(false);
+      expect(vaultIndex.has("a")).toBe(true);
+      expect(vaultIndex.has("b")).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
