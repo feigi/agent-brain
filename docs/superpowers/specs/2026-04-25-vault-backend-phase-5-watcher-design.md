@@ -8,10 +8,10 @@
 
 ## Goals
 
-1. **Watcher.** Detect external edits to `<vault>/**/*.md` (Obsidian saves, vim writes, `git pull` checkouts) and reconcile lance vector index + in-memory path index + parse-error sidecars.
+1. **Watcher.** Detect external edits to `<vault>/**/*.md` (Obsidian saves, vim writes, `git pull` checkouts) and reconcile lance vector index + `VaultIndex` (path/id map + unindexable list) + open `parse_error` flags.
 2. **Boot reconcile.** Run a vault-wide pre-listen scan that brings lance and in-memory state into agreement with disk before HTTP accepts requests. Repairs lance↔markdown drift left over from any earlier crash.
 3. **Subsume PR #37 deferred gap.** `VaultMemoryRepository.syncPaths` previously added pulled paths to the in-memory index but did not remove deletions. Watcher's `unlink` event subsumes this — no separate `syncPaths` patch needed.
-4. **Close Phase 4d live-edit gap.** Phase 4d `parse_error` sidecar producer ran startup-only (memory `9Hjd5H76LXM-sk189lszP`). Watcher gives a live signal source so external edits that break frontmatter surface as flags without restart.
+4. **Close Phase 4d live-edit gap.** Phase 4d `parse_error` flag producer (`VaultParseErrorChecker` in `src/backend/vault/parse-error-checker.ts`) only ran during consolidation, not on live edits. Watcher gives a live signal source so external edits that break frontmatter surface as flags / `unindexable` entries without restart.
 
 Non-goals: see "Non-Goals" section.
 
@@ -43,15 +43,17 @@ chokidar's built-in stable-write detection. Coalesces Obsidian autosave bursts a
 
 ### D4. Per-event handling
 
-| chokidar event                        | Action                                                                                                                                                                                                                                  |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `add`                                 | Parse → embed → `vectorIndex.upsert` → `memoryRepo.indexAdd` → archive any stale `parse_error` sidecar for path                                                                                                                         |
-| `change`                              | Parse → compare body hash to lance `content_hash`. Hash matches: only `vectorIndex.upsertMetaOnly` if frontmatter changed (else skipped). Hash differs: full re-embed + `vectorIndex.upsert`. Always: archive stale parse_error sidecar |
-| `unlink`                              | `memoryRepo.findByPath(absPath)` → soft-archive lance row (`archived = true` flip per Phase 3 semantic, memory `GKep85Rl4NGJbnTScVXNz`) → `memoryRepo.indexRemove` → archive any sidecars for path                                      |
-| `unlinkDir`                           | Iterate cached entries under prefix → soft-archive each                                                                                                                                                                                 |
-| `addDir` / `ready`                    | No-op (initial scan handled by `runBootScan`)                                                                                                                                                                                           |
-| Parse failure on any event            | `flagRepo.upsertParseErrorSidecar(absPath, err)` (Phase 4d helper, idempotent via O_EXCL)                                                                                                                                               |
-| Parse pass on previously-flagged path | Auto-archive sidecar (Phase 4d auto-resolution semantic)                                                                                                                                                                                |
+| chokidar event                                  | Action                                                                                                                                                                                                                                                        |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `add`                                           | Parse → if id resolves: embed → `vectorIndex.upsert` → `vaultIndex.register(id, entry)` + clear any `unindexable` for path; else: `vaultIndex.setUnindexable(path, reason)`                                                                                   |
+| `change`                                        | Parse → compare body hash to lance `content_hash`. Hash matches: only `vectorIndex.upsertMetaOnly` if frontmatter changed (else `skipped`). Hash differs: full re-embed + `vectorIndex.upsert`. Always: resolve any open `parse_error` flag for the memory id |
+| `unlink`                                        | `vaultIndex` reverse-lookup absPath → memoryId. If found: `vectorIndex` soft-archive (`archived = true` flip per memory `GKep85Rl4NGJbnTScVXNz`) → `vaultIndex.unregister(id)` → resolve any open `parse_error` flag for that id                              |
+| `unlinkDir`                                     | Iterate `vaultIndex.entries()` under prefix → apply unlink action per entry                                                                                                                                                                                   |
+| `addDir` / `ready`                              | No-op (initial scan handled by `runBootScan`)                                                                                                                                                                                                                 |
+| Parse failure on any event, file already in idx | `flagService.createFlag(memoryId, "parse_error", reason)` if no open one exists (Phase 4d producer logic)                                                                                                                                                     |
+| Parse failure, file NOT in idx                  | `vaultIndex.setUnindexable(path, reason)` — surfaces in `BackendSessionStartMeta.parse_errors` next sessionStart                                                                                                                                              |
+| Parse pass on previously-flagged file           | Auto-resolve any open `parse_error` flag for the memory id (Phase 4d auto-resolution semantic)                                                                                                                                                                |
+| Parse pass on previously-unindexable path       | `vaultIndex.clearUnindexable(path)` — file recovered                                                                                                                                                                                                          |
 
 ### D5. Boot reconcile = explicit pre-listen scan (Q5 / B)
 
@@ -82,7 +84,7 @@ Reasoning: separation of concerns — chokidar wiring (watcher) vs business logi
 - **T3 boot-scan unit tests** (real fs tmpdir, stub reconciler) — cover counts, parse failures during scan, lance orphan detection.
 - **T4 E2E smoke** (real chokidar + real backend + tmpdir) — five cases only; PR-only with `--testTimeout=10000`.
 
-Tier 5 (existing contract tests) unchanged; watcher is additive. Optionally extend `users-gitignore-invariant.test.ts` to assert watcher does not emit user-scope content via flag sidecars.
+Tier 5 (existing contract tests) unchanged; watcher is additive. Optionally extend `users-gitignore-invariant.test.ts` to assert watcher does not surface user-scope content in `parse_error` flag reasons or unindexable entries.
 
 ## Architecture
 
@@ -134,10 +136,10 @@ export interface Reconciler {
 }
 
 export function createReconciler(deps: {
-  parser: MemoryParser;
-  memoryRepo: VaultMemoryRepository;
-  vectorIndex: VaultVectorIndex;
-  flagRepo: VaultFlagRepository;
+  vaultIndex: VaultIndex; // path/id map + unindexable list
+  vectorIndex: VaultVectorIndex; // lance upsert/softArchive/upsertMetaOnly + content_hash compare
+  flagService: FlagService; // createFlag / resolveFlag / hasOpenFlag for parse_error
+  embed: Embedder; // (text) => Promise<number[]>; same provider VaultBackend uses
   vaultRoot: string;
 }): Reconciler;
 ```
@@ -172,46 +174,56 @@ export async function runBootScan(opts: {
 }>;
 ```
 
-### Wiring in `VaultBackend.start()`
+### Wiring in `VaultBackend.create()`
+
+`VaultBackend.create()` is already the async lifecycle entry point in `src/backend/vault/index.ts`. Boot scan + watcher start fold into it; `httpServer.listen()` (in `src/server.ts`) only runs after `create()` resolves, so the gate is satisfied naturally.
 
 ```
-1. ensureVaultGit()                           # existing
-2. alignWithRemote()                          # existing (Phase 4b)
-3. runBootScan()                              # new — blocks until consistent
-4. watcher.start()                            # new — resolves on chokidar 'ready'
-5. httpServer.listen()                        # existing — only after 1-4 complete
+VaultBackend.create():
+  1. ensureVaultGit()                          # existing
+  2. ensureRemote() → reconcileDirty() → alignWithRemote()  # existing (Phase 4b)
+  3. VaultVectorIndex.create()                 # existing
+  4. VaultIndex.create()                       # existing
+  5. VaultMemoryRepository.create()            # existing
+  6. runBootScan(reconciler, vaultIndex, vectorIndex)  # new — blocks until consistent
+  7. createVaultWatcher(...).start()           # new — resolves on chokidar 'ready'
+  8. return new VaultBackend(...)              # caller (server.ts) then listen()s
 ```
+
+`VaultBackend` gains a `vaultWatcher: VaultWatcher` private field. `close()` adds `await this.vaultWatcher.stop()` BEFORE `pushQueue.close()` (watcher might enqueue commits via reconciler-triggered writes; drain pushQueue last).
 
 ### Mutation-site changes
 
 - `VaultMemoryFiles.edit` (`src/backend/vault/repositories/memory-files.ts`) — accept optional `ignoreSet: IgnoreSet` ctor param. Post-fsync inside `edit()`: read mtime of written file, call `ignoreSet.add(absPath, mtime)`, schedule `ignoreSet.releaseAfter(absPath, 500)` after the commit completes.
-- `VaultMemoryRepository` — same plumbing for archive (unlink path). Add `findByPath(absPath): MemoryRecord | undefined` if not already present. Add `indexAdd(record)` and `indexRemove(absPath)` methods so reconciler can sync the in-memory map without going through `create`/`archive` (which re-trigger commit + lance write — double work).
+- `VaultMemoryRepository` write paths (`create`, `update`, `archive`, `verify`) — same `ignoreSet` plumbing for the markdown write step. Optional ctor param defaulting to `NoopIgnoreSet`. No new public methods needed — reconciler uses `VaultIndex` directly (`register` / `unregister` / `entries` / `setUnindexable` / `clearUnindexable` already exist).
+- Reverse path → id lookup for `unlink` events: iterate `vaultIndex.entries()` matching `entry.path === relPath`. O(N) but small N at vault scale; avoids new index. If profiling shows hotspot, add a reverse map later.
 - `GitOpsImpl.stageAndCommit` callers — no direct change; commits update markdown mtime which is captured at `edit()` post-fsync.
 - `src/backend/types.ts` — extend `BackendSessionStartMeta` with `watcher_error?: true` (literal-`true` presence-only convention per memory `bONZKfXKa_cv4a2s0I2NV`).
-- `package.json` — confirm `chokidar` dependency (likely already transitively available; verify at plan time).
+- `package.json` — add `chokidar` dependency (not currently listed; need explicit add).
 
 ## Data flow
 
 ### Boot path
 
 ```
-VaultBackend.start()
+VaultBackend.create()
   ├─ ensureVaultGit()
-  ├─ alignWithRemote()
+  ├─ ensureRemote() → reconcileDirty() → alignWithRemote()
+  ├─ VaultVectorIndex.create() / VaultIndex.create() / VaultMemoryRepository.create()
   ├─ runBootScan()
   │    ├─ listMarkdownFiles(vaultRoot) → diskPaths
   │    ├─ for each path:
   │    │     reconciler.reconcileFile(path, "add")
   │    │       ├─ parser.parse(content)
   │    │       │     ├─ ok    → diff lance content_hash
-  │    │       │     │           ├─ no row     → embed + lance.upsert + memoryRepo.indexAdd + flag.archiveStaleSidecar
-  │    │       │     │           ├─ hash same  → if frontmatter changed → lance.upsertMetaOnly; else skipped
-  │    │       │     │           └─ hash diff  → embed + lance.upsert + flag.archiveStaleSidecar
-  │    │       │     └─ fail  → flag.upsertParseErrorSidecar(path, err)
+  │    │       │     │           ├─ no row     → embed + lance.upsert + vaultIndex.register + flagService.resolve(open parse_error flags)
+  │    │       │     │           ├─ hash same  → if frontmatter changed → lance.upsertMetaOnly; else skipped. flagService.resolve(open parse_error flags)
+  │    │       │     │           └─ hash diff  → embed + lance.upsert + flagService.resolve(open parse_error flags)
+  │    │       │     └─ fail  → if id-in-vaultIndex: flagService.createFlag(id, "parse_error", reason); else: vaultIndex.setUnindexable(path, reason)
   │    └─ reconciler.archiveOrphans(diskPaths)
-  │          └─ lance.scan archived=false → for each row: if row.path ∉ diskPaths → lance.update {archived:true} + memoryRepo.indexRemove
-  ├─ watcher.start()
-  └─ httpServer.listen()
+  │          └─ lance.scan archived=false → for each row: if row.path ∉ diskPaths → lance.update {archived:true} + vaultIndex.unregister(id)
+  ├─ watcher.start()                  # chokidar watch + ready
+  └─ return new VaultBackend(...)     # caller does httpServer.listen()
 ```
 
 ### Live path (post-`ready`)
@@ -224,9 +236,9 @@ External edit (Obsidian save / git pull checkout / vim write)
        if ignoreSet.has(absPath, currentMtime): return    # internal write, skip
        reconciler.reconcileFile(absPath, signal)
          add/change → same logic as boot path
-         unlink    → memoryId = memoryRepo.findByPath(absPath)
-                     if found: lance.update {archived:true} + memoryRepo.indexRemove + flag.archiveSidecarsForPath
-                     if not:  no-op (orphan event for unknown path)
+         unlink    → memoryId = vaultIndex reverse-lookup of absPath (iterate entries)
+                     if found: lance.update {archived:true} + vaultIndex.unregister(id) + flagService.resolve(open parse_error flags)
+                     if not:  vaultIndex.clearUnindexable(path) (in case it was unindexable) → no-op otherwise
 ```
 
 ### Internal write path (existing tools, augmented)
@@ -261,11 +273,11 @@ memory_create / memory_update / memory_archive
 
 ## Error handling
 
-- **E1. Parse failure during reconcile.** Reconciler catches `MemoryParseError` only. `flagRepo.upsertParseErrorSidecar` (idempotent via O_EXCL); returns `{action: "parse-error"}`. Other thrown errors (EACCES, EIO) → `logger.error` + rethrow; watcher catches at dispatch level + logs; does NOT crash watcher. Boot scan catches per-file + accumulates count → reported in return. If `parseErrors > 0`, `BackendSessionStartMeta.parse_errors` carries forward (existing Phase 4b plumbing).
+- **E1. Parse failure during reconcile.** Reconciler catches parse errors only (raw `Error` from `parseMemoryFile`). Two branches: (a) memoryId resolvable from prior parse → `flagService.createFlag(id, "parse_error", reason)` if no open one exists; idempotency via Phase 4d duplicate-flag guard. (b) memoryId NOT resolvable (frontmatter completely broken) → `vaultIndex.setUnindexable(path, reason)`; surfaces via `BackendSessionStartMeta.parse_errors` on next `sessionStart`. Returns `{action: "parse-error"}`. Other thrown errors (EACCES, EIO) → `logger.error` + rethrow; watcher catches at dispatch + logs; does NOT crash watcher. Boot scan accumulates count → reported in return.
 - **E2. Lance write failure during reconcile.** Markdown is source of truth (memory `GKep85Rl4NGJbnTScVXNz`). Lance failure → `logger.error` + result `{action: "skipped", reason: "lance-failure"}`. In-memory index NOT updated. Next chokidar event on same path retries; if file unchanged, no event → drift persists until next process boot via `runBootScan`. Live drift recovery deferred (Phase 8 perf+reliability).
 - **E3. Embed call failure (Ollama down).** Same as E2: log + skip. Boot scan does NOT block startup on embed failure — log + skip + continue. Boot return reports `embedErrors: N`. HTTP comes up; affected memories searchable but with stale embeddings. Acceptable degradation.
 - **E4. chokidar internal error.** chokidar's `error` event → `logger.error`. Do NOT auto-restart watcher (silent failure risk). Surface via `BackendSessionStartMeta.watcher_error?: true`.
-- **E5. Sidecar write failure during parse_error path.** `flagRepo` write fails (disk full / permission). Log + continue reconcile. parse_error visibility lost for that file until next reconcile attempt. No cascade.
+- **E5. Flag write failure during parse_error path.** `flagService.createFlag` throws (disk full / pg failure on shared envelope). Log + continue reconcile. parse_error visibility lost for that file until next reconcile attempt. No cascade.
 - **E6. ignoreSet false negative.** Watcher reconciles a file we just wrote. Cost: one wasted parse + hash compare → hash matches lance → `skipped`. Idempotent, low cost.
 - **E7. ignoreSet false positive.** External edit lands during ignoreSet window with mtime != recorded. R2 mtime tuple catches → fall through to reconcile.
 
@@ -281,8 +293,9 @@ memory_create / memory_update / memory_archive
 - `change`: hash diff → `reembedded`
 - `unlink`: existing → `archived` + index remove
 - `unlink`: unknown path → no-op
-- parse fail → sidecar upsert + result `parse-error`
-- parse pass on previously-flagged path → sidecar archived
+- parse fail with id resolvable → `flagService.createFlag` called (mock asserts) + result `parse-error`
+- parse fail with id NOT resolvable → `vaultIndex.setUnindexable` called + result `parse-error`
+- parse pass on previously-flagged file → `flagService.resolveFlag` called for each open `parse_error` flag
 - `archiveOrphans`: lance has 3 rows, disk has 2 paths → 1 archived
 - lance failure during upsert → `skipped/lance-failure`, no index mutation
 
@@ -318,7 +331,7 @@ memory_create / memory_update / memory_archive
 
 ### T5 — Existing contract tests
 
-Unchanged. Optionally extend `tests/contract/repositories/users-gitignore-invariant.test.ts` to assert watcher does not emit user-scope content via flag sidecars.
+Unchanged. Optionally extend `tests/contract/repositories/users-gitignore-invariant.test.ts` to assert watcher does not surface user-scope content in flag reasons or unindexable entries.
 
 ## Non-Goals
 
