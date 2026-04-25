@@ -1,8 +1,9 @@
 #!/bin/bash
-# Claude Code SessionStart Hook: Load agent-brain memories
-# Calls the REST API on the persistent HTTP server.
-# On failure, emits a fallback additionalContext so the agent knows to call
-# memory_search explicitly instead of assuming no memories exist.
+# Claude Code SessionStart Hook: load agent-brain memories.
+# Writes full memories to <cwd>/.agent-brain/session.md and emits a preview
+# (title-only index + path) as additionalContext. Agent is instructed to Read
+# the file before responding.
+# On any failure, emits the existing fallback additionalContext.
 
 INPUT=$(cat)
 AGENT_BRAIN_URL="${AGENT_BRAIN_URL:-http://localhost:19898}"
@@ -22,12 +23,23 @@ emit_fallback() {
   exit 0
 }
 
+ensure_gitignore() {
+  local cwd="$1"
+  local gi="${cwd}/.gitignore"
+  [ -d "$cwd" ] || return 0
+  if [ ! -f "$gi" ] || ! grep -qxF ".agent-brain/" "$gi" 2>/dev/null; then
+    printf "\n.agent-brain/\n" >> "$gi" 2>/dev/null || true
+  fi
+}
+
+if [ -z "$CWD" ] || [ ! -d "$CWD" ]; then
+  emit_fallback "missing or invalid cwd"
+fi
+
 if ! curl -sf "${AGENT_BRAIN_URL}/health" >/dev/null 2>&1; then
   emit_fallback "server unreachable (${AGENT_BRAIN_URL}/health)"
 fi
 
-# -f makes curl exit non-zero on HTTP 4xx/5xx so error bodies don't leak into
-# additionalContext as fake "memories".
 RESPONSE=$(curl -sf -X POST "${AGENT_BRAIN_URL}/api/tools/memory_session_start" \
   -H 'Content-Type: application/json' \
   -d "{\"workspace_id\":\"${WORKSPACE_ID}\",\"user_id\":\"${USER_ID}\",\"limit\":10}") \
@@ -35,6 +47,12 @@ RESPONSE=$(curl -sf -X POST "${AGENT_BRAIN_URL}/api/tools/memory_session_start" 
 
 if [ -z "$RESPONSE" ]; then
   emit_fallback "memory_session_start returned empty body"
+fi
+
+PREVIEW=$(echo "$RESPONSE" | jq -r '.preview // ""')
+FULL=$(echo "$RESPONSE" | jq -r '.full // ""')
+if [ -z "$PREVIEW" ] || [ -z "$FULL" ]; then
+  emit_fallback "memory_session_start response missing preview/full fields"
 fi
 
 # Stash agent-brain session_id for the stop hook to read
@@ -45,8 +63,19 @@ if [ -n "$CLIENT_SESSION_ID" ]; then
   fi
 fi
 
-MEMORIES_ESCAPED=$(echo "$RESPONSE" | jq -Rs '.')
+DEST_DIR="${CWD}/.agent-brain"
+DEST_FILE="${DEST_DIR}/session.md"
+mkdir -p "$DEST_DIR" 2>/dev/null || emit_fallback "could not create ${DEST_DIR}"
+printf "%s" "$FULL" > "$DEST_FILE" 2>/dev/null || emit_fallback "could not write ${DEST_FILE}"
+ensure_gitignore "$CWD"
+
+# Substitute {{PATH}} placeholder with the absolute file path.
+# Escape sed-special chars (&, \, |) in the path so workspaces with
+# unusual names (e.g. "foo&bar") don't silently corrupt the substitution.
+ESCAPED_DEST=$(printf '%s' "$DEST_FILE" | sed 's/[&\\|]/\\&/g')
+SUBSTITUTED_PREVIEW=$(printf "%s" "$PREVIEW" | sed "s|{{PATH}}|${ESCAPED_DEST}|g")
+CTX_ESCAPED=$(printf "%s" "$SUBSTITUTED_PREVIEW" | jq -Rs '.')
 
 cat <<EOF
-{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": ${MEMORIES_ESCAPED}}}
+{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": ${CTX_ESCAPED}}}
 EOF

@@ -7,6 +7,7 @@ import { DomainError } from "../utils/errors.js";
 import { logger } from "../utils/logger.js";
 import { parseCursor } from "../utils/validation.js";
 import { toolSchemas, type ToolName } from "./api-schemas.js";
+import { renderPreview, renderFull } from "../utils/session-start-render.js";
 
 export function createApiToolsRouter(
   memoryService: MemoryService,
@@ -37,14 +38,23 @@ export function createApiToolsRouter(
       switch (toolName) {
         case "memory_session_start": {
           const b = body as z.infer<typeof toolSchemas.memory_session_start>;
-          const result = await memoryService.sessionStart(
+          const envelope = await memoryService.sessionStart(
             b.workspace_id,
             b.user_id,
             b.context,
             b.limit,
             b.project_limit,
           );
-          res.json(result);
+          const previewResult = renderPreview(envelope.data);
+          const full = renderFull(envelope.data, envelope.meta.flags);
+          res.json({
+            preview: previewResult.text,
+            full,
+            meta: {
+              ...envelope.meta,
+              index_truncated_count: previewResult.truncatedCount,
+            },
+          });
           break;
         }
 
