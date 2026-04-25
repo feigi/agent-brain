@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { stat } from "node:fs/promises";
 import { DomainError, NotFoundError } from "../../../utils/errors.js";
 import { logger } from "../../../utils/logger.js";
 import {
@@ -15,6 +16,8 @@ import {
 } from "../git/types.js";
 import { assertUsersIgnored } from "../git/users-gitignore-invariant.js";
 import type { VaultIndex } from "./vault-index.js";
+import { NoopIgnoreSet } from "../watcher/ignore-set.js";
+import type { IgnoreSet } from "../watcher/types.js";
 
 export interface VaultMemoryFilesConfig {
   root: string;
@@ -24,6 +27,8 @@ export interface VaultMemoryFilesConfig {
   // additionally assert .gitignore still lists `users/` so the rule
   // hasn't been removed while the assumption is still load-bearing.
   trackUsersInGit: boolean;
+  ignoreSet?: IgnoreSet;
+  graceMs?: number; // default 500
 }
 
 export class VaultParseError extends DomainError {
@@ -43,7 +48,13 @@ export class VaultParseError extends DomainError {
 // repository that persists inside a memory's markdown file.
 // Path resolution is O(1) via the shared VaultIndex.
 export class VaultMemoryFiles {
-  constructor(private readonly cfg: VaultMemoryFilesConfig) {}
+  private readonly ignoreSet: IgnoreSet;
+  private readonly graceMs: number;
+
+  constructor(private readonly cfg: VaultMemoryFilesConfig) {
+    this.ignoreSet = cfg.ignoreSet ?? new NoopIgnoreSet();
+    this.graceMs = cfg.graceMs ?? 500;
+  }
 
   async resolvePath(memoryId: string): Promise<string | null> {
     return this.cfg.vaultIndex.resolve(memoryId);
@@ -90,6 +101,12 @@ export class VaultMemoryFiles {
           rel,
           serializeMemoryFile(next),
         );
+        try {
+          const s = await stat(abs);
+          this.ignoreSet.add(abs, Number(s.mtime));
+        } catch {
+          // best-effort — file should exist since we just wrote it
+        }
         if (
           commit &&
           shouldCommit(parsed.memory.scope, this.cfg.trackUsersInGit)
@@ -120,6 +137,7 @@ export class VaultMemoryFiles {
           }
         }
       }
+      this.ignoreSet.releaseAfter(abs, this.graceMs);
       return result;
     });
   }
