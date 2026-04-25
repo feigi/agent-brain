@@ -70,9 +70,70 @@ function byteLengthOfLines(lines: string[]): number {
   return lines.reduce((acc, l) => acc + l.length, 0) + (lines.length - 1);
 }
 
+const SECTION_HEADERS = {
+  project: "## project rules",
+  workspace: "## workspace memories",
+  user: "## user memories",
+} as const;
+
+function formatDate(d: Date | null | undefined): string {
+  if (!d) return "none";
+  return d.toISOString().slice(0, 10);
+}
+
+function memorySection(m: MemorySummaryWithRelevance): string {
+  const tags = m.tags && m.tags.length > 0 ? m.tags.join(", ") : "none";
+  const verified = formatDate(m.verified_at);
+  return `## ${m.title}
+
+- **id:** ${m.id}
+- **scope:** ${m.scope} · **type:** ${m.type} · **author:** ${m.author}
+- **created:** ${formatDate(m.created_at)} · **updated:** ${formatDate(m.updated_at)} · **verified:** ${verified}
+- **tags:** ${tags}
+
+${m.content}
+`;
+}
+
+function flagsSection(flags: FlagResponse[]): string {
+  const lines = flags.map(
+    (f) =>
+      `- **${f.flag_id}** (${f.flag_type}) on \`${f.memory.id}\` "${f.memory.title}" — ${f.reason}`,
+  );
+  return `## flags
+
+${lines.join("\n")}
+`;
+}
+
 export function renderFull(
-  _memories: MemorySummaryWithRelevance[], // eslint-disable-line @typescript-eslint/no-unused-vars
-  _flags?: FlagResponse[], // eslint-disable-line @typescript-eslint/no-unused-vars
+  memories: MemorySummaryWithRelevance[],
+  flags?: FlagResponse[],
 ): string {
-  return "";
+  const byScope = {
+    project: [] as MemorySummaryWithRelevance[],
+    workspace: [] as MemorySummaryWithRelevance[],
+    user: [] as MemorySummaryWithRelevance[],
+  };
+  for (const m of memories) {
+    byScope[m.scope].push(m);
+  }
+  for (const k of Object.keys(byScope) as Array<keyof typeof byScope>) {
+    byScope[k].sort((a, b) => b.relevance - a.relevance);
+  }
+
+  const parts: string[] = [];
+  for (const scope of ["project", "workspace", "user"] as const) {
+    if (byScope[scope].length === 0) continue;
+    parts.push(SECTION_HEADERS[scope]);
+    for (const m of byScope[scope]) {
+      parts.push(memorySection(m));
+    }
+  }
+
+  if (flags && flags.length > 0) {
+    parts.push(flagsSection(flags));
+  }
+
+  return parts.join("\n");
 }

@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   renderPreview,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   renderFull,
 } from "../../src/utils/session-start-render.js";
 import type { MemorySummaryWithRelevance } from "../../src/types/memory.js";
+import type { FlagResponse } from "../../src/types/flag.js";
 
 function mem(
   overrides: Partial<MemorySummaryWithRelevance> = {},
@@ -87,5 +87,80 @@ describe("renderPreview", () => {
     expect(result.truncatedCount).toBeGreaterThan(0);
     expect(result.text).toContain("ws0 [workspace]");
     expect(result.text).not.toContain("ws44 [workspace]");
+  });
+});
+
+describe("renderFull", () => {
+  it("groups memories into sections by scope with relevance-descending order within group", () => {
+    const memories: MemorySummaryWithRelevance[] = [
+      mem({
+        id: "p1",
+        title: "Proj A",
+        scope: "project",
+        relevance: 0.5,
+        content: "Body P1",
+      }),
+      mem({
+        id: "w2",
+        title: "WS Low",
+        scope: "workspace",
+        relevance: 0.4,
+        content: "Body W2",
+      }),
+      mem({
+        id: "w1",
+        title: "WS High",
+        scope: "workspace",
+        relevance: 0.9,
+        content: "Body W1",
+      }),
+      mem({
+        id: "u1",
+        title: "User One",
+        scope: "user",
+        relevance: 0.7,
+        content: "Body U1",
+      }),
+    ];
+
+    const out = renderFull(memories);
+
+    expect(out).toContain("## project rules");
+    expect(out).toContain("## workspace memories");
+    expect(out).toContain("## user memories");
+
+    expect(out).toContain("## Proj A");
+    expect(out).toContain("## WS High");
+    expect(out).toContain("## WS Low");
+    expect(out).toContain("## User One");
+
+    expect(out).toContain("**id:** p1");
+    expect(out).toContain("**scope:** project");
+    expect(out).toContain("**type:** fact");
+
+    expect(out).toContain("Body P1");
+    expect(out).toContain("Body W1");
+
+    expect(out.indexOf("## WS High")).toBeLessThan(out.indexOf("## WS Low"));
+  });
+
+  it("emits a flags section when flags are non-empty, omits it otherwise", () => {
+    const m = mem({ id: "m1", title: "T1", scope: "workspace" });
+    const withoutFlags = renderFull([m]);
+    expect(withoutFlags).not.toContain("## flags");
+
+    const flags: FlagResponse[] = [
+      {
+        flag_id: "f1",
+        flag_type: "verify",
+        memory: { id: "m1", title: "T1", content: "C1", scope: "workspace" },
+        reason: "stale claim",
+      },
+    ];
+    const withFlags = renderFull([m], flags);
+    expect(withFlags).toContain("## flags");
+    expect(withFlags).toContain("f1");
+    expect(withFlags).toContain("verify");
+    expect(withFlags).toContain("stale claim");
   });
 });
