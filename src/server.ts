@@ -43,6 +43,7 @@ async function main() {
       vaultRoot: config.vaultRoot,
       vaultTrackUsersInGit: config.vaultTrackUsersInGit,
       embeddingDimensions: config.embeddingDimensions,
+      projectId: config.projectId,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

@@ -46,6 +46,7 @@ describe("vault AuditService.getHistory", () => {
     const root = await mkdtemp(join(tmpdir(), "audit-"));
     const backend = await VaultBackend.create({
       root,
+      projectId: "test-project",
       embeddingDimensions: DIMS,
     });
     const audit = new AuditService(backend.auditRepo, "proj-1");

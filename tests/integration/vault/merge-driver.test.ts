@@ -37,6 +37,7 @@ async function createBackend(
 ): Promise<VaultBackend> {
   return VaultBackend.create({
     root,
+    projectId: "test-project",
     embeddingDimensions: DIMS,
     remoteUrl,
     pushDebounceMs: 10,
