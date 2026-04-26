@@ -18,6 +18,8 @@
     "inspect": "npx @modelcontextprotocol/inspector --cli --transport http --server-url http://localhost:19898/mcp",
     "seed": "tsx scripts/seed.ts",
     "migrate:flag-relationships": "tsx scripts/migrate-flag-relationships.ts",
+    "migrate:pg-to-vault": "node dist/src/cli/migrate-pg-to-vault.js",
+    "migrate:vault-to-pg": "node dist/src/cli/migrate-vault-to-pg.js",
     "install:agent": "tsx scripts/installer/index.ts",
     "uninstall:agent": "tsx scripts/installer/index.ts --uninstall",
     "lint": "eslint .",
