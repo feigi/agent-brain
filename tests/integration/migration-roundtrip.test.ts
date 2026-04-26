@@ -15,6 +15,7 @@ import { mkdtemp, rm, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import postgres from "postgres";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import * as schema from "../../src/db/schema.js";
 import { VaultBackend } from "../../src/backend/vault/index.js";
@@ -536,14 +537,22 @@ describe(
       });
 
       try {
-        // Sample findById for first 3 memory IDs — must all be non-null and match
-        for (const id of ["mem-a1", "mem-a2", "mem-b1"]) {
-          const found = await vault2.memoryRepo.findById(id);
+        // Sample findById for first 3 memory IDs — assert field-level fidelity against seed
+        for (const seedId of ["mem-a1", "mem-a2", "mem-b1"]) {
+          const seed = MEMORIES.find((m) => m.id === seedId);
+          expect(seed, `seed must contain ${seedId}`).toBeDefined();
+          const found = await vault2.memoryRepo.findById(seedId);
           expect(
             found,
-            `findById(${id}) should return non-null after pg-to-vault`,
+            `findById(${seedId}) should return non-null after pg-to-vault`,
           ).not.toBeNull();
-          expect(found!.id).toBe(id);
+          expect(found!.id).toBe(seedId);
+          expect(found!.title).toBe(seed!.title);
+          expect(found!.content).toBe(seed!.content);
+          expect(found!.type).toBe(seed!.type);
+          // pg normalises null tags to [] (column default '{}'::text[]);
+          // assert the vault round-trip preserves whatever pg stored.
+          expect(found!.tags).toEqual(seed!.tags ?? []);
         }
       } finally {
         await vault2.close();
@@ -607,6 +616,23 @@ describe(
       expect(after.relationships, "relationship count after vault-to-pg").toBe(
         SEED_COUNTS.relationships,
       );
+
+      // Assert field-level fidelity for 3 sampled memories in pg
+      for (const seedId of ["mem-a1", "mem-a2", "mem-b1"]) {
+        const seed = MEMORIES.find((m) => m.id === seedId);
+        const rows = await db
+          .select()
+          .from(schema.memories)
+          .where(eq(schema.memories.id, seedId));
+        expect(rows.length, `pg row for ${seedId}`).toBe(1);
+        const row = rows[0];
+        expect(row.title).toBe(seed!.title);
+        expect(row.content).toBe(seed!.content);
+        expect(row.type).toBe(seed!.type);
+        // pg normalises null tags to [] (column default '{}'::text[]);
+        // assert the restored row preserves whatever pg stored.
+        expect(row.tags).toEqual(seed!.tags ?? []);
+      }
     });
   },
 );
