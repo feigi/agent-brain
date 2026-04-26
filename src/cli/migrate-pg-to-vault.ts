@@ -213,7 +213,7 @@ async function main(argv: readonly string[]): Promise<ExitCode> {
       const body =
         `AB-Action: migration\n` +
         `AB-Source: pg\n` +
-        `AB-Count: ${counts.memories}\n` +
+        `AB-Memory-Count: ${counts.memories}\n` +
         `AB-Actor: ${actor}`;
       await git.commit(`${subject}\n\n${body}`);
     } else {
@@ -239,15 +239,7 @@ async function main(argv: readonly string[]): Promise<ExitCode> {
   }
 
   if (args.verify) {
-    const destBackend = await VaultBackend.create({
-      root: args.vaultRoot,
-      projectId: args.projectId,
-      embeddingDimensions: args.embeddingDimensions,
-      trackUsersInGit: args.trackUsersInGit,
-      migrationMode: true,
-    });
     const destCounts = await readCountsFromVault(args.vaultRoot);
-    await destBackend.close();
     const diff = compareCounts(counts, destCounts);
     if (diff.length > 0) {
       for (const d of diff) {
