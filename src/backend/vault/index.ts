@@ -326,6 +326,15 @@ export class VaultBackend implements StorageBackend {
     await this.vectorIndex.close();
   }
 
+  /** Phase 6 / migration use only. Fetches a row from the lance index by id. */
+  async lookupVector(id: string): Promise<{ embedding: number[] } | null> {
+    return this.vectorIndex.lookup(id);
+  }
+
+  get vectorDims(): number {
+    return this.vectorIndex.dims;
+  }
+
   /** Returns a PathConsistencyChecker backed by this vault's index. */
   get pathConsistencyChecker(): PathConsistencyChecker {
     const vaultIdx = this.vaultIdx;
