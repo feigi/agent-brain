@@ -206,6 +206,18 @@ export class VaultVectorIndex {
     return String(rows[0].content_hash);
   }
 
+  /** Phase 6 / migration use only. Fetches the embedding vector for an id. */
+  async lookup(id: string): Promise<{ embedding: number[] } | null> {
+    const rows = (await this.table
+      .query()
+      .where(`id = ${sqlStr(id)}`)
+      .select(["vector"])
+      .limit(1)
+      .toArray()) as Array<{ vector: number[] | Float32Array }>;
+    if (rows.length === 0) return null;
+    return { embedding: Array.from(rows[0].vector as ArrayLike<number>) };
+  }
+
   async upsertMetaOnly(
     meta: Omit<IndexRow, "content_hash" | "vector">,
   ): Promise<number> {

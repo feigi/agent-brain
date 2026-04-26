@@ -456,7 +456,7 @@ Forces behavioral parity; divergence = test failure.
 | 4c    | `VaultAuditRepository` on git log + smart YAML merge driver (`agent-brain-memory`). **Done — #39.**                                    |
 | 4d    | Surface `parse_errors` as per-memory flags (consolidation producer) + write-path perf budget verification under load. **Done — #TBD.** |
 | 5     | Chokidar watcher + boot reconcile + parse_error live producer + lance↔markdown drift repair. **Done — #TBD.**                          |
-| 6     | Migration CLI + reverse migration.                                                                                                     |
+| 6     | Migration CLI + reverse migration. **Done — #TBD.**                                                                                    |
 | 7     | Docs, recommended Obsidian vault template (Dataview, Tasks plugins), README updates.                                                   |
 
 ## Open questions
