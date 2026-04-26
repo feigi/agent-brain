@@ -129,4 +129,40 @@ describe("runPgToVault", () => {
     expect(embedder).toHaveBeenCalledWith("the body");
     expect(captured).toEqual([9, 9, 9, 9]);
   });
+
+  it("rethrows row write failures with kind+id context", async () => {
+    const fakeSource = {
+      readWorkspaces: async () => [{ id: "ws", created_at: new Date() }],
+      readMemoriesWithEmbeddings: async () => [],
+      readComments: async () => [],
+      readFlags: async () => [],
+      readRelationships: async () => [],
+      counts: async () => ({
+        workspaces: 1,
+        memories: 0,
+        comments: 0,
+        flags: 0,
+        relationships: 0,
+      }),
+    };
+    const dest = {
+      workspaceRepo: {
+        findOrCreate: vi.fn(async () => {
+          throw new Error("disk full");
+        }),
+      },
+      memoryRepo: { create: vi.fn() },
+      commentRepo: { create: vi.fn() },
+      flagRepo: { create: vi.fn() },
+      relationshipRepo: { create: vi.fn() },
+    };
+    await expect(
+      runPgToVault({
+        source: fakeSource,
+        destination: dest as never,
+        reembed: false,
+        embedder: async () => [0, 0, 0, 0],
+      }),
+    ).rejects.toThrow(/kind=workspace id=ws.*disk full/);
+  });
 });

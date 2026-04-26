@@ -10,6 +10,23 @@ import type { Flag } from "../../types/flag.js";
 import type { Relationship } from "../../types/relationship.js";
 import type { CountsByKind } from "./types.js";
 
+async function withContext<T>(
+  kind: string,
+  id: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const wrapped = new Error(
+      `migration write failed: kind=${kind} id=${id}: ${msg}`,
+    );
+    if (err instanceof Error && err.stack) wrapped.stack = err.stack;
+    throw wrapped;
+  }
+}
+
 export interface PgSource {
   readWorkspaces(): Promise<Array<{ id: string; created_at: Date }>>;
   readMemoriesWithEmbeddings(): Promise<
@@ -25,6 +42,9 @@ export interface PgSource {
   >;
   readFlags(): Promise<Flag[]>;
   readRelationships(): Promise<Relationship[]>;
+  // Used by the CLI entry script (not this driver) for pre-run summary
+  // and post-run verify. Kept on the source contract so a single reader
+  // implementation can serve both phases.
   counts(): Promise<CountsByKind>;
 }
 
@@ -49,36 +69,44 @@ export async function runPgToVault(input: RunPgToVaultInput): Promise<void> {
   // 1. workspaces (FK target for everything else)
   const workspaces = await source.readWorkspaces();
   for (const ws of workspaces) {
-    await destination.workspaceRepo.findOrCreate(ws.id);
+    await withContext("workspace", ws.id, () =>
+      destination.workspaceRepo.findOrCreate(ws.id),
+    );
   }
 
   // 2. memories — carry-over embedding by default; re-embed when flagged
   const memories = await source.readMemoriesWithEmbeddings();
   for (const { memory, embedding } of memories) {
-    const vec = reembed ? await embedder(memory.content) : embedding;
-    await destination.memoryRepo.create({ ...memory, embedding: vec });
+    await withContext("memory", memory.id, async () => {
+      const vec = reembed ? await embedder(memory.content) : embedding;
+      await destination.memoryRepo.create({ ...memory, embedding: vec });
+    });
   }
 
   // 3. comments
   const comments = await source.readComments();
   for (const c of comments) {
-    await destination.commentRepo.create({
-      id: c.id,
-      memory_id: c.memory_id,
-      author: c.author,
-      content: c.content,
-    });
+    await withContext("comment", c.id, () =>
+      destination.commentRepo.create({
+        id: c.id,
+        memory_id: c.memory_id,
+        author: c.author,
+        content: c.content,
+      }),
+    );
   }
 
   // 4. flags
   const flags = await source.readFlags();
   for (const f of flags) {
-    await destination.flagRepo.create(f);
+    await withContext("flag", f.id, () => destination.flagRepo.create(f));
   }
 
   // 5. relationships
   const rels = await source.readRelationships();
   for (const r of rels) {
-    await destination.relationshipRepo.create(r);
+    await withContext("relationship", r.id, () =>
+      destination.relationshipRepo.create(r),
+    );
   }
 }
