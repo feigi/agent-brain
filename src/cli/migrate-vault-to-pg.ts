@@ -2,6 +2,8 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import { sql } from "drizzle-orm";
 import postgres from "postgres";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
 import { readFile, readdir } from "node:fs/promises";
 import * as schema from "../db/schema.js";
 import { PostgresBackend } from "../backend/postgres/index.js";
@@ -23,6 +25,9 @@ import { EXIT, type ExitCode, type CountsByKind } from "./migrate/types.js";
 import type { Memory } from "../types/memory.js";
 import type { Flag } from "../types/flag.js";
 import type { Relationship } from "../types/relationship.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 interface Args {
   vaultRoot: string;
@@ -92,126 +97,131 @@ async function main(argv: readonly string[]): Promise<ExitCode> {
     await new Promise((r) => setTimeout(r, 3000));
   }
 
-  const client = postgres(args.pgUrl, { onnotice: () => {} });
-  const db = drizzle(client, { schema });
-
-  // Preflight: target empty
-  const targetEmpty = await checkTargetEmpty({
-    countMemories: async () => {
-      const rows = await db
-        .select({ n: sql<number>`count(*)::int` })
-        .from(schema.memories);
-      return rows[0].n;
-    },
-  });
-  if (!targetEmpty.ok) {
-    console.error(`preflight: ${targetEmpty.reason}`);
-    await client.end();
-    return EXIT.PREFLIGHT;
-  }
-
-  // Preflight: drizzle currency
-  const expectedHash = await readExpectedHash();
-  const drizzleCheck = await checkDrizzleCurrent({
-    latestApplied: async () => {
-      const rows = await client<Array<{ hash: string }>>`
-        SELECT hash FROM drizzle.__drizzle_migrations ORDER BY id DESC LIMIT 1
-      `;
-      return rows.length === 0 ? null : rows[0].hash;
-    },
-    expectedHash,
-  });
-  if (!drizzleCheck.ok) {
-    console.error(`preflight: ${drizzleCheck.reason}`);
-    await client.end();
-    return EXIT.PREFLIGHT;
-  }
-
-  // Source backend (vault) in migration mode
-  const vaultBackend = await VaultBackend.create({
-    root: args.vaultRoot,
-    projectId: args.projectId,
-    embeddingDimensions: args.embeddingDimensions,
-    migrationMode: true,
-  });
-
-  // Preflight: dim check (vault dims vs configured target dims)
-  const sourceDim = vaultBackend.vectorDims;
-  const dimCheck = checkDims({
-    sourceDim,
-    destDim: args.embeddingDimensions,
-    reembed: args.reembed,
-  });
-  if (!dimCheck.ok) {
-    console.error(`preflight: ${dimCheck.reason}`);
-    await vaultBackend.close();
-    await client.end();
-    return EXIT.PREFLIGHT;
-  }
-
-  const counts = await readVaultCounts(args.vaultRoot);
-  console.log(
-    `source counts: workspaces=${counts.workspaces} memories=${counts.memories} ` +
-      `comments=${counts.comments} flags=${counts.flags} relationships=${counts.relationships}`,
-  );
-
-  if (args.dryRun) {
-    console.log("dry-run: exiting without writes.");
-    await vaultBackend.close();
-    await client.end();
-    return EXIT.OK;
-  }
-
-  // Vault source reader (uses parser walk + lance for embeddings)
-  const source = await buildVaultSource(args.vaultRoot, vaultBackend, counts);
-
-  const pgBackend = await PostgresBackend.create(args.pgUrl);
-  const provider = createEmbeddingProvider();
-  const embedder = (text: string): Promise<number[]> => provider.embed(text);
+  let client: ReturnType<typeof postgres> | null = null;
+  let vaultBackend: VaultBackend | null = null;
+  let pgBackend: PostgresBackend | null = null;
 
   try {
-    await runVaultToPg({
-      source,
-      destination: pgBackend,
-      reembed: args.reembed,
-      embedder,
+    client = postgres(args.pgUrl, { onnotice: () => {} });
+    const db = drizzle(client, { schema });
+
+    // Preflight: target empty
+    const targetEmpty = await checkTargetEmpty({
+      countMemories: async () => {
+        const rows = await db
+          .select({ n: sql<number>`count(*)::int` })
+          .from(schema.memories);
+        return rows[0].n;
+      },
     });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`write phase failed: ${msg}`);
-    await pgBackend.close();
-    await vaultBackend.close();
-    await client.end();
-    return EXIT.WRITE;
-  }
-
-  await pgBackend.close();
-  await vaultBackend.close();
-
-  if (args.verify) {
-    const dest = await readCountsFromPg(client);
-    const diff = compareCounts(counts, dest);
-    if (diff.length > 0) {
-      for (const d of diff) {
-        console.error(
-          `verify mismatch: ${d.kind} source=${d.source} destination=${d.destination}`,
-        );
-      }
-      await client.end();
-      return EXIT.VERIFY;
+    if (!targetEmpty.ok) {
+      console.error(`preflight: ${targetEmpty.reason}`);
+      return EXIT.PREFLIGHT;
     }
-    console.log("verify: counts match across all kinds.");
-  }
 
-  await client.end();
-  return EXIT.OK;
+    // Preflight: drizzle currency
+    const expectedHash = await readExpectedHash();
+    const drizzleCheck = await checkDrizzleCurrent({
+      latestApplied: async () => {
+        const rows = await (client as NonNullable<typeof client>)<
+          Array<{ hash: string }>
+        >`
+          SELECT hash FROM drizzle.__drizzle_migrations ORDER BY id DESC LIMIT 1
+        `;
+        return rows.length === 0 ? null : rows[0].hash;
+      },
+      expectedHash,
+    });
+    if (!drizzleCheck.ok) {
+      console.error(`preflight: ${drizzleCheck.reason}`);
+      return EXIT.PREFLIGHT;
+    }
+
+    // Source backend (vault) in migration mode
+    vaultBackend = await VaultBackend.create({
+      root: args.vaultRoot,
+      projectId: args.projectId,
+      embeddingDimensions: args.embeddingDimensions,
+      migrationMode: true,
+    });
+
+    // Preflight: dim check (vault dims vs configured target dims)
+    const sourceDim = vaultBackend.vectorDims;
+    const dimCheck = checkDims({
+      sourceDim,
+      destDim: args.embeddingDimensions,
+      reembed: args.reembed,
+    });
+    if (!dimCheck.ok) {
+      console.error(`preflight: ${dimCheck.reason}`);
+      return EXIT.PREFLIGHT;
+    }
+
+    const counts = await readVaultCounts(args.vaultRoot);
+    console.log(
+      `source counts: workspaces=${counts.workspaces} memories=${counts.memories} ` +
+        `comments=${counts.comments} flags=${counts.flags} relationships=${counts.relationships}`,
+    );
+
+    if (args.dryRun) {
+      console.log("dry-run: exiting without writes.");
+      return EXIT.OK;
+    }
+
+    // Vault source reader (uses parser walk + lance for embeddings)
+    const source = await buildVaultSource(
+      args.vaultRoot,
+      vaultBackend,
+      counts,
+      args.reembed,
+    );
+
+    pgBackend = await PostgresBackend.create(args.pgUrl);
+    const provider = createEmbeddingProvider();
+    const embedder = (text: string): Promise<number[]> => provider.embed(text);
+
+    try {
+      await runVaultToPg({
+        source,
+        destination: pgBackend,
+        reembed: args.reembed,
+        embedder,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`write phase failed: ${msg}`);
+      return EXIT.WRITE;
+    }
+
+    if (args.verify) {
+      const dest = await readCountsFromPg(client);
+      const diff = compareCounts(counts, dest);
+      if (diff.length > 0) {
+        for (const d of diff) {
+          console.error(
+            `verify mismatch: ${d.kind} source=${d.source} destination=${d.destination}`,
+          );
+        }
+        return EXIT.VERIFY;
+      }
+      console.log("verify: counts match across all kinds.");
+    }
+
+    return EXIT.OK;
+  } finally {
+    if (pgBackend) await pgBackend.close().catch(() => {});
+    if (vaultBackend) await vaultBackend.close().catch(() => {});
+    if (client) await client.end().catch(() => {});
+  }
 }
 
 // --- helpers ---
 
 async function readExpectedHash(): Promise<string> {
-  const raw = await readFile("./drizzle/meta/_journal.json", "utf8");
-  const journal = JSON.parse(raw) as { entries: Array<{ tag: string }> };
+  const journalPath = resolve(__dirname, "../../drizzle/meta/_journal.json");
+  const journal = JSON.parse(await readFile(journalPath, "utf8")) as {
+    entries: Array<{ tag: string }>;
+  };
   if (journal.entries.length === 0) return "";
   return journal.entries[journal.entries.length - 1].tag;
 }
@@ -250,6 +260,7 @@ async function buildVaultSource(
   root: string,
   backend: VaultBackend,
   counts: CountsByKind,
+  reembed: boolean,
 ): Promise<VaultSource> {
   const relPaths = await listMarkdownFiles(root);
 
@@ -277,6 +288,13 @@ async function buildVaultSource(
       continue;
     }
     const vecRow = await backend.lookupVector(parsed.memory.id);
+    if (!vecRow && !reembed) {
+      throw new Error(
+        `lance index missing embedding for memory id=${parsed.memory.id} ` +
+          `(file: ${relPath}). Re-run with --reembed to regenerate vectors, or ` +
+          `repair the lance index before retrying.`,
+      );
+    }
     memoryRows.push({
       memory: parsed.memory,
       embedding: vecRow?.embedding ?? [],
