@@ -3,8 +3,14 @@ import { simpleGit } from "simple-git";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { sql } from "drizzle-orm";
 import postgres from "postgres";
+import { readdir } from "node:fs/promises";
 import * as schema from "../db/schema.js";
 import { VaultBackend } from "../backend/vault/index.js";
+import {
+  listMarkdownFiles,
+  readMarkdown,
+} from "../backend/vault/io/vault-fs.js";
+import { parseMemoryFile } from "../backend/vault/parser/memory-parser.js";
 import { createEmbeddingProvider } from "../providers/embedding/index.js";
 import { checkDims } from "./migrate/preflight.js";
 import { compareCounts } from "./migrate/verify.js";
@@ -153,12 +159,12 @@ async function main(argv: readonly string[]): Promise<ExitCode> {
       db
         .select()
         .from(schema.flags)
-        .then((rows) => rows.map((f) => rowToFlag(f) as Flag)),
+        .then((rows) => rows.map((f) => rowToFlag(f))),
     readRelationships: () =>
       db
         .select()
         .from(schema.relationships)
-        .then((rows) => rows.map((r) => rowToRelationship(r) as Relationship)),
+        .then((rows) => rows.map((r) => rowToRelationship(r))),
     counts: async () => counts,
   };
 
@@ -240,7 +246,7 @@ async function main(argv: readonly string[]): Promise<ExitCode> {
       trackUsersInGit: args.trackUsersInGit,
       migrationMode: true,
     });
-    const destCounts = await readCountsFromVault(args.vaultRoot, destBackend);
+    const destCounts = await readCountsFromVault(args.vaultRoot);
     await destBackend.close();
     const diff = compareCounts(counts, destCounts);
     if (diff.length > 0) {
@@ -280,14 +286,7 @@ async function readCounts(
   };
 }
 
-async function readCountsFromVault(
-  root: string,
-  backend: VaultBackend,
-): Promise<CountsByKind> {
-  const { listMarkdownFiles, readMarkdown } =
-    await import("../backend/vault/io/vault-fs.js");
-  const { parseMemoryFile } =
-    await import("../backend/vault/parser/memory-parser.js");
+async function readCountsFromVault(root: string): Promise<CountsByKind> {
   const relPaths = await listMarkdownFiles(root);
   let memories = 0;
   let comments = 0;
@@ -310,12 +309,10 @@ async function readCountsFromVault(
       continue;
     }
   }
-  const { readdir } = await import("node:fs/promises");
   const wsEntries = await readdir(`${root}/workspaces`, {
     withFileTypes: true,
   }).catch(() => []);
   const workspaces = wsEntries.filter((e) => e.isDirectory()).length;
-  void backend;
   return { workspaces, memories, comments, flags, relationships };
 }
 
@@ -349,14 +346,36 @@ function rowToMemory(row: typeof schema.memories.$inferSelect): Memory {
   };
 }
 
-function rowToFlag(row: typeof schema.flags.$inferSelect): unknown {
-  return row;
+function rowToFlag(row: typeof schema.flags.$inferSelect): Flag {
+  return {
+    id: row.id,
+    project_id: row.project_id,
+    memory_id: row.memory_id,
+    flag_type: row.flag_type,
+    severity: row.severity,
+    details: row.details,
+    resolved_at: row.resolved_at ?? null,
+    resolved_by: row.resolved_by ?? null,
+    created_at: row.created_at,
+  };
 }
 
 function rowToRelationship(
   row: typeof schema.relationships.$inferSelect,
-): unknown {
-  return row;
+): Relationship {
+  return {
+    id: row.id,
+    project_id: row.project_id,
+    source_id: row.source_id,
+    target_id: row.target_id,
+    type: row.type,
+    description: row.description ?? null,
+    confidence: row.confidence,
+    created_by: row.created_by,
+    created_via: row.created_via ?? null,
+    archived_at: row.archived_at ?? null,
+    created_at: row.created_at,
+  };
 }
 
 if (process.argv[1] && process.argv[1].endsWith("migrate-pg-to-vault.js")) {
